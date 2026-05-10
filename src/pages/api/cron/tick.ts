@@ -6,17 +6,27 @@
 // Auth: `x-cron-secret` header MUST egyezzen az env.CRON_SECRET értékkel.
 // Hibás / hiányzó titok → 403.
 //
-// Válasz: JSON { ok, players_ticked, totals: { tickets, money_cents, churned, events } }
+// AI bindings (env.AI + env.VECTORIZE) opcionálisak — ha jelen vannak,
+// a tick LLM-generált ticket-eket írhat (LLM-cap-pal védve).
+//
+// Válasz: JSON { ok, players_ticked, totals: { tickets, ai_tickets,
+// placeholder_tickets, money_cents, churned, events } }
 
 import type { APIContext } from 'astro';
 import { getDB } from '../../../lib/auth';
 import { tickAllActivePlayers } from '../../../lib/game/tick';
+import type { WorkersAIBinding } from '../../../lib/ai/workers-ai';
+import type { VectorizeBinding } from '../../../lib/ai/vectorize';
 
 export const prerender = false;
 
 export const POST = async (c: APIContext): Promise<Response> => {
   const secret = c.request.headers.get('x-cron-secret');
-  const env = c.locals.runtime?.env as { CRON_SECRET?: string } | undefined;
+  const env = c.locals.runtime?.env as {
+    CRON_SECRET?: string;
+    AI?: WorkersAIBinding;
+    VECTORIZE?: VectorizeBinding;
+  } | undefined;
   if (!env?.CRON_SECRET || secret !== env.CRON_SECRET) {
     return new Response('forbidden', { status: 403 });
   }
@@ -24,16 +34,21 @@ export const POST = async (c: APIContext): Promise<Response> => {
   if (!db) return new Response('no DB', { status: 500 });
 
   const now = Math.floor(Date.now() / 1000);
-  const results = await tickAllActivePlayers(db, now);
+  const results = await tickAllActivePlayers(db, now, {
+    ai: env.AI,
+    vectorize: env.VECTORIZE,
+  });
 
   const totals = results.reduce(
     (acc, r) => ({
       tickets: acc.tickets + r.tickets_spawned,
+      ai_tickets: acc.ai_tickets + r.ai_tickets,
+      placeholder_tickets: acc.placeholder_tickets + r.placeholder_tickets,
       money_cents: acc.money_cents + r.money_added_cents,
       churned: acc.churned + r.churned,
       events: acc.events + r.events_spawned,
     }),
-    { tickets: 0, money_cents: 0, churned: 0, events: 0 },
+    { tickets: 0, ai_tickets: 0, placeholder_tickets: 0, money_cents: 0, churned: 0, events: 0 },
   );
 
   return new Response(

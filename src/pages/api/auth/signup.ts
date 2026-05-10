@@ -23,6 +23,10 @@ import {
 import { createPlayer, getPlayer } from '../../../lib/game/db';
 import { spawnCustomer } from '../../../lib/game/customer-spawn';
 import { SERVER_SPECS } from '../../../lib/game/server-types';
+import { generateAiTicket } from '../../../lib/ai/ticket-generator';
+import { storeTicketMemory, type VectorizeBinding } from '../../../lib/ai/vectorize';
+import { tryConsumeLlmCall } from '../../../lib/game/llm-cap';
+import type { WorkersAIBinding } from '../../../lib/ai/workers-ai';
 
 export const prerender = false;
 
@@ -88,6 +92,10 @@ export async function POST(context: APIContext): Promise<Response> {
         const userId = user.id;
         const now = Math.floor(Date.now() / 1000);
         const starter = SERVER_SPECS.lamp_box;
+        const env = context.locals.runtime?.env as {
+          AI?: WorkersAIBinding;
+          VECTORIZE?: VectorizeBinding;
+        } | undefined;
 
         // 1× starter szerver (ingyen — purchase_cost_cents nem terhel,
         // monthly_cost_cents 0-ra állítva, hogy a kezdő ne fogyjon ki azonnal)
@@ -97,6 +105,7 @@ export async function POST(context: APIContext): Promise<Response> {
         ).bind(userId, starter.capacity, now).run();
 
         // 3× kezdő customer (hobby plan), mindegyiknek 1 nyitott ticket
+        // — AI-generált, ha env.AI + env.VECTORIZE + LLM-cap engedi, különben placeholder.
         for (let i = 0; i < 3; i++) {
           const sc = spawnCustomer('hobby');
           const cRes = await db.prepare(
@@ -106,15 +115,47 @@ export async function POST(context: APIContext): Promise<Response> {
           ).bind(userId, sc.name, sc.persona_archetype, now, sc.starting_satisfaction)
             .first<{ id: number }>();
           if (!cRes) continue; // best-effort
-          await db.prepare(
+
+          let summary = sc.initial_ticket_text.slice(0, 80);
+          let fullText = sc.initial_ticket_text;
+          let usedAi = false;
+          if (env?.AI && env?.VECTORIZE) {
+            const allowed = await tryConsumeLlmCall(db, userId, false);
+            if (allowed) {
+              try {
+                const t = await generateAiTicket(env.AI, env.VECTORIZE, {
+                  customer_id: cRes.id,
+                  customer_name: sc.name,
+                  archetype: sc.persona_archetype,
+                  satisfaction: sc.starting_satisfaction,
+                });
+                summary = t.summary;
+                fullText = t.full_text;
+                usedAi = true;
+              } catch { /* fall back to placeholder */ }
+            }
+          }
+
+          const tRes = await db.prepare(
             'INSERT INTO tickets (customer_id, player_id, summary, full_text, status, created_at) ' +
-            'VALUES (?, ?, ?, ?, \'open\', ?)',
-          ).bind(
-            cRes.id, userId,
-            sc.initial_ticket_text.slice(0, 80),
-            sc.initial_ticket_text,
-            now,
-          ).run();
+            'VALUES (?, ?, ?, ?, \'open\', ?) RETURNING id',
+          ).bind(cRes.id, userId, summary, fullText, now)
+            .first<{ id: number }>();
+
+          if (usedAi && tRes && env?.AI && env?.VECTORIZE) {
+            const sentiment = sc.starting_satisfaction >= 60
+              ? 'positive'
+              : sc.starting_satisfaction >= 30 ? 'neutral' : 'negative';
+            try {
+              await storeTicketMemory(env.AI, env.VECTORIZE, {
+                ticket_id: tRes.id,
+                customer_id: cRes.id,
+                summary,
+                sentiment,
+                era_id: 1,
+              });
+            } catch { /* non-blocking */ }
+          }
         }
 
         // Initial MRR: 3 × $5 hobby = $15 = 1500 cents
