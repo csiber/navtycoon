@@ -1,0 +1,52 @@
+---
+// Base layout — auth-aware top-nav, sticky header, footer, dark-only.
+// Astro globals working as APIContext for getCurrentUser (cookies + locals.runtime.env).
+import { getCurrentUser } from '../lib/auth';
+
+interface Props {
+  title?: string;
+}
+const { title = 'Hyperscaler' } = Astro.props;
+const user = await getCurrentUser(Astro as unknown as Parameters<typeof getCurrentUser>[0]);
+---
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title} · Hyperscaler</title>
+  <meta name="description" content="Run a hosting empire. Your customers are AI." />
+</head>
+<body class="bg-nt-bg text-nt-text font-sans min-h-screen">
+  <header class="border-b border-nt-border bg-nt-bg-2/70 backdrop-blur sticky top-0 z-10">
+    <nav class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <a href="/" class="text-xl font-bold tracking-tight">⚡ Hyperscaler</a>
+      <div class="flex items-center gap-4 text-sm">
+        {user ? (
+          <>
+            <a href="/play" class="hover:text-nt-accent">Play</a>
+            <a href="/play/servers" class="hover:text-nt-accent">Servers</a>
+            <a href="/play/customers" class="hover:text-nt-accent">Customers</a>
+            <a href="/play/tickets" class="hover:text-nt-accent">Tickets</a>
+            <span class="text-nt-text-dim">{user.display_name ?? user.email}</span>
+            <form method="POST" action="/api/auth/logout" class="inline">
+              <button class="text-nt-text-dim hover:text-nt-text text-xs">Log out</button>
+            </form>
+          </>
+        ) : (
+          <>
+            <a href="/pricing">Pricing</a>
+            <a href="/login" class="px-3 py-1.5 bg-nt-accent rounded">Log in</a>
+          </>
+        )}
+      </div>
+    </nav>
+  </header>
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    <slot />
+  </main>
+  <footer class="border-t border-nt-border mt-16 py-6 text-center text-nt-text-dim text-sm">
+    <p>© 2026 Hyperscaler · Built on Cloudflare</p>
+  </footer>
+</body>
+</html>

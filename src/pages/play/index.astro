@@ -1,0 +1,88 @@
+---
+// /play — main dashboard. Auth-required. Redirects:
+//   - no session → /login?next=/play
+//   - no player record → /signup
+import Base from '../../layouts/Base.astro';
+import { getCurrentUser, getDB } from '../../lib/auth';
+import { getPlayer } from '../../lib/game/db';
+
+type AnyCtx = Parameters<typeof getCurrentUser>[0];
+const ctx = Astro as unknown as AnyCtx;
+
+const user = await getCurrentUser(ctx);
+if (!user) return Astro.redirect('/login?next=/play');
+const db = getDB(ctx);
+if (!db) return new Response('No DB', { status: 500 });
+const player = await getPlayer(db, user.id);
+if (!player) return Astro.redirect('/signup');
+
+const customerCount = (await db.prepare(
+  'SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1',
+).bind(user.id).first<{ n: number }>())?.n ?? 0;
+const serverCount = (await db.prepare(
+  'SELECT COUNT(*) AS n FROM servers WHERE player_id = ?',
+).bind(user.id).first<{ n: number }>())?.n ?? 0;
+const openTickets = (await db.prepare(
+  `SELECT COUNT(*) AS n FROM tickets WHERE player_id = ? AND status IN ('open', 'in_progress')`,
+).bind(user.id).first<{ n: number }>())?.n ?? 0;
+
+const fmtUsd = (cents: number): string =>
+  '$' + (cents / 100).toLocaleString('en-US', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
+---
+<Base title={player.company_name}>
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">{player.company_name}</h1>
+    <span class="text-nt-text-dim">
+      Era {player.current_era} · founded {new Date(player.founded_at * 1000).getFullYear()}
+    </span>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+    <div class="bg-nt-bg-2 p-4 rounded">
+      <div class="text-nt-text-dim text-sm">Cash</div>
+      <div class="text-2xl font-bold">{fmtUsd(player.cash_usd_cents)}</div>
+    </div>
+    <div class="bg-nt-bg-2 p-4 rounded">
+      <div class="text-nt-text-dim text-sm">MRR</div>
+      <div class="text-2xl font-bold">{fmtUsd(player.mrr_usd_cents)}</div>
+    </div>
+    <div class="bg-nt-bg-2 p-4 rounded">
+      <div class="text-nt-text-dim text-sm">Reputation</div>
+      <div class="text-2xl font-bold">{player.reputation}</div>
+    </div>
+    <div class="bg-nt-bg-2 p-4 rounded">
+      <div class="text-nt-text-dim text-sm">Customers</div>
+      <div class="text-2xl font-bold">{customerCount}</div>
+    </div>
+  </div>
+
+  <div class="bg-nt-bg-2 p-6 rounded mb-4">
+    <h2 class="font-bold mb-3">Status</h2>
+    <p class="text-nt-text-dim mb-2">Servers: {serverCount} · Open tickets: {openTickets}</p>
+    {customerCount === 0 && (
+      <p class="text-nt-accent">
+        🌱 Empty inbox. Buy your first server in <a href="/play/servers" class="underline">Servers</a> and customers will start coming.
+      </p>
+    )}
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <a href="/play/servers" class="bg-nt-bg-2 p-6 rounded hover:bg-nt-bg-3 transition">
+      <div class="text-2xl mb-2">🖥️</div>
+      <h3 class="font-bold">Servers</h3>
+      <p class="text-sm text-nt-text-dim">Buy and upgrade</p>
+    </a>
+    <a href="/play/customers" class="bg-nt-bg-2 p-6 rounded hover:bg-nt-bg-3 transition">
+      <div class="text-2xl mb-2">👥</div>
+      <h3 class="font-bold">Customers</h3>
+      <p class="text-sm text-nt-text-dim">Manage subscriptions</p>
+    </a>
+    <a href="/play/tickets" class="bg-nt-bg-2 p-6 rounded hover:bg-nt-bg-3 transition">
+      <div class="text-2xl mb-2">🎫</div>
+      <h3 class="font-bold">Tickets</h3>
+      <p class="text-sm text-nt-text-dim">{openTickets} open</p>
+    </a>
+  </div>
+</Base>
