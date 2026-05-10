@@ -29,3 +29,21 @@ database_id = "6ae31f06-a817-44c9-a0ae-7ef090fb0d43"
 [[kv_namespaces]]
 binding = "SESSION"
 id = "cd93081a3571411b9fa782cdd1336c04"
+
+# Workers AI (Llama-3.1-8b + bge-base embeddings)
+[ai]
+binding = "AI"
+
+# Vectorize index for customer-memory (768-dim, cosine, bge-base)
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "navtycoon-customer-memory"
+
+# Durable Objects for shift-mode rooms
+[[durable_objects.bindings]]
+name = "SHIFT_ROOM"
+class_name = "ShiftRoomDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ShiftRoomDO"]
