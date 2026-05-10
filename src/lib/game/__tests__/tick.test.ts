@@ -1,11 +1,13 @@
 // src/lib/game/__tests__/tick.test.ts
 // Hyperscaler — tickPlayer + tickAllActivePlayers Vitest.
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { D1Database } from '@cloudflare/workers-types/experimental';
 import { tickPlayer } from '../tick';
 import { createTestDb } from '../../../../test-utils/d1-mock';
 import { createPlayer, getPlayer } from '../db';
+import type { WorkersAIBinding } from '../../ai/workers-ai';
+import type { VectorizeBinding } from '../../ai/vectorize';
 
 describe('tickPlayer', () => {
   let db: D1Database;
@@ -80,5 +82,45 @@ describe('tickPlayer', () => {
     await tickPlayer(db, player, now);
     const after = await getPlayer(db, 'u-4');
     expect(after?.mrr_usd_cents).toBe(2 * 500 + 1500);
+  });
+
+  it('uses AI when env.ai + env.vectorize provided and budget allows', async () => {
+    const db2 = await createTestDb();
+    await createPlayer(db2, { user_id: 'u-ai', company_name: 'AI Inc', city: null });
+    const now = 1715000000;
+    await db2.prepare(
+      'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) ' +
+      "VALUES (?, 'Karen Test', 'karen', 'hobby', ?, 30)",
+    ).bind('u-ai', now).run();
+
+    const ai = {
+      run: vi.fn().mockImplementation((model: string) => {
+        if (model.includes('embed') || model.includes('bge')) {
+          return Promise.resolve({ data: [Array(768).fill(0.1)] });
+        }
+        return Promise.resolve({ response: 'AI-GENERATED ANGRY MESSAGE' });
+      }),
+    } as unknown as WorkersAIBinding;
+    const vectorize = {
+      query: vi.fn().mockResolvedValue({ matches: [] }),
+      upsert: vi.fn().mockResolvedValue({ count: 1 }),
+    } as unknown as VectorizeBinding;
+
+    const origRandom = Math.random;
+    let calls = 0;
+    Math.random = () => { calls++; return calls === 1 ? 0.001 : 0.5; };
+
+    try {
+      const player = await getPlayer(db2, 'u-ai');
+      if (!player) throw new Error('player gone');
+      const result = await tickPlayer(db2, player, now, { ai, vectorize });
+      expect(result.tickets_spawned).toBe(1);
+      expect(result.ai_tickets).toBe(1);
+      const tickets = await db2.prepare('SELECT full_text FROM tickets WHERE player_id = ?')
+        .bind('u-ai').all();
+      expect((tickets.results?.[0] as { full_text: string }).full_text).toBe('AI-GENERATED ANGRY MESSAGE');
+    } finally {
+      Math.random = origRandom;
+    }
   });
 });
