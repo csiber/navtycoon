@@ -1,0 +1,69 @@
+---
+// /login — két opció: PromNET SSO bridge VAGY email/password login.
+import Base from '../layouts/Base.astro';
+
+const url = new URL(Astro.request.url);
+const next = url.searchParams.get('next') ?? '/play';
+---
+<Base title="Log in">
+  <div class="max-w-md mx-auto py-12">
+    <h1 class="text-3xl font-bold mb-6">Log in</h1>
+
+    <a href="/api/auth/promnet-bridge"
+       class="block w-full px-4 py-3 bg-nt-accent rounded text-center font-semibold mb-4">
+      Continue with PromNET account
+    </a>
+
+    <p class="text-center text-nt-text-dim mb-4">— or —</p>
+
+    <form id="login-form" class="space-y-3">
+      <input type="email" name="email" placeholder="Email" required autocomplete="email"
+             class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text" />
+      <input type="password" name="password" placeholder="Password" required
+             autocomplete="current-password" minlength="8"
+             class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text" />
+      <button class="w-full px-4 py-2 border border-nt-border rounded hover:bg-nt-bg-2 transition">
+        Log in with email
+      </button>
+      <p id="status" class="text-sm" aria-live="polite"></p>
+    </form>
+
+    <p class="mt-6 text-center text-nt-text-dim text-sm">
+      No account?
+      <a href="/signup" class="text-nt-accent">Start your hosting empire</a>.
+    </p>
+
+    <script define:vars={{ next }}>
+      document.getElementById('login-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const status = document.getElementById('status');
+        if (status) {
+          status.textContent = 'Checking credentials…';
+          status.className = 'text-sm text-nt-text-dim';
+        }
+        const r = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            email: fd.get('email'),
+            password: fd.get('password'),
+          }),
+        });
+        if (!r.ok) {
+          let err = 'Invalid login.';
+          try {
+            const j = await r.json();
+            if (j && typeof j.error === 'string') err = j.error;
+          } catch {}
+          if (status) {
+            status.textContent = err;
+            status.className = 'text-sm text-red-400';
+          }
+          return;
+        }
+        location.href = next;
+      });
+    </script>
+  </div>
+</Base>

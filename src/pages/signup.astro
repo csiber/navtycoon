@@ -1,0 +1,71 @@
+---
+// /signup — Hyperscaler új-fiók form (cross-brand: PromNET users-be).
+import Base from '../layouts/Base.astro';
+---
+<Base title="Sign up">
+  <div class="max-w-md mx-auto py-12">
+    <h1 class="text-3xl font-bold mb-2">Start your hosting empire</h1>
+    <p class="text-nt-text-dim mb-6">
+      3 customers ready to complain. Server: free starter LAMP-box. MRR: $15/mo.
+    </p>
+
+    <form id="signup-form" class="space-y-3">
+      <input type="text" name="company_name"
+             placeholder="Company name (e.g. PiroshTech LLC)"
+             required minlength="2" maxlength="60"
+             class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text" />
+      <input type="text" name="city" placeholder="City (optional)" maxlength="60"
+             class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text" />
+      <input type="email" name="email" placeholder="Email" required autocomplete="email"
+             class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text" />
+      <input type="password" name="password" placeholder="Password (min 8)" required
+             autocomplete="new-password" minlength="8"
+             class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text" />
+      <button class="w-full px-4 py-2 bg-nt-accent rounded font-semibold">
+        Create account
+      </button>
+      <p id="status" class="text-sm" aria-live="polite"></p>
+    </form>
+
+    <p class="mt-6 text-center text-nt-text-dim text-sm">
+      Already have an account?
+      <a href="/login" class="text-nt-accent">Log in</a>.
+    </p>
+
+    <script>
+      document.getElementById('signup-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target as HTMLFormElement);
+        const status = document.getElementById('status');
+        if (status) {
+          status.textContent = 'Creating your hosting company…';
+          status.className = 'text-sm text-nt-text-dim';
+        }
+        const r = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            email: fd.get('email'),
+            password: fd.get('password'),
+            company_name: fd.get('company_name'),
+            city: fd.get('city') || null,
+          }),
+        });
+        if (!r.ok) {
+          let err = 'Signup failed.';
+          try {
+            const j = await r.json();
+            err = (j as { error?: string })?.error ?? err;
+          } catch {}
+          if (status) {
+            status.textContent = 'Error: ' + err;
+            status.className = 'text-sm text-red-400';
+          }
+          return;
+        }
+        const j = await r.json() as { redirect?: string };
+        location.href = j.redirect ?? '/play';
+      });
+    </script>
+  </div>
+</Base>
