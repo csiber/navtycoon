@@ -32,6 +32,7 @@ export interface User {
 interface DBRow { [key: string]: unknown }
 export interface D1Like {
   prepare(query: string): D1Stmt;
+  batch<T = DBRow>(statements: D1Stmt[]): Promise<{ results: T[]; success: boolean }[]>;
 }
 interface D1Stmt {
   bind(...values: unknown[]): D1Stmt;
