@@ -1,0 +1,85 @@
+---
+// /play/marketing — 3-channel mix sliders, server-normalized. Auth-required.
+import Base from '../../layouts/Base.astro';
+import { getCurrentUser, getDB } from '../../lib/auth';
+import { getPlayer } from '../../lib/game/db';
+
+type AnyCtx = Parameters<typeof getCurrentUser>[0];
+const ctx = Astro as unknown as AnyCtx;
+
+const user = await getCurrentUser(ctx);
+if (!user) return Astro.redirect('/login?next=/play/marketing');
+const db = getDB(ctx);
+if (!db) return new Response('No DB', { status: 500 });
+const player = await getPlayer(db, user.id);
+if (!player) return Astro.redirect('/signup');
+---
+<Base title="Marketing">
+  <h1 class="text-2xl font-bold mb-2">Marketing Mix</h1>
+  <p class="text-nt-text-dim mb-6 text-sm">
+    Distribute attention across channels. They sum to 100% (we'll normalize for you).
+  </p>
+
+  <div class="bg-nt-bg-2 p-6 rounded mb-4">
+    <label class="block mb-1">
+      SEO <span id="seo-val" class="text-nt-text-dim">{player.marketing_seo_pct}%</span>
+    </label>
+    <input id="seo" type="range" min="0" max="100" value={player.marketing_seo_pct} class="w-full" />
+    <p class="text-nt-text-dim text-xs mt-1">Slow. Organic. Sticky customers — they stay longer.</p>
+  </div>
+
+  <div class="bg-nt-bg-2 p-6 rounded mb-4">
+    <label class="block mb-1">
+      PPC <span id="ppc-val" class="text-nt-text-dim">{player.marketing_ppc_pct}%</span>
+    </label>
+    <input id="ppc" type="range" min="0" max="100" value={player.marketing_ppc_pct} class="w-full" />
+    <p class="text-nt-text-dim text-xs mt-1">Fast. Expensive. Customers churn quicker.</p>
+  </div>
+
+  <div class="bg-nt-bg-2 p-6 rounded mb-4">
+    <label class="block mb-1">
+      Referral <span id="referral-val" class="text-nt-text-dim">{player.marketing_referral_pct}%</span>
+    </label>
+    <input id="referral" type="range" min="0" max="100" value={player.marketing_referral_pct} class="w-full" />
+    <p class="text-nt-text-dim text-xs mt-1">Slow burn but loyal customers.</p>
+  </div>
+
+  <button id="save" class="px-4 py-2 bg-nt-accent rounded font-semibold">Save</button>
+  <p id="status" class="mt-2 text-sm" aria-live="polite"></p>
+
+  <script>
+    function update(id: string): void {
+      const v = (document.getElementById(id) as HTMLInputElement).value;
+      document.getElementById(id + '-val')!.textContent = v + '%';
+    }
+    ['seo', 'ppc', 'referral'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', () => update(id));
+    });
+    document.getElementById('save')?.addEventListener('click', async () => {
+      const seo = Number((document.getElementById('seo') as HTMLInputElement).value);
+      const ppc = Number((document.getElementById('ppc') as HTMLInputElement).value);
+      const referral = Number((document.getElementById('referral') as HTMLInputElement).value);
+      const status = document.getElementById('status')!;
+      status.textContent = 'Saving...';
+      status.className = 'mt-2 text-sm text-nt-text-dim';
+      const r = await fetch('/api/game/marketing', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ seo, ppc, referral }),
+      });
+      if (!r.ok) {
+        status.textContent = 'Error: ' + await r.text();
+        status.className = 'mt-2 text-sm text-red-400';
+        return;
+      }
+      const d = await r.json() as { mix: { seo: number; ppc: number; referral: number } };
+      const m = d.mix;
+      status.textContent = `✓ Saved (normalized: SEO ${m.seo}% / PPC ${m.ppc}% / Referral ${m.referral}%)`;
+      status.className = 'mt-2 text-sm text-green-400';
+      (document.getElementById('seo') as HTMLInputElement).value = String(m.seo);
+      (document.getElementById('ppc') as HTMLInputElement).value = String(m.ppc);
+      (document.getElementById('referral') as HTMLInputElement).value = String(m.referral);
+      ['seo', 'ppc', 'referral'].forEach(id => update(id));
+    });
+  </script>
+</Base>

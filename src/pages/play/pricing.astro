@@ -1,0 +1,78 @@
+---
+// /play/pricing — two tier prices, server-clamped on save. Auth-required.
+import Base from '../../layouts/Base.astro';
+import { getCurrentUser, getDB } from '../../lib/auth';
+import { getPlayer } from '../../lib/game/db';
+
+type AnyCtx = Parameters<typeof getCurrentUser>[0];
+const ctx = Astro as unknown as AnyCtx;
+
+const user = await getCurrentUser(ctx);
+if (!user) return Astro.redirect('/login?next=/play/pricing');
+const db = getDB(ctx);
+if (!db) return new Response('No DB', { status: 500 });
+const player = await getPlayer(db, user.id);
+if (!player) return Astro.redirect('/signup');
+---
+<Base title="Pricing">
+  <h1 class="text-2xl font-bold mb-2">Pricing</h1>
+  <p class="text-nt-text-dim mb-6 text-sm">
+    Higher prices → lower volume + higher churn. Lower prices → more customers + thin margin. Pick your poison.
+  </p>
+
+  <div class="bg-nt-bg-2 p-6 rounded mb-4">
+    <h2 class="font-bold mb-3">Hobby tier</h2>
+    <p class="text-nt-text-dim text-xs mb-2">Bounds: $3.00 – $10.00 / month</p>
+    <input
+      id="hobby"
+      type="number"
+      min="300"
+      max="1000"
+      step="50"
+      value={player.pricing_hobby_cents}
+      class="w-32 px-3 py-2 bg-nt-bg-3 border border-nt-border rounded text-nt-text"
+    />
+    <span class="text-nt-text-dim text-xs ml-2">cents/month</span>
+  </div>
+
+  <div class="bg-nt-bg-2 p-6 rounded mb-4">
+    <h2 class="font-bold mb-3">Business tier</h2>
+    <p class="text-nt-text-dim text-xs mb-2">Bounds: $10.00 – $30.00 / month</p>
+    <input
+      id="business"
+      type="number"
+      min="1000"
+      max="3000"
+      step="100"
+      value={player.pricing_business_cents}
+      class="w-32 px-3 py-2 bg-nt-bg-3 border border-nt-border rounded text-nt-text"
+    />
+    <span class="text-nt-text-dim text-xs ml-2">cents/month</span>
+  </div>
+
+  <button id="save" class="px-4 py-2 bg-nt-accent rounded font-semibold">Save</button>
+  <p id="status" class="mt-2 text-sm" aria-live="polite"></p>
+
+  <script>
+    document.getElementById('save')?.addEventListener('click', async () => {
+      const hobby = Number((document.getElementById('hobby') as HTMLInputElement).value);
+      const business = Number((document.getElementById('business') as HTMLInputElement).value);
+      const status = document.getElementById('status')!;
+      status.textContent = 'Saving...';
+      status.className = 'mt-2 text-sm text-nt-text-dim';
+      const r = await fetch('/api/game/pricing', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ hobby, business }),
+      });
+      if (!r.ok) {
+        status.textContent = 'Error: ' + await r.text();
+        status.className = 'mt-2 text-sm text-red-400';
+        return;
+      }
+      const d = await r.json() as { hobby: number; business: number };
+      status.textContent = `✓ Saved (clamped: hobby=${d.hobby}, business=${d.business})`;
+      status.className = 'mt-2 text-sm text-green-400';
+    });
+  </script>
+</Base>

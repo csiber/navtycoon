@@ -1,0 +1,139 @@
+---
+// /play/servers — owned + buyable + upgrades. Auth-required.
+import Base from '../../layouts/Base.astro';
+import { getCurrentUser, getDB } from '../../lib/auth';
+import { getPlayer, listServers, listUpgrades } from '../../lib/game/db';
+import { SERVER_SPECS, affordableServerTypes } from '../../lib/game/server-types';
+import { availableUpgrades, UPGRADE_SPECS } from '../../lib/game/upgrade-tree';
+
+type AnyCtx = Parameters<typeof getCurrentUser>[0];
+const ctx = Astro as unknown as AnyCtx;
+
+const user = await getCurrentUser(ctx);
+if (!user) return Astro.redirect('/login?next=/play/servers');
+const db = getDB(ctx);
+if (!db) return new Response('No DB', { status: 500 });
+const player = await getPlayer(db, user.id);
+if (!player) return Astro.redirect('/signup');
+
+const servers = await listServers(db, user.id);
+const ownedUpgradeIds = new Set((await listUpgrades(db, user.id)).map(u => u.upgrade_id));
+const buyable = affordableServerTypes(player.current_era);
+const upgradesAvail = availableUpgrades(player.current_era, ownedUpgradeIds);
+
+const fmtUsd = (cents: number): string =>
+  '$' + (cents / 100).toLocaleString('en-US', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  });
+---
+<Base title="Servers">
+  <h1 class="text-2xl font-bold mb-2">Your Infrastructure</h1>
+  <p class="text-nt-text-dim mb-6">
+    Cash: <span class="text-nt-text font-semibold">{fmtUsd(player.cash_usd_cents)}</span>
+  </p>
+
+  <h2 class="font-bold text-lg mb-3">Owned ({servers.length})</h2>
+  <div class="grid gap-3 mb-8">
+    {servers.length === 0 && (
+      <p class="text-nt-text-dim">No servers yet. Buy your first below.</p>
+    )}
+    {servers.map(s => {
+      const spec = SERVER_SPECS[s.type];
+      return (
+        <div class="bg-nt-bg-2 p-4 rounded flex items-center justify-between">
+          <div>
+            <div class="font-bold">{spec?.display_name ?? s.type}</div>
+            <div class="text-nt-text-dim text-sm">
+              Era {s.era} · capacity {s.current_load}/{s.capacity}
+            </div>
+          </div>
+          <div class="text-nt-text-dim text-sm">
+            {s.monthly_cost_cents > 0 ? `${fmtUsd(s.monthly_cost_cents)}/mo` : 'free'}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+
+  <h2 class="font-bold text-lg mb-3">Buy New Server</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+    {buyable.map(s => (
+      <div class="bg-nt-bg-2 p-4 rounded">
+        <div class="flex items-start justify-between mb-2">
+          <div class="font-bold">{s.display_name}</div>
+          <div class="text-nt-accent">{fmtUsd(s.purchase_cost_cents)}</div>
+        </div>
+        <div class="text-nt-text-dim text-xs italic mb-2">{s.flavor}</div>
+        <div class="text-nt-text-dim text-sm">
+          capacity {s.capacity} · {fmtUsd(s.monthly_cost_cents)}/mo
+        </div>
+        <button
+          data-buy-server={s.type}
+          class="mt-3 px-3 py-1.5 bg-nt-accent rounded text-sm disabled:opacity-50"
+          disabled={player.cash_usd_cents < s.purchase_cost_cents}
+        >
+          {player.cash_usd_cents < s.purchase_cost_cents ? 'Need more cash' : 'Buy'}
+        </button>
+      </div>
+    ))}
+  </div>
+
+  <h2 class="font-bold text-lg mb-3">Upgrades Available ({upgradesAvail.length})</h2>
+  <p class="text-nt-text-dim text-sm mb-3">
+    Owned: {ownedUpgradeIds.size}/{UPGRADE_SPECS.length}
+  </p>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    {upgradesAvail.length === 0 && (
+      <p class="text-nt-text-dim">All available upgrades purchased. Welcome to the void.</p>
+    )}
+    {upgradesAvail.map(u => (
+      <div class="bg-nt-bg-2 p-4 rounded">
+        <div class="flex items-start justify-between mb-2">
+          <div class="font-bold">{u.display_name}</div>
+          <div class="text-nt-accent">{fmtUsd(u.cost_usd_cents)}</div>
+        </div>
+        <div class="text-nt-text-dim text-sm mb-2">{u.effect}</div>
+        <button
+          data-buy-upgrade={u.id}
+          class="px-3 py-1.5 bg-nt-accent rounded text-sm disabled:opacity-50"
+          disabled={player.cash_usd_cents < u.cost_usd_cents}
+        >
+          {player.cash_usd_cents < u.cost_usd_cents ? 'Need more cash' : 'Buy'}
+        </button>
+      </div>
+    ))}
+  </div>
+
+  <script>
+    document.querySelectorAll<HTMLElement>('[data-buy-server]').forEach(b =>
+      b.addEventListener('click', async () => {
+        const type = b.dataset.buyServer;
+        const r = await fetch('/api/game/server', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ type }),
+        });
+        if (!r.ok) {
+          alert('Error: ' + await r.text());
+          return;
+        }
+        location.reload();
+      }),
+    );
+    document.querySelectorAll<HTMLElement>('[data-buy-upgrade]').forEach(b =>
+      b.addEventListener('click', async () => {
+        const id = b.dataset.buyUpgrade;
+        const r = await fetch('/api/game/upgrade', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ upgrade_id: id }),
+        });
+        if (!r.ok) {
+          alert('Error: ' + await r.text());
+          return;
+        }
+        location.reload();
+      }),
+    );
+  </script>
+</Base>

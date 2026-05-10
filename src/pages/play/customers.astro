@@ -1,0 +1,86 @@
+---
+// /play/customers — server-rendered table. Auth-required.
+import Base from '../../layouts/Base.astro';
+import { getCurrentUser, getDB } from '../../lib/auth';
+import { getPlayer, listCustomers } from '../../lib/game/db';
+import { PERSONAS } from '../../lib/game/persona-pool';
+import type { PersonaArchetype } from '../../lib/game/types';
+
+type AnyCtx = Parameters<typeof getCurrentUser>[0];
+const ctx = Astro as unknown as AnyCtx;
+
+const user = await getCurrentUser(ctx);
+if (!user) return Astro.redirect('/login?next=/play/customers');
+const db = getDB(ctx);
+if (!db) return new Response('No DB', { status: 500 });
+const player = await getPlayer(db, user.id);
+if (!player) return Astro.redirect('/signup');
+
+const customers = await listCustomers(db, user.id, true);
+const personaMap = new Map(PERSONAS.map(p => [p.archetype, p]));
+
+const personaEmoji: Record<PersonaArchetype, string> = {
+  newbie: '🤔',
+  pro: '🤓',
+  cheapskate: '💸',
+  karen: '😤',
+  loyalist: '😊',
+  ghost: '👻',
+  drama: '🎭',
+  crypto: '🚀',
+};
+
+const fmtUsd = (cents: number): string => '$' + (cents / 100).toFixed(2);
+
+function satClass(s: number): string {
+  return s >= 60 ? 'text-green-400' : s >= 30 ? 'text-yellow-400' : 'text-red-400';
+}
+---
+<Base title="Customers">
+  <h1 class="text-2xl font-bold mb-4">Customers ({customers.length} active)</h1>
+
+  {customers.length === 0 && (
+    <div class="bg-nt-bg-2 p-6 rounded text-center">
+      <p class="text-nt-text-dim mb-2">No customers yet.</p>
+      <p class="text-nt-accent">
+        Buy a server in <a href="/play/servers" class="underline">Servers</a> to start attracting customers.
+      </p>
+    </div>
+  )}
+
+  {customers.length > 0 && (
+    <div class="overflow-x-auto">
+      <table class="w-full bg-nt-bg-2 rounded">
+        <thead class="bg-nt-bg-3 text-left text-sm">
+          <tr>
+            <th class="p-3">Name</th>
+            <th class="p-3">Persona</th>
+            <th class="p-3">Plan</th>
+            <th class="p-3 text-right">LTV</th>
+            <th class="p-3 text-right">Satisfaction</th>
+            <th class="p-3">Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          {customers.map(c => {
+            const persona = personaMap.get(c.persona_archetype);
+            return (
+              <tr class="border-t border-nt-border">
+                <td class="p-3 font-medium">{c.name}</td>
+                <td class="p-3 text-sm">
+                  {personaEmoji[c.persona_archetype] ?? '👤'} {persona?.display_name ?? c.persona_archetype}
+                </td>
+                <td class="p-3 text-sm uppercase text-nt-text-dim">{c.plan_tier}</td>
+                <td class="p-3 text-right">{fmtUsd(c.lifetime_value_cents)}</td>
+                <td class={`p-3 text-right font-mono ${satClass(c.satisfaction)}`}>{c.satisfaction}</td>
+                <td class="p-3 text-nt-text-dim text-sm">
+                  {new Date(c.joined_at * 1000).toLocaleDateString('en-US')}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  )}
+</Base>

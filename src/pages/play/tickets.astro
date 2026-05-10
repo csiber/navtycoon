@@ -1,0 +1,68 @@
+---
+// /play/tickets — read-only triage list (Plan 1 scope).
+// Plan 2 unlocks Shift-mode (real-time response). Auth-required.
+import Base from '../../layouts/Base.astro';
+import { getCurrentUser, getDB } from '../../lib/auth';
+import { getPlayer, listTickets, listCustomers } from '../../lib/game/db';
+
+type AnyCtx = Parameters<typeof getCurrentUser>[0];
+const ctx = Astro as unknown as AnyCtx;
+
+const user = await getCurrentUser(ctx);
+if (!user) return Astro.redirect('/login?next=/play/tickets');
+const db = getDB(ctx);
+if (!db) return new Response('No DB', { status: 500 });
+const player = await getPlayer(db, user.id);
+if (!player) return Astro.redirect('/signup');
+
+const open = await listTickets(db, user.id, 'open');
+const inProgress = await listTickets(db, user.id, 'in_progress');
+const tickets = [...open, ...inProgress];
+
+const customers = await listCustomers(db, user.id, true);
+const customerMap = new Map(customers.map(c => [c.id, c]));
+
+const ageMin = (created: number): string => {
+  const now = Math.floor(Date.now() / 1000);
+  const m = Math.floor((now - created) / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+};
+---
+<Base title="Tickets">
+  <h1 class="text-2xl font-bold mb-2">Tickets ({tickets.length} open)</h1>
+  <p class="text-nt-text-dim mb-6 text-sm italic">
+    Real-time response in Shift mode (Plan 2 — coming soon). For now: read-only triage.
+  </p>
+
+  {tickets.length === 0 ? (
+    <div class="bg-nt-bg-2 p-6 rounded text-center">
+      <p class="text-nt-accent">🎉 Inbox zero.</p>
+      <p class="text-nt-text-dim text-sm mt-1">
+        Suspicious. Probably they all died of disappointment.
+      </p>
+    </div>
+  ) : (
+    <div class="space-y-3">
+      {tickets.map(t => {
+        const c = customerMap.get(t.customer_id);
+        return (
+          <div class="bg-nt-bg-2 p-4 rounded">
+            <div class="flex items-start justify-between mb-2">
+              <div>
+                <span class="font-bold">{c?.name ?? 'Unknown customer'}</span>
+                <span class="text-nt-text-dim text-xs ml-2 uppercase">
+                  {c?.persona_archetype ?? '—'}
+                </span>
+              </div>
+              <span class="text-nt-text-dim text-xs">{ageMin(t.created_at)} ago</span>
+            </div>
+            <p class="text-nt-text">{t.full_text}</p>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</Base>
