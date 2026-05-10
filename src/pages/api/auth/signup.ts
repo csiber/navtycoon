@@ -21,6 +21,8 @@ import {
   isValidEmail, passwordIssue, companyNameIssue,
 } from '../../../lib/auth';
 import { createPlayer, getPlayer } from '../../../lib/game/db';
+import { spawnCustomer } from '../../../lib/game/customer-spawn';
+import { SERVER_SPECS } from '../../../lib/game/server-types';
 
 export const prerender = false;
 
@@ -69,7 +71,10 @@ export async function POST(context: APIContext): Promise<Response> {
     const ua = context.request.headers.get('user-agent') ?? undefined;
     const token = await createPromnetSession(pdb, user.id, ip, ua);
 
-    // 3) Hyperscaler player — best-effort (ha duplikátum, ne dobjunk hibát)
+    // 3) Hyperscaler player + starter-bootstrap — best-effort.
+    // Ha a player már létezik (pl. callback-bridge előbb futott), nem
+    // bootstrappelünk újra; csak first-time signup-on rakjuk ki a kezdő
+    // szervert / customer-eket / ticketeket.
     try {
       const existing = await getPlayer(db, user.id);
       if (!existing) {
@@ -78,10 +83,47 @@ export async function POST(context: APIContext): Promise<Response> {
           company_name: companyName,
           city,
         });
+
+        // === Starter bootstrap ===
+        const userId = user.id;
+        const now = Math.floor(Date.now() / 1000);
+        const starter = SERVER_SPECS.lamp_box;
+
+        // 1× starter szerver (ingyen — purchase_cost_cents nem terhel,
+        // monthly_cost_cents 0-ra állítva, hogy a kezdő ne fogyjon ki azonnal)
+        await db.prepare(
+          'INSERT INTO servers (player_id, era, type, capacity, current_load, ' +
+          'monthly_cost_cents, purchased_at) VALUES (?, 1, \'lamp_box\', ?, 0, 0, ?)',
+        ).bind(userId, starter.capacity, now).run();
+
+        // 3× kezdő customer (hobby plan), mindegyiknek 1 nyitott ticket
+        for (let i = 0; i < 3; i++) {
+          const sc = spawnCustomer('hobby');
+          const cRes = await db.prepare(
+            'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, ' +
+            'joined_at, satisfaction, churn_risk) ' +
+            'VALUES (?, ?, ?, \'hobby\', ?, ?, 0) RETURNING id',
+          ).bind(userId, sc.name, sc.persona_archetype, now, sc.starting_satisfaction)
+            .first<{ id: number }>();
+          if (!cRes) continue; // best-effort
+          await db.prepare(
+            'INSERT INTO tickets (customer_id, player_id, summary, full_text, status, created_at) ' +
+            'VALUES (?, ?, ?, ?, \'open\', ?)',
+          ).bind(
+            cRes.id, userId,
+            sc.initial_ticket_text.slice(0, 80),
+            sc.initial_ticket_text,
+            now,
+          ).run();
+        }
+
+        // Initial MRR: 3 × $5 hobby = $15 = 1500 cents
+        await db.prepare('UPDATE players SET mrr_usd_cents = 1500 WHERE user_id = ?')
+          .bind(userId).run();
       }
     } catch (e) {
       // A user létrejött; player később a /play first-hit-en pótlódhat
-      console.warn('signup: createPlayer hiba (best-effort):', (e as Error).message);
+      console.warn('signup: createPlayer/bootstrap hiba (best-effort):', (e as Error).message);
     }
 
     // 4) Cookie + return
