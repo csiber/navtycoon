@@ -1,12 +1,18 @@
 # NavTycoon — Cloudflare Pages konfiguráció.
 # Hyperscaler MVP Plan 1: D1 (game-state) + PromNET D1 (cross-brand SSO read) + SESSION KV.
 # Cron-trigger: 5 perc tick (idő-előre + AI-ticket spawn) + napi reset (UTC 0:00).
+#
+# Megjegyzés: a Pages config NEM támogatja az `account_id` + `triggers` mezőket
+# (ezek a Workers config-jai). Az account_id-t a CF Pages projekt-szintjén tárolja,
+# a cron-triggereket pedig a Pages projekt-szintű cron-trigger API-n keresztül
+# kell beállítani (lásd Plan 1 §14 deploy lépések). A bindings mezőket a Pages
+# build a wrangler.toml-ből discover-eli, de a production deploy_configs-ban
+# is megerősítettük REST API-val.
 
 name = "navtycoon"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist"
-account_id = "4e3646aaf967d8895e6596df2d62c3bf"
 
 [[d1_databases]]
 binding = "DB"
@@ -23,6 +29,3 @@ database_id = "6ae31f06-a817-44c9-a0ae-7ef090fb0d43"
 [[kv_namespaces]]
 binding = "SESSION"
 id = "cd93081a3571411b9fa782cdd1336c04"
-
-[triggers]
-crons = ["*/5 * * * *", "0 0 * * *"]
