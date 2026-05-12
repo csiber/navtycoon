@@ -24,3 +24,15 @@ class_name = "ShiftRoomDO"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ShiftRoomDO"]
+
+# Vectorize index for customer-memory (shared with Pages app).
+# Required by the scheduled cron-tick handler (LLM ticket-gen path).
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "navtycoon-customer-memory"
+
+# Cron trigger — runs the game-tick every 5 minutes.
+# CF Pages doesn't support [triggers]; this is the only place where cron
+# can live for the navtycoon stack.
+[triggers]
+crons = ["*/5 * * * *"]
