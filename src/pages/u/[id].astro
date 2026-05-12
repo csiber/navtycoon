@@ -1,0 +1,213 @@
+---
+// /u/[id] -- public share-page. No auth required.
+// Hyperscaler run-summary as social-share card. Used by leaderboard's
+// "Share my run" → clipboard-copies https://hyperscaler.promnet.hu/u/<user-id>.
+// OG-image fetch (twitter:image, og:image) generated server-side via /api/og/u/[id].
+import { getDB } from '../../lib/auth';
+
+type AnyCtx = Parameters<typeof getDB>[0];
+const ctx = Astro as unknown as AnyCtx;
+const db = getDB(ctx);
+
+const id = String(Astro.params.id ?? '').trim();
+if (!id || !db) {
+  return new Response('Player not found', { status: 404 });
+}
+
+interface PublicPlayer {
+  company_name: string;
+  founded_at: number;
+  current_era: number;
+  reputation: number;
+  cash_usd_cents: number;
+  mrr_usd_cents: number;
+  is_pro: number;
+}
+const player = await db.prepare(
+  'SELECT company_name, founded_at, current_era, reputation, cash_usd_cents, mrr_usd_cents, is_pro ' +
+  'FROM players WHERE user_id = ? LIMIT 1',
+).bind(id).first<PublicPlayer>();
+
+if (!player) {
+  return new Response('Player not found', { status: 404 });
+}
+
+const customerCount = (await db.prepare(
+  'SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1',
+).bind(id).first<{ n: number }>())?.n ?? 0;
+const resolvedTickets = (await db.prepare(
+  'SELECT COUNT(*) AS n FROM tickets WHERE player_id = ? AND status = ?',
+).bind(id, 'resolved').first<{ n: number }>())?.n ?? 0;
+const rankRow = await db.prepare(
+  'SELECT COUNT(*) + 1 AS rank FROM players WHERE mrr_usd_cents > ?',
+).bind(player.mrr_usd_cents).first<{ rank: number }>();
+
+const companyName = player.company_name;
+const cashUsd = (player.cash_usd_cents / 100).toFixed(0);
+const mrrUsd = (player.mrr_usd_cents / 100).toFixed(0);
+const dayNum = Math.max(1, Math.floor((Date.now() / 1000 - player.founded_at) / 86400) + 1);
+const rank = rankRow?.rank ?? 1;
+const eraLabel = ['', 'LAMP', 'Rack', 'VPS', 'Dedicated'][player.current_era] ?? `Era ${player.current_era}`;
+const founded = new Date(player.founded_at * 1000).getFullYear();
+const initials = companyName.split(/\s+/).map((w: string) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || 'HY';
+
+const ogTitle = `${companyName} · Day ${dayNum} · Rank #${rank}`;
+const ogDesc = `$${cashUsd} cash · $${mrrUsd} MRR · ${customerCount} customers · Era ${player.current_era}`;
+const pageUrl = `https://hyperscaler.promnet.hu/u/${id}`;
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{ogTitle} — Hyperscaler</title>
+<meta name="description" content={ogDesc} />
+<meta property="og:title" content={ogTitle} />
+<meta property="og:description" content={ogDesc} />
+<meta property="og:url" content={pageUrl} />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Hyperscaler" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={ogTitle} />
+<meta name="twitter:description" content={ogDesc} />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style is:global>
+  :root {
+    --bg: #07090f; --panel: #121626; --panel-2: #161a2c;
+    --line: #1e2338; --text: #e9ecf5; --muted: #8b92ad; --dim: #5d6483;
+    --indigo: #6366f1; --indigo-2: #818cf8; --amber: #f59e0b;
+    --mint: #34d399; --pink: #f43f5e; --cyan: #22d3ee;
+    --display: "Space Grotesk", "Inter", system-ui, sans-serif;
+    --body: "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(99,102,241,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,102,241,.045) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse at 50% 0%, #000 30%, transparent 75%);
+    pointer-events: none; z-index: 0;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 60px 24px; position: relative; z-index: 1; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+    padding: 36px 32px; box-shadow: 0 24px 64px -16px rgba(0,0,0,0.6);
+  }
+  .crest-row { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+  .crest {
+    width: 64px; height: 64px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--indigo), #4f46e5);
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 24px; color: #fff;
+  }
+  h1 { margin: 0; font-family: var(--display); font-size: 28px; font-weight: 700; }
+  .pill {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-right: 6px;
+  }
+  .pill.pro { background: rgba(245,158,11,.12); color: var(--amber); border-color: rgba(245,158,11,.3); }
+  .rank-box {
+    margin-top: 24px; padding: 16px 20px;
+    background: linear-gradient(135deg, rgba(99,102,241,.18), rgba(34,211,238,.10));
+    border: 1px solid rgba(99,102,241,.3); border-radius: 12px;
+  }
+  .rank-box .lbl { font-family: var(--mono); font-size: 10px; color: var(--indigo-2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .rank-box .v { font-family: var(--display); font-size: 32px; font-weight: 700; margin-top: 2px; }
+  .rank-box .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stats {
+    margin-top: 24px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  }
+  .stat {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .stat .k { font-family: var(--mono); font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
+  .stat .v { font-family: var(--display); font-size: 20px; font-weight: 700; margin-top: 4px; }
+  .stat .v small { font-family: var(--mono); font-size: 10px; color: var(--muted); font-weight: 400; }
+  .cta {
+    margin-top: 32px;
+    display: flex; gap: 12px;
+  }
+  .cta a {
+    flex: 1; padding: 14px 18px; text-align: center;
+    border-radius: 10px; text-decoration: none;
+    font-weight: 600; font-size: 14px;
+  }
+  .cta a.primary {
+    background: linear-gradient(135deg, var(--indigo), #4f46e5); color: #fff;
+  }
+  .cta a.ghost {
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+  }
+  .foot {
+    margin-top: 22px;
+    text-align: center; font-family: var(--mono); font-size: 11px; color: var(--dim);
+  }
+  .foot a { color: var(--muted); text-decoration: none; }
+  @media (max-width: 600px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: 22px; }
+    .wrap { padding: 32px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="crest-row">
+      <div class="crest">{initials}</div>
+      <div>
+        <h1>{companyName}</h1>
+        <div style="margin-top: 6px;">
+          <span class="pill">EST {founded}</span>
+          <span class="pill">Era {player.current_era} · {eraLabel}</span>
+          {player.is_pro === 1 && <span class="pill pro">PRO</span>}
+        </div>
+      </div>
+    </div>
+
+    <div class="rank-box">
+      <div class="lbl">Global rank</div>
+      <div class="v">#{rank}</div>
+      <div class="sub">By MRR · Day {dayNum} of their run</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="k">Cash</div><div class="v">${cashUsd}</div></div>
+      <div class="stat"><div class="k">MRR</div><div class="v">${mrrUsd}<small>/mo</small></div></div>
+      <div class="stat"><div class="k">Customers</div><div class="v">{customerCount}</div></div>
+      <div class="stat"><div class="k">Rep</div><div class="v">{player.reputation}</div></div>
+    </div>
+
+    <div style="margin-top: 18px; padding: 12px 14px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; font-size: 13px; color: var(--muted);">
+      <span style="color: var(--mint); font-weight: 700;">{resolvedTickets}</span> tickets resolved · still standing on Day {dayNum}.
+    </div>
+
+    <div class="cta">
+      <a class="primary" href="/signup">Start your own run →</a>
+      <a class="ghost" href="/play/leaderboard">View leaderboard</a>
+    </div>
+  </div>
+  <div class="foot">
+    <a href="/">Hyperscaler</a> · a hosting tycoon game · ai customers, real chaos
+  </div>
+</div>
+</body>
+</html>
