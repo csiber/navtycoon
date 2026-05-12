@@ -14,6 +14,7 @@ const player = await getPlayer(db, user.id);
 if (!player) return Astro.redirect('/signup');
 
 const customers = await listCustomers(db, user.id, true);
+const customerCount = customers.length;
 const companyName = player.company_name;
 const initials = companyName.split(/\s+/).map((w: string) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || 'HY';
 const dayNum = Math.max(1, Math.floor((Date.now() / 1000 - player.founded_at) / 86400) + 1);
@@ -46,6 +47,20 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 </head>
 <body class="preload">
 <Fragment set:html={pageHtml} />
+{customerCount === 0 && (
+  <div id="customers-empty-cta" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--line-2);border-radius:16px;padding:32px;max-width:480px;text-align:center;z-index:50;">
+    <div style="font-size:56px;margin-bottom:12px;">🌱</div>
+    <h2 style="font-family:var(--display);font-size:22px;font-weight:700;margin:0 0 12px;">No customers yet</h2>
+    <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:20px;">
+      Customers come automatically as your servers attract traffic. Make sure you have at least one server
+      and your marketing-mix is non-zero. Set your pricing to attract the type of customer you want.
+    </p>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+      <a href="/play/servers" style="padding:8px 16px;background:var(--indigo);color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">Manage servers</a>
+      <a href="/play/marketing" style="padding:8px 16px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;text-decoration:none;font-size:13px;">Marketing mix</a>
+    </div>
+  </div>
+)}
 <script type="application/json" id="state" set:html={JSON.stringify({
     company: companyName, initials, founded, day: dayNum, era: player.current_era,
     cashUsd, mrrUsd, rep: player.reputation, customers: customerData,

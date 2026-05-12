@@ -35,6 +35,39 @@ const openTickets = (await db.prepare(
   `SELECT COUNT(*) AS n FROM tickets WHERE player_id = ? AND status IN ('open', 'in_progress')`,
 ).bind(user.id).first<{ n: number }>())?.n ?? 0;
 
+// Shift-CTA: ha van open ticket és még van shift-kapacitás ma, nudge-oljuk a játékost.
+const totalShiftsToday = player.free_shifts_today + player.paid_shifts_today;
+const shiftCap = player.is_pro === 1 ? 5 : 1;
+const showShiftCta = openTickets > 0 && totalShiftsToday < shiftCap;
+
+// "Since you were away" widget: ha 1h+ telt el az utolsó látogatás óta,
+// foglaljuk össze a köztes eseményeket. Az aktivitás-bélyeget az adatok
+// kiszámítása UTÁN frissítjük, hogy a "before-stats" query helyes legyen.
+const lastActive = (player as { last_active_at?: number }).last_active_at ?? 0;
+const awaySec = Math.floor(Date.now() / 1000) - lastActive;
+const showAwaySummary = awaySec >= 3600 && lastActive > 0;
+let awayStats: null | { new_tickets: number; new_events: number; cash_change_cents: number; churned: number; hours: number } = null;
+if (showAwaySummary) {
+  const since = lastActive;
+  const new_tickets = (await db.prepare(
+    'SELECT COUNT(*) AS n FROM tickets WHERE player_id = ? AND created_at >= ?',
+  ).bind(user.id, since).first<{ n: number }>())?.n ?? 0;
+  const new_events = (await db.prepare(
+    'SELECT COUNT(*) AS n FROM events WHERE player_id = ? AND spawned_at >= ?',
+  ).bind(user.id, since).first<{ n: number }>())?.n ?? 0;
+  const churned = (await db.prepare(
+    'SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 0 AND churn_risk = 100',
+  ).bind(user.id).first<{ n: number }>())?.n ?? 0;
+  awayStats = {
+    new_tickets, new_events, churned,
+    cash_change_cents: 0, // retroaktív cash-delta csak transaction-log alapján — még nincs
+    hours: Math.floor(awaySec / 3600),
+  };
+}
+// last_active_at frissítése MOST-ra, az awayStats kiszámítása után.
+await db.prepare('UPDATE players SET last_active_at = ? WHERE user_id = ?')
+  .bind(Math.floor(Date.now() / 1000), user.id).run();
+
 const cashUsd = (player.cash_usd_cents / 100).toFixed(0);
 const mrrUsd = (player.mrr_usd_cents / 100).toFixed(0);
 const companyName = player.company_name;
@@ -70,6 +103,37 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
 <body class="preload">
 <Fragment set:html={pageHtml} />
 <div id="events-overlay" style="position: fixed; top: 80px; right: 20px; width: 380px; max-width: calc(100vw - 40px); z-index: 100; max-height: calc(100vh - 100px); overflow-y: auto; pointer-events: none;"></div>
+{showShiftCta && (
+  <div id="shift-cta" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--indigo) 0%,#4f46e5 100%);color:#fff;padding:14px 24px;border-radius:12px;box-shadow:0 12px 32px -8px rgba(99,102,241,.6);z-index:80;display:flex;align-items:center;gap:14px;font-family:var(--display);font-weight:600;">
+    <span style="font-size:20px;">🔥</span>
+    <span>{openTickets} open ticket{openTickets > 1 ? 's' : ''} waiting</span>
+    <a href="/play/shift" style="background:rgba(255,255,255,.2);padding:6px 14px;border-radius:8px;color:#fff;text-decoration:none;font-size:13px;">Start shift →</a>
+    <button id="shift-cta-close" style="background:transparent;border:0;color:rgba(255,255,255,.6);cursor:pointer;font-size:18px;line-height:1;padding:0;margin-left:4px;">×</button>
+  </div>
+  <script is:inline>
+    document.getElementById('shift-cta-close')?.addEventListener('click', () => {
+      document.getElementById('shift-cta')?.remove();
+    });
+  </script>
+)}
+{awayStats && (
+  <div id="away-summary" style="position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--indigo);border-radius:12px;padding:16px 24px;box-shadow:0 12px 32px -8px rgba(99,102,241,.4);z-index:90;display:flex;align-items:center;gap:16px;max-width:90vw;">
+    <span style="font-size:24px;">☕</span>
+    <div>
+      <div style="font-family:var(--display);font-weight:700;font-size:14px;margin-bottom:4px;">Welcome back ({awayStats.hours}h away)</div>
+      <div style="font-size:12px;color:var(--muted);">
+        {awayStats.new_tickets} new tickets · {awayStats.new_events} new events · {awayStats.churned > 0 ? `${awayStats.churned} customers churned` : 'no churn'}
+      </div>
+    </div>
+    <button id="away-close" style="background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:18px;padding:0;">×</button>
+  </div>
+  <script is:inline>
+    document.getElementById('away-close')?.addEventListener('click', () => {
+      document.getElementById('away-summary')?.remove();
+    });
+    setTimeout(() => document.getElementById('away-summary')?.remove(), 10000);
+  </script>
+)}
 {isAdmin && (
   <div id="admin-tools" style="position:fixed;bottom:20px;right:20px;background:var(--panel);border:1px solid var(--indigo);border-radius:12px;padding:12px;z-index:99;box-shadow:0 8px 24px -8px rgba(99,102,241,.5);">
     <div style="font-family:var(--mono);font-size:10px;color:var(--indigo);letter-spacing:0.08em;margin-bottom:6px;">ADMIN TOOLS</div>
