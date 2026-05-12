@@ -39,10 +39,54 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
     {who: "leo@toolset", msg: "thinking of churning, sorry", sev: "p2"},
   ];
   const track = document.getElementById("ticker");
-  const html = items.map(i =>
-    `<span class="ticker-item"><span class="sev-mini ${i.sev}">${i.sev}</span><span class="who">${i.who}</span><span style="color:var(--dim)">›</span>${i.msg}</span>`
-  ).join("");
-  track.innerHTML = html + html; // duplicate for seamless loop
+  function renderTicker(arr) {
+    // XSS-safe: build DOM nodes with textContent only — no innerHTML.
+    track.replaceChildren();
+    const renderOnce = () => {
+      for (const i of arr) {
+        const wrap = document.createElement('span');
+        wrap.className = 'ticker-item';
+        const sev = document.createElement('span');
+        sev.className = 'sev-mini ' + (i.sev === 'p1' ? 'p1' : i.sev === 'p2' ? 'p2' : 'p3');
+        sev.textContent = i.sev;
+        const who = document.createElement('span');
+        who.className = 'who';
+        who.textContent = i.who;
+        const sep = document.createElement('span');
+        sep.style.color = 'var(--dim)';
+        sep.textContent = '›';
+        const msg = document.createTextNode(' ' + i.msg);
+        wrap.append(sev, ' ', who, ' ', sep, ' ', msg);
+        track.appendChild(wrap);
+      }
+    };
+    renderOnce();
+    renderOnce(); // duplicate for seamless loop
+  }
+  renderTicker(items); // fallback paint immediately
+
+  // Hydrate with real activity from /api/public/stats (if any).
+  (async function () {
+    try {
+      const r = await fetch('/api/public/stats', { cache: 'no-cache' });
+      if (!r.ok) return;
+      const s = await r.json();
+      const acts = Array.isArray(s.recent_activity) ? s.recent_activity : [];
+      if (acts.length < 4) return; // keep mock if too sparse
+      function ago(sec) {
+        if (sec < 60) return sec + 's ago';
+        if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+        if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+        return Math.floor(sec / 86400) + 'd ago';
+      }
+      const realItems = acts.map(a => ({
+        who: String(a.who || '?'),
+        msg: String(a.msg || '') + ' · ' + ago(Number(a.time_ago_sec) || 0),
+        sev: a.kind === 'ticket_resolved' ? 'p3' : 'p2',
+      }));
+      renderTicker(realItems);
+    } catch { /* silent */ }
+  })();
 
   // Subtle: animate a random rack LED every couple seconds
   const leds = document.querySelectorAll(".u .leds i");

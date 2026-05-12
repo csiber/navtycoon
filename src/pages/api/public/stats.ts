@@ -10,13 +10,26 @@ import { getDB } from '../../../lib/auth';
 
 export const prerender = false;
 
+interface ActivityItem {
+  kind: 'customer_joined' | 'ticket_resolved';
+  who: string;
+  msg: string;
+  time_ago_sec: number;
+}
 const ZERO = {
   players: 0,
   total_mrr_cents: 0,
   customers_total: 0,
   tickets_resolved: 0,
   top_run: null as null | { company_name: string; day: number; user_id: string },
+  recent_activity: [] as ActivityItem[],
 };
+
+// Anonymize: take first 8 chars + ellipsis OR initial+random tag.
+function maskName(name: string): string {
+  const first = (name || '?').trim()[0]?.toUpperCase() || '?';
+  return first + '·' + Math.abs(name.length * 37 % 1000).toString(36);
+}
 
 export const GET: APIRoute = async (ctx) => {
   const db = getDB(ctx);
@@ -48,12 +61,45 @@ export const GET: APIRoute = async (ctx) => {
       day: Math.max(1, Math.floor((Date.now() / 1000 - topRow.founded_at) / 86400) + 1),
       user_id: topRow.user_id,
     } : null;
+
+    // Recent activity (last 20 events, anonymized): newest customer joins
+    // + ticket resolutions, merged + sorted desc.
+    const now = Math.floor(Date.now() / 1000);
+    interface JoinRow { name: string; joined_at: number }
+    interface ResolveRow { customer_name: string | null; resolved_at: number }
+    const joins = (await db.prepare(
+      'SELECT name, joined_at FROM customers ORDER BY joined_at DESC LIMIT 10',
+    ).all<JoinRow>()).results ?? [];
+    const resolves = (await db.prepare(
+      'SELECT c.name AS customer_name, t.resolved_at AS resolved_at ' +
+      'FROM tickets t LEFT JOIN customers c ON c.id = t.customer_id ' +
+      "WHERE t.status = 'resolved' AND t.resolved_at IS NOT NULL " +
+      'ORDER BY t.resolved_at DESC LIMIT 10',
+    ).all<ResolveRow>()).results ?? [];
+    const activity: ActivityItem[] = [
+      ...joins.map((j): ActivityItem => ({
+        kind: 'customer_joined',
+        who: maskName(j.name),
+        msg: 'new customer signed up',
+        time_ago_sec: Math.max(0, now - j.joined_at),
+      })),
+      ...resolves.map((r): ActivityItem => ({
+        kind: 'ticket_resolved',
+        who: maskName(r.customer_name ?? '?'),
+        msg: 'ticket resolved',
+        time_ago_sec: Math.max(0, now - r.resolved_at),
+      })),
+    ];
+    activity.sort((a, b) => a.time_ago_sec - b.time_ago_sec);
+    const recent_activity = activity.slice(0, 12);
+
     return new Response(JSON.stringify({
       players: playersRow?.n ?? 0,
       total_mrr_cents: mrrRow?.s ?? 0,
       customers_total: custRow?.n ?? 0,
       tickets_resolved: resolvedRow?.n ?? 0,
       top_run,
+      recent_activity,
     }), { status: 200, headers });
   } catch (e) {
     console.error('public-stats error', e);
