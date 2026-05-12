@@ -1,0 +1,85 @@
+---
+// /play/shift — Shift-mode page. Auth-required.
+// Plan 2 Task 13: pre-shift gate (open tickets + LLM-cap), then WS-driven chat UI.
+// XSS-safe: customer/AI text is user-supplied → DOM via textContent only, NEVER innerHTML.
+import Base from '../../layouts/Base.astro';
+import { getCurrentUser, getDB } from '../../lib/auth';
+import { getPlayer, listTickets } from '../../lib/game/db';
+import { getLlmUsageToday, getDailyCap } from '../../lib/game/llm-cap';
+
+type AnyCtx = Parameters<typeof getCurrentUser>[0];
+const ctx = Astro as unknown as AnyCtx;
+
+const user = await getCurrentUser(ctx);
+if (!user) return Astro.redirect('/login?next=/play/shift');
+const db = getDB(ctx);
+if (!db) return new Response('No DB', { status: 500 });
+const player = await getPlayer(db, user.id);
+if (!player) return Astro.redirect('/signup');
+
+const open = await listTickets(db, user.id, 'open');
+const used = await getLlmUsageToday(db, user.id);
+const cap = getDailyCap(player.is_pro === 1);
+const cap_remaining = cap - used;
+const ready = open.length > 0 && cap_remaining >= 5;
+---
+<Base title="Shift Mode">
+  <h1 class="text-2xl font-bold mb-2">Shift Mode</h1>
+  <p class="text-nt-text-dim mb-4 text-sm">
+    {open.length} open tickets · {cap_remaining}/{cap} LLM-budget remaining today · {player.free_shifts_today + player.paid_shifts_today} shifts used today
+  </p>
+
+  <div id="pre-shift" class={ready ? '' : 'hidden'}>
+    <button id="start-shift" class="px-6 py-3 bg-nt-accent rounded font-semibold">▶ Start Shift</button>
+    <p class="text-nt-text-dim text-xs mt-3">A shift lasts 30 minutes. Up to 10 tickets per shift.</p>
+  </div>
+
+  {open.length === 0 && (
+    <div class="bg-nt-bg-2 p-6 rounded">
+      <p class="text-nt-accent mb-2">🎉 Inbox zero.</p>
+      <p class="text-nt-text-dim text-sm">Wait for cron-tick to spawn more tickets, or buy more servers to attract customers.</p>
+    </div>
+  )}
+
+  {open.length > 0 && cap_remaining < 5 && (
+    <div class="bg-nt-bg-2 p-6 rounded">
+      <p class="text-yellow-400 mb-2">⚠ Daily LLM-budget too low ({cap_remaining}/{cap}).</p>
+      <p class="text-nt-text-dim text-sm">Shifts need at least 5 budget. Try again tomorrow, or upgrade to Pro.</p>
+    </div>
+  )}
+
+  <div id="shift-area" class="hidden mt-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <aside class="bg-nt-bg-2 p-4 rounded col-span-1 max-h-[70vh] overflow-y-auto">
+        <h2 class="font-bold mb-2 text-sm uppercase text-nt-text-dim">Queue</h2>
+        <ul id="queue-list" class="space-y-2 text-sm"></ul>
+      </aside>
+      <section class="md:col-span-2 bg-nt-bg-2 p-4 rounded flex flex-col h-[70vh]">
+        <header class="border-b border-nt-border pb-2 mb-2">
+          <h3 id="active-customer" class="font-bold">—</h3>
+          <p id="active-meta" class="text-xs text-nt-text-dim"></p>
+        </header>
+        <div id="messages" class="flex-1 overflow-y-auto space-y-2 mb-2"></div>
+        <div class="flex gap-2 flex-wrap mb-2 text-xs">
+          <button data-action="refund_30" class="px-2 py-1 bg-nt-bg-3 rounded">Refund 30%</button>
+          <button data-action="refund_50" class="px-2 py-1 bg-nt-bg-3 rounded">Refund 50%</button>
+          <button data-action="refund_100" class="px-2 py-1 bg-nt-bg-3 rounded">Refund 100%</button>
+          <button data-action="escalate" class="px-2 py-1 bg-nt-bg-3 rounded">Escalate ($50)</button>
+          <button data-action="investigate" class="px-2 py-1 bg-nt-bg-3 rounded">Investigate (free)</button>
+          <button data-action="close" class="px-2 py-1 bg-red-500/20 text-red-300 rounded">Close ticket</button>
+        </div>
+        <div class="flex gap-2">
+          <input id="msg-input" type="text" placeholder="Type a reply..." class="flex-1 px-3 py-2 bg-nt-bg-3 border border-nt-border rounded" />
+          <button id="msg-send" class="px-3 py-2 bg-nt-accent rounded text-sm font-semibold">Send</button>
+        </div>
+      </section>
+    </div>
+    <div id="shift-end" class="hidden bg-nt-bg-2 p-6 rounded mt-6">
+      <h2 class="font-bold text-lg mb-2">Shift Complete</h2>
+      <p id="end-summary" class="text-nt-text-dim"></p>
+      <a href="/play" class="inline-block mt-4 px-4 py-2 bg-nt-accent rounded">Back to Dashboard</a>
+    </div>
+  </div>
+
+  <script type="module" src="/src/scripts/shift/shift-app.ts"></script>
+</Base>
