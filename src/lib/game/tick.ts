@@ -274,6 +274,13 @@ export async function tickPlayer(
     eventsSpawned++;
   }
 
+  // Mark this tick — both cron and lazy-tick paths converge here, so the
+  // dashboard's "last tick X min ago" and the lazy-tick 5-min throttle stay
+  // consistent regardless of which path fired.
+  await db.prepare(
+    'UPDATE players SET last_ticked_at = ? WHERE user_id = ?',
+  ).bind(now, player.user_id).run();
+
   return {
     player_id: player.user_id,
     tickets_spawned: ticketsSpawned,
