@@ -30,12 +30,15 @@ const TICKET_SPAWN_PROB_PER_TICK = 0.004;
 const CHURN_ROLL_PROB = 0.30;
 const RANDOM_EVENT_PROB_PER_TICK = 0.007;
 // Customer acquisition (Plan 4): marketing-mix drives spawn-rate.
-// Base prob = base × (mix_total/300) × era_factor × rep_factor.
+// Base prob = base × (mix_total/300) × era_factor × rep_factor × pro_factor.
 // At full mix (300pct) + Era 1 + 50 rep: ~2.5%/tick ≈ 1 customer / ~3h.
 // PPC channel costs $1/tick at 100%, scales linearly. Unaffordable → PPC mix is dropped.
+// Pro perk: 2× acquisition + 0.5× churn.
 const ACQUISITION_BASE_PROB = 0.025;
 const ERA_FACTOR: Record<number, number> = { 1: 1, 2: 1.5, 3: 2, 4: 3 };
 const PPC_FULL_COST_PER_TICK_CENTS = 100;
+const PRO_ACQUISITION_MULTIPLIER = 2;
+const PRO_CHURN_MULTIPLIER = 0.5;
 
 const EVENT_TYPES: ReadonlyArray<EventType> = [
   'ddos_attempt',
@@ -189,8 +192,11 @@ export async function tickPlayer(
     'GROUP BY c.id',
   ).bind(player.user_id, now - CHURN_HOURS * 3600).all<{ id: number }>();
 
+  const churnProb = player.is_pro === 1
+    ? CHURN_ROLL_PROB * PRO_CHURN_MULTIPLIER
+    : CHURN_ROLL_PROB;
   for (const row of churnCandidates.results ?? []) {
-    if (Math.random() < CHURN_ROLL_PROB) {
+    if (Math.random() < churnProb) {
       await db.prepare(
         'UPDATE customers SET is_active = 0, churn_risk = 100 WHERE id = ?',
       ).bind(row.id).run();
@@ -245,7 +251,8 @@ export async function tickPlayer(
       const mixFactor = effectiveMix / 300;
       const eraFactor = ERA_FACTOR[player.current_era] ?? 1;
       const repFactor = Math.max(0.1, player.reputation / 100);
-      const acqProb = ACQUISITION_BASE_PROB * mixFactor * eraFactor * repFactor;
+      const proFactor = player.is_pro === 1 ? PRO_ACQUISITION_MULTIPLIER : 1;
+      const acqProb = ACQUISITION_BASE_PROB * mixFactor * eraFactor * repFactor * proFactor;
       if (Math.random() < acqProb) {
         // Plan-tier: rep-weighted. Higher rep → more business-tier customers.
         const tier: PlanTier = Math.random() < player.reputation / 200 ? 'business' : 'hobby';

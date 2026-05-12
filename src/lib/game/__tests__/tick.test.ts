@@ -188,6 +188,87 @@ describe('tickPlayer', () => {
     expect(after?.last_shift_reset_at).toBe(Math.floor(now / 86400) * 86400);
   });
 
+  it('Pro player: 2× acquisition rate vs free', async () => {
+    // Both players use the same forced Math.random sequence. Pro should
+    // pass the acq-roll on more tries than free, given same probabilities.
+    const seq: number[] = [];
+    let i = 0;
+    const origRandom = Math.random;
+    Math.random = () => seq[i++ % seq.length];
+
+    try {
+      // mix=50/300=0.167, rep=0.5, era=1
+      // Free acqProb = 0.025 * 0.167 * 0.5 * 1 = 0.00208
+      // Pro  acqProb = 0.025 * 0.167 * 0.5 * 2 = 0.00417
+      // Use 0.003 → Pro passes (< 0.00417), Free fails (> 0.00208).
+      for (let k = 0; k < 100; k++) seq.push(0.003);
+      const db2 = await createTestDb();
+      await createPlayer(db2, { user_id: 'u-pro', company_name: 'P', city: null });
+      await createPlayer(db2, { user_id: 'u-free', company_name: 'F', city: null });
+      await db2.prepare(
+        'UPDATE players SET marketing_seo_pct = 50, marketing_ppc_pct = 0, marketing_referral_pct = 0, ' +
+        'reputation = 50, is_pro = 1, pro_until = ? WHERE user_id = ?',
+      ).bind(Math.floor(Date.now() / 1000) + 86400, 'u-pro').run();
+      await db2.prepare(
+        'UPDATE players SET marketing_seo_pct = 50, marketing_ppc_pct = 0, marketing_referral_pct = 0, ' +
+        'reputation = 50 WHERE user_id = ?',
+      ).bind('u-free').run();
+
+      i = 0;
+      const proPlayer = await getPlayer(db2, 'u-pro');
+      if (!proPlayer) throw new Error('pro player gone');
+      const rPro = await tickPlayer(db2, proPlayer, 1715000000);
+
+      i = 0;
+      const freePlayer = await getPlayer(db2, 'u-free');
+      if (!freePlayer) throw new Error('free player gone');
+      const rFree = await tickPlayer(db2, freePlayer, 1715000000);
+
+      expect(rPro.customers_acquired).toBeGreaterThan(rFree.customers_acquired);
+    } finally {
+      Math.random = origRandom;
+    }
+  });
+
+  it('Pro player: lower churn-roll vs free', async () => {
+    // With Math.random forced to 0.2: free (churnProb=0.30) churns,
+    // Pro (churnProb=0.15) does NOT churn.
+    const origRandom = Math.random;
+    Math.random = () => 0.2;
+    try {
+      const db2 = await createTestDb();
+      const now = 1715000000;
+      for (const [uid, isPro] of [['u-prochurn', 1], ['u-freechurn', 0]] as const) {
+        await createPlayer(db2, { user_id: uid, company_name: 'X', city: null });
+        await db2.prepare(
+          'UPDATE players SET is_pro = ?, marketing_seo_pct = 0, marketing_ppc_pct = 0, marketing_referral_pct = 0 WHERE user_id = ?',
+        ).bind(isPro, uid).run();
+        const cRes = await db2.prepare(
+          'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) ' +
+          "VALUES (?, 'Test', 'karen', 'hobby', ?, 50) RETURNING id",
+        ).bind(uid, now - 100 * 3600).first<{ id: number }>();
+        if (!cRes) throw new Error('customer not created');
+        await db2.prepare(
+          'INSERT INTO tickets (customer_id, player_id, summary, full_text, status, created_at) ' +
+          "VALUES (?, ?, 'old', 'old', 'open', ?)",
+        ).bind(cRes.id, uid, now - 60 * 3600).run();
+        const p = await getPlayer(db2, uid);
+        if (!p) throw new Error('player gone');
+        await tickPlayer(db2, p, now);
+      }
+      const proActive = await db2.prepare(
+        'SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1',
+      ).bind('u-prochurn').first<{ n: number }>();
+      const freeActive = await db2.prepare(
+        'SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1',
+      ).bind('u-freechurn').first<{ n: number }>();
+      expect(proActive?.n).toBe(1); // Pro survived
+      expect(freeActive?.n).toBe(0); // Free churned
+    } finally {
+      Math.random = origRandom;
+    }
+  });
+
   it('daily shift-counter reset: same-day → no zeroing', async () => {
     const db2 = await createTestDb();
     await createPlayer(db2, { user_id: 'u-same', company_name: 'S', city: null });

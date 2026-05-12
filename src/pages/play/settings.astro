@@ -194,7 +194,8 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
           ✓ Pro active{proUntilStr ? ` until ${proUntilStr}` : ''}
         </p>
         <p style="margin: 0 0 12px; font-size: 12px; color: var(--muted);">
-          Pro grants 5 shifts/day, 50 LLM calls/day, and priority customer-pool. Pro status syncs from your PromNET subscription.
+          Pro grants 5 shifts/day, 50 LLM calls/day, <b style="color:var(--text)">2× customer-acquisition</b>, and
+          <b style="color:var(--text)">0.5× churn</b> on idle tickets. Synced from your PromNET subscription.
         </p>
         <a href="https://promnet.hu/app/szamlazas" target="_blank" rel="noopener"
            style="display:inline-block;padding:8px 16px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;font-size:13px;text-decoration:none;">
@@ -203,8 +204,12 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       </div>
     ) : (
       <div>
-        <p style="margin: 0 0 12px; font-size: 13px; color: var(--muted);">
-          You're on the Free tier: 1 shift/day, 5 LLM calls/day. Upgrade to Pro on PromNET to unlock 5× shifts, 10× AI budget.
+        <p style="margin: 0 0 13px; font-size: 13px; color: var(--muted);">
+          You're on the Free tier: 1 shift/day, 5 LLM calls/day. Upgrade to Pro on PromNET to unlock
+          <b style="color:var(--text)">5× shifts</b>,
+          <b style="color:var(--text)">10× AI budget</b>,
+          <b style="color:var(--mint)">2× customer-acquisition</b>, and
+          <b style="color:var(--mint)">half-rate churn</b>.
         </p>
         <a href="https://promnet.hu/app/szamlazas" target="_blank" rel="noopener"
            style="display:inline-block;padding:10px 20px;background:linear-gradient(135deg, var(--indigo), #4f46e5);color:#fff;border:0;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">
