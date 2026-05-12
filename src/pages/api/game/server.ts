@@ -5,6 +5,9 @@ import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getPlayer } from '../../../lib/game/db';
 import { SERVER_SPECS } from '../../../lib/game/server-types';
 import type { ServerType } from '../../../lib/game/types';
+import { computeAchievementInput } from '../../../lib/game/achievements-helper';
+import { checkAndUnlockAchievements } from '../../../lib/game/achievements';
+import type { D1Database } from '@cloudflare/workers-types/experimental';
 
 export const prerender = false;
 
@@ -45,7 +48,17 @@ export const POST = async (c: APIContext): Promise<Response> => {
       .bind(spec.purchase_cost_cents, user.id),
   ]);
 
-  return new Response(JSON.stringify({ ok: true, spec }), {
+  let newly_unlocked: string[] = [];
+  try {
+    const input = await computeAchievementInput(db as unknown as D1Database, user.id);
+    if (input) {
+      newly_unlocked = await checkAndUnlockAchievements(
+        db as unknown as D1Database, user.id, input,
+      );
+    }
+  } catch { /* non-fatal */ }
+
+  return new Response(JSON.stringify({ ok: true, spec, newly_unlocked }), {
     status: 201,
     headers: { 'content-type': 'application/json' },
   });

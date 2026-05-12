@@ -27,6 +27,9 @@ import { generateAiTicket } from '../../../lib/ai/ticket-generator';
 import { storeTicketMemory, type VectorizeBinding } from '../../../lib/ai/vectorize';
 import { tryConsumeLlmCall } from '../../../lib/game/llm-cap';
 import type { WorkersAIBinding } from '../../../lib/ai/workers-ai';
+import { computeAchievementInput } from '../../../lib/game/achievements-helper';
+import { checkAndUnlockAchievements } from '../../../lib/game/achievements';
+import type { D1Database } from '@cloudflare/workers-types/experimental';
 
 export const prerender = false;
 
@@ -167,10 +170,22 @@ export async function POST(context: APIContext): Promise<Response> {
       console.warn('signup: createPlayer/bootstrap hiba (best-effort):', (e as Error).message);
     }
 
+    // Achievement-unlock check (best-effort, non-fatal): new signup with 3 customers
+    // bootstrapped above will trigger `first_blood` here.
+    let newly_unlocked: string[] = [];
+    try {
+      const input = await computeAchievementInput(db as unknown as D1Database, user.id);
+      if (input) {
+        newly_unlocked = await checkAndUnlockAchievements(
+          db as unknown as D1Database, user.id, input,
+        );
+      }
+    } catch { /* non-fatal */ }
+
     // 4) Cookie + return
     setSessionCookie(context, token);
     return new Response(
-      JSON.stringify({ ok: true, redirect: '/play' }),
+      JSON.stringify({ ok: true, redirect: '/play', newly_unlocked }),
       { status: 200, headers: { 'Content-Type': 'application/json',
                                 'Cache-Control': 'private, no-store' } },
     );

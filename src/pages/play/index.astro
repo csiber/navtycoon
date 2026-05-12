@@ -43,8 +43,12 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 
 <style is:global set:html={pageCss}></style>
+<style is:inline>
+  body { transition: opacity 200ms ease-out; }
+  body.preload { opacity: 0; }
+</style>
 </head>
-<body>
+<body class="preload">
 <Fragment set:html={pageHtml} />
 <div id="events-overlay" style="position: fixed; top: 80px; right: 20px; width: 380px; max-width: calc(100vw - 40px); z-index: 100; max-height: calc(100vh - 100px); overflow-y: auto; pointer-events: none;"></div>
 <style is:inline>
@@ -209,7 +213,28 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
         }
       })
       .catch(function () {});
+
+    // Cross-page achievement unlock surfacing. GET /api/game/achievements
+    // re-runs checkAndUnlockAchievements (idempotent) and returns the ids
+    // that JUST unlocked on this call. Show one toast per id.
+    fetch('/api/game/achievements')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.ok || !Array.isArray(j.newly_unlocked) || j.newly_unlocked.length === 0) return;
+        var byId = new Map((j.achievements || []).map(function (a) { return [a.id, a]; }));
+        j.newly_unlocked.forEach(function (id) {
+          var ach = byId.get(id);
+          if (ach) showToast('🎉 Achievement unlocked: ' + ach.emoji + ' ' + ach.title);
+        });
+      })
+      .catch(function () {});
   })();
+</script>
+<script is:inline>
+  // Hide mock-data flash: remove preload-class once hydrators have run.
+  window.addEventListener('load', function () {
+    setTimeout(function () { document.body.classList.remove('preload'); }, 30);
+  });
 </script>
 </body>
 </html>

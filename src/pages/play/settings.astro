@@ -68,8 +68,12 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/css/template.css" />
 <style is:global set:html={pageCss}></style>
+<style is:inline>
+  body { transition: opacity 200ms ease-out; }
+  body.preload { opacity: 0; }
+</style>
 </head>
-<body>
+<body class="preload">
 <Fragment set:html={pageHtml} />
 <script type="application/json" id="state" set:html={JSON.stringify(stateObj)}></script>
 <script is:inline>
@@ -218,6 +222,12 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       }
     });
   })();
+</script>
+<script is:inline>
+  // Hide mock-data flash: remove preload-class once hydrators have run.
+  window.addEventListener('load', function () {
+    setTimeout(function () { document.body.classList.remove('preload'); }, 30);
+  });
 </script>
 </body>
 </html>

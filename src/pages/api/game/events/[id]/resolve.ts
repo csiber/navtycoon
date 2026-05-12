@@ -8,8 +8,13 @@
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../../../lib/auth';
 import { getEventDefinition } from '../../../../../lib/game/event-options';
-import { unlockAchievement } from '../../../../../lib/game/achievements';
+import {
+  unlockAchievement,
+  checkAndUnlockAchievements,
+} from '../../../../../lib/game/achievements';
+import { computeAchievementInput } from '../../../../../lib/game/achievements-helper';
 import type { EventType } from '../../../../../lib/game/types';
+import type { D1Database } from '@cloudflare/workers-types/experimental';
 
 export const prerender = false;
 
@@ -87,15 +92,32 @@ export const POST = async (c: APIContext): Promise<Response> => {
     .bind(now, result.outcome, eventId)
     .run();
 
-  // Narrative-driven achievement (best-effort, idempotent)
+  // Narrative-driven achievement (best-effort, idempotent) — counts-driven
+  // check can't see event-history, so we keep the special-case unlock here.
   let narrativeUnlocked: string | null = null;
   if (event.event_type === 'ddos_attempt') {
     const wasUnlocked = await unlockAchievement(
-      db as unknown as import('@cloudflare/workers-types/experimental').D1Database,
+      db as unknown as D1Database,
       user.id,
       'survived_first_ddos',
     );
     if (wasUnlocked) narrativeUnlocked = 'survived_first_ddos';
+  }
+
+  // Counts-driven achievements: cash/rep/customer-satisfaction deltas above
+  // may have crossed unlock thresholds (e.g. high_rep, first_k_mrr).
+  let newly_unlocked: string[] = [];
+  try {
+    const input = await computeAchievementInput(db as unknown as D1Database, user.id);
+    if (input) {
+      newly_unlocked = await checkAndUnlockAchievements(
+        db as unknown as D1Database, user.id, input,
+      );
+    }
+  } catch { /* non-fatal */ }
+  // Merge narrative + counts-driven unlocks; keep newly_unlocked unique.
+  if (narrativeUnlocked && !newly_unlocked.includes(narrativeUnlocked)) {
+    newly_unlocked = [narrativeUnlocked, ...newly_unlocked];
   }
 
   return new Response(
@@ -106,7 +128,9 @@ export const POST = async (c: APIContext): Promise<Response> => {
       cash_delta_cents: result.cash_delta_cents,
       reputation_delta: result.reputation_delta,
       satisfaction_delta: result.satisfaction_delta_global,
+      // Legacy field kept for backwards compat with current frontend.
       newly_unlocked_achievement: narrativeUnlocked,
+      newly_unlocked,
     }),
     { headers: { 'content-type': 'application/json' } },
   );
