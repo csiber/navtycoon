@@ -39,6 +39,11 @@ const ERA_FACTOR: Record<number, number> = { 1: 1, 2: 1.5, 3: 2, 4: 3 };
 const PPC_FULL_COST_PER_TICK_CENTS = 100;
 const PRO_ACQUISITION_MULTIPLIER = 2;
 const PRO_CHURN_MULTIPLIER = 0.5;
+// Welcome-boost: first 7 days of a player's run get 2× acquisition rate so
+// new players see growth quickly (critical for retention given default
+// ~0.4%/tick rate at signup-default mix).
+const WELCOME_BOOST_DAYS = 7;
+const WELCOME_BOOST_MULTIPLIER = 2;
 
 const EVENT_TYPES: ReadonlyArray<EventType> = [
   'ddos_attempt',
@@ -252,7 +257,9 @@ export async function tickPlayer(
       const eraFactor = ERA_FACTOR[player.current_era] ?? 1;
       const repFactor = Math.max(0.1, player.reputation / 100);
       const proFactor = player.is_pro === 1 ? PRO_ACQUISITION_MULTIPLIER : 1;
-      const acqProb = ACQUISITION_BASE_PROB * mixFactor * eraFactor * repFactor * proFactor;
+      const ageDays = (now - player.founded_at) / 86400;
+      const welcomeFactor = ageDays < WELCOME_BOOST_DAYS ? WELCOME_BOOST_MULTIPLIER : 1;
+      const acqProb = ACQUISITION_BASE_PROB * mixFactor * eraFactor * repFactor * proFactor * welcomeFactor;
       if (Math.random() < acqProb) {
         // Plan-tier: rep-weighted. Higher rep → more business-tier customers.
         const tier: PlanTier = Math.random() < player.reputation / 200 ? 'business' : 'hobby';

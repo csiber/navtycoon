@@ -35,6 +35,8 @@ const stateObj = {
   seo: player.marketing_seo_pct,
   ppc: player.marketing_ppc_pct,
   referral: player.marketing_referral_pct,
+  isPro: player.is_pro === 1,
+  foundedAt: player.founded_at,
 };
 
 const pageCss = `
@@ -241,6 +243,12 @@ const pageHtml = `
             <span class="val" id="mix-sum">100%</span>
             <span class="note">// server normalizes to 100% on save — any sum is OK</span>
           </div>
+
+          <div class="sum-row" style="border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 12px;">
+            <span class="lbl">Predicted acquisition:</span>
+            <span class="val" id="acq-preview">·</span>
+            <span class="note" id="acq-cost-note">// PPC cost: $·/day</span>
+          </div>
         </section>
 
         <div class="save-bar">
@@ -319,9 +327,58 @@ const pageHtml = `
         el.classList.toggle('warn', sum !== 100);
       }
     }
+    function refreshPredictedAcq() {
+      const previewEl = document.getElementById('acq-preview');
+      const costEl = document.getElementById('acq-cost-note');
+      if (!previewEl) return;
+      const seoVal = Number(seoInp ? seoInp.value : 0);
+      const ppcVal = Number(ppcInp ? ppcInp.value : 0);
+      const refVal = Number(refInp ? refInp.value : 0);
+      // Mirror tick.ts acquisition formula:
+      // acqProb = 0.025 * mixFactor * eraFactor * repFactor * proFactor * welcomeFactor
+      // mixFactor = (seo + ppc + ref*referralBoost) / 300
+      // referralBoost = 1 + max(0, rep-50)/100
+      const referralBoost = 1 + Math.max(0, s.rep - 50) / 100;
+      const effMix = seoVal + ppcVal + refVal * referralBoost;
+      const mixFactor = effMix / 300;
+      const eraFactor = ({1:1, 2:1.5, 3:2, 4:3})[s.era] || 1;
+      const repFactor = Math.max(0.1, s.rep / 100);
+      const proFactor = s.isPro ? 2 : 1;
+      const ageDays = (Date.now() / 1000 - s.foundedAt) / 86400;
+      const welcomeFactor = ageDays < 7 ? 2 : 1;
+      const acqProb = 0.025 * mixFactor * eraFactor * repFactor * proFactor * welcomeFactor;
+      // 1 tick = 5 min → 288 ticks/day
+      const perDay = acqProb * 288;
+      let text;
+      if (perDay <= 0) {
+        text = '0 — zero mix';
+      } else if (perDay >= 1) {
+        text = perDay.toFixed(1) + ' / day';
+      } else {
+        const hoursPer = 24 / perDay;
+        if (hoursPer < 24) {
+          text = '1 / ' + hoursPer.toFixed(1) + 'h';
+        } else {
+          const daysPer = hoursPer / 24;
+          text = '1 / ' + daysPer.toFixed(1) + 'd';
+        }
+      }
+      const tags = [];
+      if (s.isPro) tags.push('Pro 2×');
+      if (welcomeFactor > 1) tags.push('welcome 2×');
+      if (tags.length > 0) text += ' (' + tags.join(', ') + ')';
+      previewEl.textContent = text;
+      if (costEl) {
+        // PPC cost: PPC_FULL_COST_PER_TICK_CENTS=100, scales linearly with ppc%, 288 ticks/day
+        const dailyCents = Math.round(100 * (ppcVal / 100) * 288);
+        const dailyUsd = (dailyCents / 100).toFixed(2);
+        costEl.textContent = '// PPC cost: $' + dailyUsd + '/day' + (ppcVal === 0 ? ' (PPC off)' : '');
+      }
+    }
     function refreshAll() {
       ['seo', 'ppc', 'referral'].forEach(refreshOne);
       refreshSum();
+      refreshPredictedAcq();
     }
     refreshAll();
     [seoInp, ppcInp, refInp].forEach(inp => {

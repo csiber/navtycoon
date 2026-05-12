@@ -197,7 +197,7 @@ describe('tickPlayer', () => {
     Math.random = () => seq[i++ % seq.length];
 
     try {
-      // mix=50/300=0.167, rep=0.5, era=1
+      // mix=50/300=0.167, rep=0.5, era=1, both founded_at >7d ago (no welcome-boost)
       // Free acqProb = 0.025 * 0.167 * 0.5 * 1 = 0.00208
       // Pro  acqProb = 0.025 * 0.167 * 0.5 * 2 = 0.00417
       // Use 0.003 → Pro passes (< 0.00417), Free fails (> 0.00208).
@@ -205,14 +205,15 @@ describe('tickPlayer', () => {
       const db2 = await createTestDb();
       await createPlayer(db2, { user_id: 'u-pro', company_name: 'P', city: null });
       await createPlayer(db2, { user_id: 'u-free', company_name: 'F', city: null });
+      const oldFounded = 1715000000 - 14 * 86400;
       await db2.prepare(
-        'UPDATE players SET marketing_seo_pct = 50, marketing_ppc_pct = 0, marketing_referral_pct = 0, ' +
-        'reputation = 50, is_pro = 1, pro_until = ? WHERE user_id = ?',
-      ).bind(Math.floor(Date.now() / 1000) + 86400, 'u-pro').run();
+        'UPDATE players SET founded_at = ?, marketing_seo_pct = 50, marketing_ppc_pct = 0, ' +
+        'marketing_referral_pct = 0, reputation = 50, is_pro = 1, pro_until = ? WHERE user_id = ?',
+      ).bind(oldFounded, Math.floor(Date.now() / 1000) + 86400, 'u-pro').run();
       await db2.prepare(
-        'UPDATE players SET marketing_seo_pct = 50, marketing_ppc_pct = 0, marketing_referral_pct = 0, ' +
-        'reputation = 50 WHERE user_id = ?',
-      ).bind('u-free').run();
+        'UPDATE players SET founded_at = ?, marketing_seo_pct = 50, marketing_ppc_pct = 0, ' +
+        'marketing_referral_pct = 0, reputation = 50 WHERE user_id = ?',
+      ).bind(oldFounded, 'u-free').run();
 
       i = 0;
       const proPlayer = await getPlayer(db2, 'u-pro');
@@ -225,6 +226,45 @@ describe('tickPlayer', () => {
       const rFree = await tickPlayer(db2, freePlayer, 1715000000);
 
       expect(rPro.customers_acquired).toBeGreaterThan(rFree.customers_acquired);
+    } finally {
+      Math.random = origRandom;
+    }
+  });
+
+  it('welcome boost: first-week player has 2× acquisition vs >7d player', async () => {
+    const seq: number[] = [];
+    let i = 0;
+    const origRandom = Math.random;
+    Math.random = () => seq[i++ % seq.length];
+    try {
+      // Same forced value that's BETWEEN free-rate (0.00208) and welcome-rate (0.00417).
+      for (let k = 0; k < 100; k++) seq.push(0.003);
+      const db2 = await createTestDb();
+      const now = 1715000000;
+      await createPlayer(db2, { user_id: 'u-new', company_name: 'N', city: null });
+      await createPlayer(db2, { user_id: 'u-old', company_name: 'O', city: null });
+      // u-new just signed up: founded_at = now
+      // u-old: founded 14 days ago
+      await db2.prepare(
+        'UPDATE players SET founded_at = ?, marketing_seo_pct = 50, marketing_ppc_pct = 0, ' +
+        'marketing_referral_pct = 0, reputation = 50 WHERE user_id = ?',
+      ).bind(now, 'u-new').run();
+      await db2.prepare(
+        'UPDATE players SET founded_at = ?, marketing_seo_pct = 50, marketing_ppc_pct = 0, ' +
+        'marketing_referral_pct = 0, reputation = 50 WHERE user_id = ?',
+      ).bind(now - 14 * 86400, 'u-old').run();
+
+      i = 0;
+      const pNew = await getPlayer(db2, 'u-new');
+      if (!pNew) throw new Error('new gone');
+      const rNew = await tickPlayer(db2, pNew, now);
+
+      i = 0;
+      const pOld = await getPlayer(db2, 'u-old');
+      if (!pOld) throw new Error('old gone');
+      const rOld = await tickPlayer(db2, pOld, now);
+
+      expect(rNew.customers_acquired).toBeGreaterThan(rOld.customers_acquired);
     } finally {
       Math.random = origRandom;
     }
