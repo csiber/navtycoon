@@ -6,6 +6,8 @@ import { applyAction, type ShiftAction } from '../lib/game/action-handler';
 import { generateAiReply, ratePlayerResponse } from '../lib/ai/reply-generator';
 import { tryConsumeLlmCall } from '../lib/game/llm-cap';
 import type { WorkersAIBinding } from '../lib/ai/workers-ai';
+import { computeAchievementInput } from '../lib/game/achievements-helper';
+import { checkAndUnlockAchievements } from '../lib/game/achievements';
 
 interface DurableEnv {
   AI?: WorkersAIBinding;
@@ -32,7 +34,7 @@ type WsOutbound =
   | { type: 'state'; state: ShiftState }
   | { type: 'reply'; ticket_id: number; text: string; satisfaction_delta: number; new_satisfaction: number }
   | { type: 'action_result'; ticket_id: number; result: { satisfaction_delta: number; cash_delta_cents: number; resolves_ticket: boolean; message: string } }
-  | { type: 'shift_end'; summary: { tickets_handled: number; satisfaction_total: number; refunds_cents: number } }
+  | { type: 'shift_end'; summary: { tickets_handled: number; satisfaction_total: number; refunds_cents: number }; newly_unlocked: string[] }
   | { type: 'error'; error: string };
 
 export class ShiftRoomDO {
@@ -40,6 +42,8 @@ export class ShiftRoomDO {
   env: DurableEnv;
   shift: ShiftState | null = null;
   ws: WebSocket | null = null;
+  // Achievement-IDs unlocked during persistShiftHistory(), surfaced in shift_end.
+  private pendingAchievementUnlocks: string[] = [];
 
   constructor(state: DurableObjectState, env: DurableEnv) {
     this.state = state;
@@ -110,7 +114,7 @@ export class ShiftRoomDO {
     if (isShiftExpired(this.shift, Math.floor(Date.now() / 1000))) {
       this.shift.status = 'expired';
       await this.state.storage.put('shift', this.shift);
-      this.send({ type: 'shift_end', summary: this.summary() });
+      this.send({ type: 'shift_end', summary: this.summary(), newly_unlocked: this.pendingAchievementUnlocks });
       return;
     }
     let m: WsInbound;
@@ -213,7 +217,7 @@ export class ShiftRoomDO {
       if (!hasNext) {
         this.shift.status = 'completed';
         await this.persistShiftHistory();
-        this.send({ type: 'shift_end', summary: this.summary() });
+        this.send({ type: 'shift_end', summary: this.summary(), newly_unlocked: this.pendingAchievementUnlocks });
       }
     }
   }
@@ -245,6 +249,24 @@ export class ShiftRoomDO {
       this.shift.tickets_handled, s.satisfaction_total, s.refunds_cents,
       this.shift.status === 'completed' ? 'completed' : this.shift.status,
     ).run();
+
+    // Achievement-check: shift_count épp változott, így a first_shift / shift_marathon
+    // most unlock-olódhat. Non-fatal: bármilyen hibát elnyel, a shift-end normálisan fut tovább.
+    try {
+      const input = await computeAchievementInput(this.env.DB, this.shift.player_id);
+      if (input) {
+        const newlyUnlocked = await checkAndUnlockAchievements(
+          this.env.DB,
+          this.shift.player_id,
+          input,
+        );
+        if (newlyUnlocked.length > 0) {
+          this.pendingAchievementUnlocks = newlyUnlocked;
+        }
+      }
+    } catch {
+      /* non-fatal */
+    }
   }
 
   summary() {

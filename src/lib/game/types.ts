@@ -63,6 +63,7 @@ export interface Player {
   pro_until: number | null;
   last_active_at: number;
   created_at: number;
+  onboarding_completed_at?: number | null;
 }
 
 export interface Customer {

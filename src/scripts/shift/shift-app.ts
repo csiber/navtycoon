@@ -91,14 +91,23 @@ function applyState(state: ShiftStateMsg) {
   renderActive(state);
 }
 
-function showShiftEnd(summary: {
-  tickets_handled: number;
-  satisfaction_total: number;
-  refunds_cents: number;
-}) {
+function showShiftEnd(
+  summary: {
+    tickets_handled: number;
+    satisfaction_total: number;
+    refunds_cents: number;
+  },
+  newlyUnlocked?: string[],
+) {
   $('shift-end').classList.remove('hidden');
   $('end-summary').textContent =
     `Tickets handled: ${summary.tickets_handled} · Total satisfaction: ${summary.satisfaction_total >= 0 ? '+' : ''}${summary.satisfaction_total} · Refunds: $${(summary.refunds_cents / 100).toFixed(2)}`;
+  if (newlyUnlocked && newlyUnlocked.length > 0) {
+    const ach = document.createElement('p');
+    ach.style.cssText = 'margin-top:12px;color:var(--mint,#34d399);font-weight:600;';
+    ach.textContent = '🎉 Unlocked: ' + newlyUnlocked.join(', ');
+    $('end-summary').after(ach);
+  }
   ws?.close();
 }
 
@@ -136,7 +145,7 @@ async function startShift() {
       }
     } else if (msg.type === 'action_result') {
       /* state-msg follows */
-    } else if (msg.type === 'shift_end') showShiftEnd(msg.summary);
+    } else if (msg.type === 'shift_end') showShiftEnd(msg.summary, msg.newly_unlocked);
     else if (msg.type === 'error') {
       console.error('shift error', msg.error);
       alert('Error: ' + msg.error);
