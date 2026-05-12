@@ -17,8 +17,10 @@ describe('tickPlayer', () => {
 
   it('money trickle: positive MRR adds cash', async () => {
     await createPlayer(db, { user_id: 'u-1', company_name: 'X', city: null });
-    await db.prepare('UPDATE players SET mrr_usd_cents = 30000 WHERE user_id = ?')
-      .bind('u-1').run();
+    await db.prepare(
+      'UPDATE players SET mrr_usd_cents = 30000, marketing_seo_pct = 0, ' +
+      'marketing_ppc_pct = 0, marketing_referral_pct = 0 WHERE user_id = ?',
+    ).bind('u-1').run();
     const refreshed = await getPlayer(db, 'u-1');
     if (!refreshed) throw new Error('player not found');
     const cashBefore = refreshed.cash_usd_cents;
@@ -83,6 +85,88 @@ describe('tickPlayer', () => {
     const after = await getPlayer(db, 'u-4');
     expect(after?.mrr_usd_cents).toBe(2 * 500 + 1500);
   });
+
+  it('marketing-mix drives customer-acquisition (high marketing → eventual spawn)', async () => {
+    const db2 = await createTestDb();
+    await createPlayer(db2, { user_id: 'u-mkt', company_name: 'M', city: null });
+    // Maximal marketing-mix: SEO 100, PPC 0 (free), referral 0
+    await db2.prepare(
+      'UPDATE players SET marketing_seo_pct = 100, marketing_ppc_pct = 0, marketing_referral_pct = 0, reputation = 50 WHERE user_id = ?',
+    ).bind('u-mkt').run();
+    const now = 1715000000;
+
+    // Force-random: every other tick passes the acquisition-roll
+    const origRandom = Math.random;
+    let calls = 0;
+    Math.random = () => { calls++; return calls % 3 === 0 ? 0.001 : 0.999; };
+    try {
+      let acquired = 0;
+      for (let i = 0; i < 30; i++) {
+        const player = await getPlayer(db2, 'u-mkt');
+        if (!player) throw new Error('player gone');
+        const r = await tickPlayer(db2, player, now);
+        acquired += r.customers_acquired;
+        if (acquired > 0) break;
+      }
+      expect(acquired).toBeGreaterThan(0);
+    } finally {
+      Math.random = origRandom;
+    }
+  }, 10000);
+
+  it('PPC channel deducts cash when affordable', async () => {
+    const db2 = await createTestDb();
+    await createPlayer(db2, { user_id: 'u-ppc', company_name: 'P', city: null });
+    await db2.prepare(
+      'UPDATE players SET marketing_seo_pct = 0, marketing_ppc_pct = 100, marketing_referral_pct = 0, ' +
+      'reputation = 50, cash_usd_cents = 10000 WHERE user_id = ?',
+    ).bind('u-ppc').run();
+    const player = await getPlayer(db2, 'u-ppc');
+    if (!player) throw new Error('player gone');
+    const r = await tickPlayer(db2, player, 1715000000);
+    expect(r.marketing_spent_cents).toBe(100); // PPC_FULL_COST_PER_TICK_CENTS × 100/100
+    const after = await db2.prepare('SELECT cash_usd_cents FROM players WHERE user_id = ?')
+      .bind('u-ppc').first<{ cash_usd_cents: number }>();
+    expect(after?.cash_usd_cents).toBe(10000 - 100);
+  });
+
+  it('PPC dropped when cash insufficient (no spend, mix shrinks)', async () => {
+    const db2 = await createTestDb();
+    await createPlayer(db2, { user_id: 'u-broke', company_name: 'B', city: null });
+    await db2.prepare(
+      'UPDATE players SET marketing_seo_pct = 0, marketing_ppc_pct = 100, marketing_referral_pct = 0, ' +
+      'reputation = 50, cash_usd_cents = 50 WHERE user_id = ?',
+    ).bind('u-broke').run();
+    const player = await getPlayer(db2, 'u-broke');
+    if (!player) throw new Error('player gone');
+    const r = await tickPlayer(db2, player, 1715000000);
+    expect(r.marketing_spent_cents).toBe(0); // PPC dropped
+    const after = await db2.prepare('SELECT cash_usd_cents FROM players WHERE user_id = ?')
+      .bind('u-broke').first<{ cash_usd_cents: number }>();
+    expect(after?.cash_usd_cents).toBe(50); // no deduction
+  });
+
+  it('zero marketing-mix → no acquisition (even on lucky rolls)', async () => {
+    const db2 = await createTestDb();
+    await createPlayer(db2, { user_id: 'u-zero', company_name: 'Z', city: null });
+    await db2.prepare(
+      'UPDATE players SET marketing_seo_pct = 0, marketing_ppc_pct = 0, marketing_referral_pct = 0 WHERE user_id = ?',
+    ).bind('u-zero').run();
+    const origRandom = Math.random;
+    Math.random = () => 0.0001; // force every roll to "yes"
+    try {
+      let totalAcquired = 0;
+      for (let i = 0; i < 10; i++) {
+        const player = await getPlayer(db2, 'u-zero');
+        if (!player) throw new Error('player gone');
+        const r = await tickPlayer(db2, player, 1715000000);
+        totalAcquired += r.customers_acquired;
+      }
+      expect(totalAcquired).toBe(0);
+    } finally {
+      Math.random = origRandom;
+    }
+  }, 10000);
 
   it('uses AI when env.ai + env.vectorize provided and budget allows', async () => {
     const db2 = await createTestDb();

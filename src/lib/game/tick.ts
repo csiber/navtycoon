@@ -8,7 +8,8 @@
 //        – egyébként placeholder-fallback (getPlaceholderTicketForPersona)
 //   3. customer-churn for tickets unanswered >48h (30% roll per tick)
 //   4. MRR-recompute from active customers' plan-tiers
-//   5. random-event spawn (~0.7% per tick → ~2/hour at full active fleet)
+//   5. marketing-driven customer-acquisition (SEO+PPC+referral, PPC costs cash)
+//   6. random-event spawn (~0.7% per tick → ~2/hour at full active fleet)
 //
 // Konvenciók:
 //  - Pénz INTEGER (USD cents)
@@ -16,8 +17,8 @@
 //  - Per-player-szigetelés: minden write WHERE player_id = ?
 
 import type { D1Database } from '@cloudflare/workers-types/experimental';
-import type { Player, PersonaArchetype, EventType } from './types';
-import { getPlaceholderTicketForPersona } from './customer-spawn';
+import type { Player, PersonaArchetype, EventType, PlanTier } from './types';
+import { getPlaceholderTicketForPersona, spawnCustomer } from './customer-spawn';
 import { generateAiTicket } from '../ai/ticket-generator';
 import { storeTicketMemory, type VectorizeBinding } from '../ai/vectorize';
 import { tryConsumeLlmCall } from './llm-cap';
@@ -28,6 +29,13 @@ const CHURN_HOURS = 48;
 const TICKET_SPAWN_PROB_PER_TICK = 0.004;
 const CHURN_ROLL_PROB = 0.30;
 const RANDOM_EVENT_PROB_PER_TICK = 0.007;
+// Customer acquisition (Plan 4): marketing-mix drives spawn-rate.
+// Base prob = base × (mix_total/300) × era_factor × rep_factor.
+// At full mix (300pct) + Era 1 + 50 rep: ~2.5%/tick ≈ 1 customer / ~3h.
+// PPC channel costs $1/tick at 100%, scales linearly. Unaffordable → PPC mix is dropped.
+const ACQUISITION_BASE_PROB = 0.025;
+const ERA_FACTOR: Record<number, number> = { 1: 1, 2: 1.5, 3: 2, 4: 3 };
+const PPC_FULL_COST_PER_TICK_CENTS = 100;
 
 const EVENT_TYPES: ReadonlyArray<EventType> = [
   'ddos_attempt',
@@ -48,6 +56,8 @@ export interface TickResult {
   money_added_cents: number;
   churned: number;
   events_spawned: number;
+  customers_acquired: number;
+  marketing_spent_cents: number;
 }
 
 export interface TickEnv {
@@ -67,6 +77,8 @@ export async function tickPlayer(
   let moneyAdded = 0;
   let churned = 0;
   let eventsSpawned = 0;
+  let customersAcquired = 0;
+  let marketingSpent = 0;
 
   // 1. Money trickle: MRR cents/month → per-tick cents
   if (player.mrr_usd_cents > 0) {
@@ -194,7 +206,55 @@ export async function tickPlayer(
     ).bind(newMrr, player.user_id).run();
   }
 
-  // 6. Random event spawn
+  // 6. Marketing-driven customer acquisition
+  //    Channels: SEO (free), PPC (costs cash), referral (free; rep-multiplied)
+  //    PPC cost per tick = full_cost × (ppc_pct / 100). If cash < ppc_cost,
+  //    PPC channel drops out of the mix this tick.
+  {
+    const seoPct = player.marketing_seo_pct;
+    const referralPct = player.marketing_referral_pct;
+    let ppcPct = player.marketing_ppc_pct;
+    const ppcCost = Math.round(PPC_FULL_COST_PER_TICK_CENTS * (ppcPct / 100));
+    // Re-read latest cash because money-trickle (#1) may have updated it.
+    const cashRow = await db.prepare(
+      'SELECT cash_usd_cents FROM players WHERE user_id = ?',
+    ).bind(player.user_id).first<{ cash_usd_cents: number }>();
+    const cashNow = cashRow?.cash_usd_cents ?? player.cash_usd_cents;
+    let ppcEffectiveCost = 0;
+    if (ppcPct > 0 && cashNow >= ppcCost) {
+      ppcEffectiveCost = ppcCost;
+    } else {
+      ppcPct = 0; // PPC drops if unaffordable
+    }
+    const mixTotal = seoPct + ppcPct + referralPct;
+    if (mixTotal > 0) {
+      // Referral bonus: rep boosts referral-channel weight
+      const referralBoost = 1 + Math.max(0, player.reputation - 50) / 100;
+      const effectiveMix = seoPct + ppcPct + referralPct * referralBoost;
+      const mixFactor = effectiveMix / 300;
+      const eraFactor = ERA_FACTOR[player.current_era] ?? 1;
+      const repFactor = Math.max(0.1, player.reputation / 100);
+      const acqProb = ACQUISITION_BASE_PROB * mixFactor * eraFactor * repFactor;
+      if (Math.random() < acqProb) {
+        // Plan-tier: rep-weighted. Higher rep → more business-tier customers.
+        const tier: PlanTier = Math.random() < player.reputation / 200 ? 'business' : 'hobby';
+        const sp = spawnCustomer(tier);
+        await db.prepare(
+          'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) ' +
+          'VALUES (?, ?, ?, ?, ?, ?)',
+        ).bind(player.user_id, sp.name, sp.persona_archetype, tier, now, sp.starting_satisfaction).run();
+        customersAcquired++;
+      }
+      if (ppcEffectiveCost > 0) {
+        await db.prepare(
+          'UPDATE players SET cash_usd_cents = MAX(0, cash_usd_cents - ?) WHERE user_id = ?',
+        ).bind(ppcEffectiveCost, player.user_id).run();
+        marketingSpent = ppcEffectiveCost;
+      }
+    }
+  }
+
+  // 7. Random event spawn
   if (Math.random() < RANDOM_EVENT_PROB_PER_TICK) {
     const type = EVENT_TYPES[Math.floor(Math.random() * EVENT_TYPES.length)];
     await db.prepare(
@@ -211,6 +271,8 @@ export async function tickPlayer(
     money_added_cents: moneyAdded,
     churned,
     events_spawned: eventsSpawned,
+    customers_acquired: customersAcquired,
+    marketing_spent_cents: marketingSpent,
   };
 }
 
