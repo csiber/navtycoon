@@ -1,6 +1,6 @@
 ---
-// /play/pricing — two tier prices, server-clamped on save. Auth-required.
-import Base from '../../layouts/Base.astro';
+// /play/pricing -- two-tier plan pricing. Dark template style.
+// Auth-required; POST /api/game/pricing clamp-eli a bound-okat szerveroldalon.
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer } from '../../lib/game/db';
 
@@ -13,66 +13,314 @@ const db = getDB(ctx);
 if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
 if (!player) return Astro.redirect('/signup');
+
+const companyName = player.company_name;
+const cashUsd = (player.cash_usd_cents / 100).toFixed(0);
+const mrrUsd = (player.mrr_usd_cents / 100).toFixed(0);
+const founded = new Date(player.founded_at * 1000).getFullYear();
+const dayNum = Math.max(1, Math.floor((Date.now() / 1000 - player.founded_at) / 86400) + 1);
+const initials = companyName.split(/\s+/).map((w: string) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || 'HY';
+const displayName = user.display_name ?? user.email.split('@')[0] ?? 'player';
+
+const stateObj = {
+  company: companyName,
+  initials,
+  cashUsd,
+  mrrUsd,
+  rep: player.reputation,
+  era: player.current_era,
+  founded,
+  day: dayNum,
+  displayName,
+  hobby: player.pricing_hobby_cents,
+  business: player.pricing_business_cents,
+};
+
+const pageCss = `
+  .layout { grid-column: span 12; display: grid; gap: 18px; }
+  .sec {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 0; margin-bottom: 18px;
+  }
+  .sec-head {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sec-head h2 {
+    margin: 0;
+    font-family: var(--display); font-size: 19px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sec-head h2 .ico {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: var(--panel-2); border: 1px solid var(--line-2);
+    display: grid; place-items: center;
+    font-family: var(--mono); font-size: 13px; color: var(--cyan);
+  }
+  .sec-head .sub {
+    font-size: 13px; color: var(--muted); margin-top: 4px;
+  }
+  .tier {
+    padding: 22px;
+    border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 1fr 320px;
+    gap: 24px; align-items: center;
+  }
+  .tier:last-child { border-bottom: 0; }
+  .tier .info h3 {
+    margin: 0 0 4px;
+    font-family: var(--display); font-size: 16px; font-weight: 600;
+  }
+  .tier .info p {
+    margin: 0; font-size: 13px; color: var(--muted); line-height: 1.55;
+  }
+  .tier .info .bounds {
+    margin-top: 8px;
+    font-family: var(--mono); font-size: 11px; color: var(--amber);
+  }
+  .price-ctrl {
+    display: flex; flex-direction: column; gap: 8px; align-items: stretch;
+  }
+  .price-ctrl .row {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .price-ctrl input[type="range"] {
+    flex: 1; accent-color: var(--cyan);
+  }
+  .price-ctrl .num {
+    font-family: var(--mono); font-size: 18px; font-weight: 700;
+    color: var(--text); min-width: 78px; text-align: right;
+  }
+  .price-ctrl .num small {
+    display: block; font-size: 10px; color: var(--dim);
+    font-weight: 400; margin-top: 2px;
+  }
+  .save-bar {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .save-bar .status {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+  }
+  .save-bar .status.ok { color: var(--mint); }
+  .save-bar .status.err { color: var(--pink); }
+  .save-bar .right { margin-left: auto; }
+  .btn.primary {
+    background: var(--indigo); border-color: var(--indigo); color: #fff;
+  }
+  @media (max-width: 980px) {
+    .tier { grid-template-columns: 1fr; }
+  }
+`;
+
+const pageHtml = `
+<div class="app">
+  <aside>
+    <a class="brand" href="/play"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="/play"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="/play/servers"><span class="ico">▤</span> Servers</a>
+      <a class="nav-item" href="/play/customers"><span class="ico">◉</span> Customers</a>
+      <a class="nav-item" href="/play/tickets"><span class="ico">✉</span> Tickets</a>
+      <a class="nav-item" href="/play/finance"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item active" href="/play/pricing"><span class="ico">⌘</span> Pricing</a>
+      <a class="nav-item" href="/play/marketing"><span class="ico">◐</span> Marketing</a>
+      <a class="nav-item" href="/play/research"><span class="ico">⚙</span> Research</a>
+      <a class="nav-item" href="/play/marketplace"><span class="ico">◈</span> Marketplace</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="/play/leaderboard"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="/play/devlog"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="/play/settings"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Grow</span><span class="sep">›</span><b>Pricing</b><span class="sep">›</span><span>Hobby + Business tier rates</span></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Pricing <span class="count">2 plan-tiers</span></h1>
+          <div class="sub">Higher price → fewer signups, but each one is worth more. Server clamps the bounds.</div>
+        </div>
+        <div class="h-right">
+          <a class="btn" href="/play/finance">View MRR breakdown →</a>
+        </div>
+      </div>
+
+      <div class="layout">
+
+        <section class="sec">
+          <div class="sec-head">
+            <h2><span class="ico">$</span> Plan tiers</h2>
+            <div class="sub">Drag to adjust monthly price. Saved values are server-clamped.</div>
+          </div>
+
+          <div class="tier">
+            <div class="info">
+              <h3>Hobby tier</h3>
+              <p>Single-site shared hosting. Forgiving SLA. Tolerates noisy neighbors. Volume play.</p>
+              <div class="bounds">// bounds: $3.00 – $10.00 / month</div>
+            </div>
+            <div class="price-ctrl">
+              <div class="row">
+                <input id="hobby" type="range" min="300" max="1000" step="50" value="500" />
+                <div class="num"><span id="hobby-val">$5.00</span><small>per month</small></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tier">
+            <div class="info">
+              <h3>Business tier</h3>
+              <p>Dedicated resources, prioritized support, SLA-bound. Higher LTV, pickier customers.</p>
+              <div class="bounds">// bounds: $10.00 – $30.00 / month</div>
+            </div>
+            <div class="price-ctrl">
+              <div class="row">
+                <input id="business" type="range" min="1000" max="3000" step="100" value="1500" />
+                <div class="num"><span id="business-val">$15.00</span><small>per month</small></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="save-bar">
+          <span id="status" class="status" aria-live="polite">Ready</span>
+          <div class="right">
+            <button id="save" class="btn primary">Save pricing</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+`;
 ---
-<Base title="Pricing">
-  <h1 class="text-2xl font-bold mb-2">Pricing</h1>
-  <p class="text-nt-text-dim mb-6 text-sm">
-    Higher prices → lower volume + higher churn. Lower prices → more customers + thin margin. Pick your poison.
-  </p>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Pricing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/css/template.css" />
+<style is:global set:html={pageCss}></style>
+<style is:inline>
+  body { transition: opacity 200ms ease-out; }
+  body.preload { opacity: 0; }
+</style>
+</head>
+<body class="preload">
+<Fragment set:html={pageHtml} />
+<script type="application/json" id="state" set:html={JSON.stringify(stateObj)}></script>
+<script is:inline>
+  try {
+    const s = JSON.parse(document.getElementById('state').textContent);
 
-  <div class="bg-nt-bg-2 p-6 rounded mb-4">
-    <h2 class="font-bold mb-3">Hobby tier</h2>
-    <p class="text-nt-text-dim text-xs mb-2">Bounds: $3.00 – $10.00 / month</p>
-    <input
-      id="hobby"
-      type="number"
-      min="300"
-      max="1000"
-      step="50"
-      value={player.pricing_hobby_cents}
-      class="w-32 px-3 py-2 bg-nt-bg-3 border border-nt-border rounded text-nt-text"
-    />
-    <span class="text-nt-text-dim text-xs ml-2">cents/month</span>
-  </div>
+    // Sidebar / topbar hydration (mintára: settings.astro / staff.astro)
+    const crest = document.querySelector('.company-card .crest');
+    if (crest) crest.textContent = s.initials;
+    const cname = document.querySelector('.company-card .name');
+    if (cname && cname.firstChild) cname.firstChild.textContent = s.company + ' ';
+    const csub = document.querySelector('.company-card .sub');
+    if (csub) csub.textContent = 'EST ' + s.founded + ' · ERA ' + s.era + ' · DAY ' + s.day;
+    const ts = document.querySelectorAll('.topbar-stats .tstat .v');
+    if (ts[0] && ts[0].firstChild) ts[0].firstChild.textContent = '$' + s.cashUsd;
+    if (ts[1] && ts[1].firstChild) ts[1].firstChild.textContent = '$' + s.mrrUsd;
+    if (ts[2] && ts[2].firstChild) ts[2].firstChild.textContent = String(s.rep);
+    const me = document.querySelector('.side-foot .me');
+    if (me) {
+      const ava = me.querySelector('.ava');
+      if (ava) ava.textContent = (s.displayName[0] || 'P').toUpperCase();
+      const txt = me.childNodes[me.childNodes.length - 1];
+      if (txt && txt.nodeType === 3) txt.textContent = s.displayName + ' · log out';
+    }
 
-  <div class="bg-nt-bg-2 p-6 rounded mb-4">
-    <h2 class="font-bold mb-3">Business tier</h2>
-    <p class="text-nt-text-dim text-xs mb-2">Bounds: $10.00 – $30.00 / month</p>
-    <input
-      id="business"
-      type="number"
-      min="1000"
-      max="3000"
-      step="100"
-      value={player.pricing_business_cents}
-      class="w-32 px-3 py-2 bg-nt-bg-3 border border-nt-border rounded text-nt-text"
-    />
-    <span class="text-nt-text-dim text-xs ml-2">cents/month</span>
-  </div>
+    // Hydrate sliders from real player values
+    const hobbyInp = document.getElementById('hobby');
+    const businessInp = document.getElementById('business');
+    if (hobbyInp) hobbyInp.value = String(s.hobby);
+    if (businessInp) businessInp.value = String(s.business);
 
-  <button id="save" class="px-4 py-2 bg-nt-accent rounded font-semibold">Save</button>
-  <p id="status" class="mt-2 text-sm" aria-live="polite"></p>
+    function fmt(cents) {
+      return '$' + (cents / 100).toFixed(2);
+    }
+    function refresh() {
+      const hv = document.getElementById('hobby-val');
+      const bv = document.getElementById('business-val');
+      if (hv && hobbyInp) hv.textContent = fmt(Number(hobbyInp.value));
+      if (bv && businessInp) bv.textContent = fmt(Number(businessInp.value));
+    }
+    refresh();
+    if (hobbyInp) hobbyInp.addEventListener('input', refresh);
+    if (businessInp) businessInp.addEventListener('input', refresh);
 
-  <script>
-    document.getElementById('save')?.addEventListener('click', async () => {
-      const hobby = Number((document.getElementById('hobby') as HTMLInputElement).value);
-      const business = Number((document.getElementById('business') as HTMLInputElement).value);
-      const status = document.getElementById('status')!;
-      status.textContent = 'Saving...';
-      status.className = 'mt-2 text-sm text-nt-text-dim';
-      const r = await fetch('/api/game/pricing', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ hobby, business }),
+    const saveBtn = document.getElementById('save');
+    const statusEl = document.getElementById('status');
+    function setStatus(msg, cls) {
+      if (!statusEl) return;
+      statusEl.textContent = msg;
+      statusEl.className = 'status' + (cls ? ' ' + cls : '');
+    }
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        const hobby = Number(hobbyInp.value);
+        const business = Number(businessInp.value);
+        setStatus('Saving…', '');
+        try {
+          const r = await fetch('/api/game/pricing', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ hobby, business }),
+          });
+          const j = await r.json();
+          if (!j.ok) {
+            setStatus('Error: ' + (j.error || 'unknown'), 'err');
+            return;
+          }
+          // Server clamp-eli — apply back to sliders.
+          if (typeof j.hobby === 'number') hobbyInp.value = String(j.hobby);
+          if (typeof j.business === 'number') businessInp.value = String(j.business);
+          refresh();
+          setStatus('✓ Saved (hobby ' + fmt(j.hobby) + ' / business ' + fmt(j.business) + ')', 'ok');
+        } catch (e) {
+          setStatus('Network error', 'err');
+        }
       });
-      if (!r.ok) {
-        status.textContent = 'Error: ' + await r.text();
-        status.className = 'mt-2 text-sm text-red-400';
-        return;
-      }
-      const d = await r.json() as { hobby: number; business: number };
-      status.textContent = `✓ Saved (clamped: hobby=${d.hobby}, business=${d.business})`;
-      status.className = 'mt-2 text-sm text-green-400';
-    });
-  </script>
-</Base>
+    }
+  } catch (e) { console.error('hydrate', e); }
+</script>
+<script is:inline>
+  window.addEventListener('load', function () {
+    setTimeout(function () { document.body.classList.remove('preload'); }, 30);
+  });
+</script>
+</body>
+</html>

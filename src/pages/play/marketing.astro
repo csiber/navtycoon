@@ -1,6 +1,6 @@
 ---
-// /play/marketing — 3-channel mix sliders, server-normalized. Auth-required.
-import Base from '../../layouts/Base.astro';
+// /play/marketing -- 3-channel marketing-mix sliders. Dark template style.
+// Server normalize-eli a mix-et (összeg=100%); ha mind 0, balanced default.
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer } from '../../lib/game/db';
 
@@ -13,73 +13,363 @@ const db = getDB(ctx);
 if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
 if (!player) return Astro.redirect('/signup');
+
+const companyName = player.company_name;
+const cashUsd = (player.cash_usd_cents / 100).toFixed(0);
+const mrrUsd = (player.mrr_usd_cents / 100).toFixed(0);
+const founded = new Date(player.founded_at * 1000).getFullYear();
+const dayNum = Math.max(1, Math.floor((Date.now() / 1000 - player.founded_at) / 86400) + 1);
+const initials = companyName.split(/\s+/).map((w: string) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || 'HY';
+const displayName = user.display_name ?? user.email.split('@')[0] ?? 'player';
+
+const stateObj = {
+  company: companyName,
+  initials,
+  cashUsd,
+  mrrUsd,
+  rep: player.reputation,
+  era: player.current_era,
+  founded,
+  day: dayNum,
+  displayName,
+  seo: player.marketing_seo_pct,
+  ppc: player.marketing_ppc_pct,
+  referral: player.marketing_referral_pct,
+};
+
+const pageCss = `
+  .layout { grid-column: span 12; display: grid; gap: 18px; }
+  .sec {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 0; margin-bottom: 18px;
+  }
+  .sec-head {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sec-head h2 {
+    margin: 0;
+    font-family: var(--display); font-size: 19px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sec-head h2 .ico {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: var(--panel-2); border: 1px solid var(--line-2);
+    display: grid; place-items: center;
+    font-family: var(--mono); font-size: 13px; color: var(--cyan);
+  }
+  .sec-head .sub {
+    font-size: 13px; color: var(--muted); margin-top: 4px;
+  }
+  .channel {
+    padding: 22px;
+    border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 1fr 360px;
+    gap: 24px; align-items: center;
+  }
+  .channel:last-child { border-bottom: 0; }
+  .channel .info h3 {
+    margin: 0 0 4px;
+    font-family: var(--display); font-size: 16px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .channel .info h3 .tag {
+    font-family: var(--mono); font-size: 10px; color: var(--cyan);
+    padding: 2px 7px; border-radius: 999px;
+    background: rgba(34,211,238,.1); border: 1px solid rgba(34,211,238,.3);
+    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+  }
+  .channel .info h3 .tag.amber {
+    color: var(--amber); background: rgba(245,158,11,.1); border-color: rgba(245,158,11,.3);
+  }
+  .channel .info h3 .tag.mint {
+    color: var(--mint); background: rgba(52,211,153,.1); border-color: rgba(52,211,153,.3);
+  }
+  .channel .info p {
+    margin: 0; font-size: 13px; color: var(--muted); line-height: 1.55;
+  }
+  .channel-ctrl {
+    display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+  }
+  .channel-ctrl .row {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .channel-ctrl input[type="range"] {
+    flex: 1; accent-color: var(--cyan);
+  }
+  .channel-ctrl .num {
+    font-family: var(--mono); font-size: 18px; font-weight: 700;
+    color: var(--text); min-width: 64px; text-align: right;
+  }
+  .sum-row {
+    padding: 14px 22px;
+    border-top: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 12px;
+    background: var(--panel-2);
+    border-radius: 0 0 12px 12px;
+  }
+  .sum-row .lbl { color: var(--muted); }
+  .sum-row .val { color: var(--text); font-weight: 700; }
+  .sum-row .val.warn { color: var(--amber); }
+  .sum-row .note { color: var(--dim); margin-left: auto; }
+  .save-bar {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .save-bar .status {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+  }
+  .save-bar .status.ok { color: var(--mint); }
+  .save-bar .status.err { color: var(--pink); }
+  .save-bar .right { margin-left: auto; }
+  .btn.primary {
+    background: var(--indigo); border-color: var(--indigo); color: #fff;
+  }
+  @media (max-width: 980px) {
+    .channel { grid-template-columns: 1fr; }
+  }
+`;
+
+const pageHtml = `
+<div class="app">
+  <aside>
+    <a class="brand" href="/play"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="/play"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="/play/servers"><span class="ico">▤</span> Servers</a>
+      <a class="nav-item" href="/play/customers"><span class="ico">◉</span> Customers</a>
+      <a class="nav-item" href="/play/tickets"><span class="ico">✉</span> Tickets</a>
+      <a class="nav-item" href="/play/finance"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item" href="/play/pricing"><span class="ico">⌘</span> Pricing</a>
+      <a class="nav-item active" href="/play/marketing"><span class="ico">◐</span> Marketing</a>
+      <a class="nav-item" href="/play/research"><span class="ico">⚙</span> Research</a>
+      <a class="nav-item" href="/play/marketplace"><span class="ico">◈</span> Marketplace</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="/play/leaderboard"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="/play/devlog"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="/play/settings"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Grow</span><span class="sep">›</span><b>Marketing</b><span class="sep">›</span><span>3-channel mix</span></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Marketing mix <span class="count">3 channels</span></h1>
+          <div class="sub">Distribute attention across channels. Server normalizes to 100% on save.</div>
+        </div>
+        <div class="h-right">
+          <a class="btn" href="/play/customers">View customer-funnel →</a>
+        </div>
+      </div>
+
+      <div class="layout">
+
+        <section class="sec">
+          <div class="sec-head">
+            <h2><span class="ico">◐</span> Channels</h2>
+            <div class="sub">Each channel attracts different persona-mix at different speeds.</div>
+          </div>
+
+          <div class="channel">
+            <div class="info">
+              <h3>SEO <span class="tag mint">Slow · Sticky</span></h3>
+              <p>Organic search. Slow ramp-up but the customers you win stay longer and complain less.</p>
+            </div>
+            <div class="channel-ctrl">
+              <div class="row">
+                <input id="seo" type="range" min="0" max="100" value="33" />
+                <div class="num"><span id="seo-val">33</span>%</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="channel">
+            <div class="info">
+              <h3>PPC <span class="tag amber">Fast · Churny</span></h3>
+              <p>Paid ads. Fastest signup velocity, but these customers churn quicker — and the bill keeps coming.</p>
+            </div>
+            <div class="channel-ctrl">
+              <div class="row">
+                <input id="ppc" type="range" min="0" max="100" value="33" />
+                <div class="num"><span id="ppc-val">33</span>%</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="channel">
+            <div class="info">
+              <h3>Referral <span class="tag">Slow burn · Loyal</span></h3>
+              <p>Word of mouth. Takes time to start flywheeling, but referred customers are your highest-LTV cohort.</p>
+            </div>
+            <div class="channel-ctrl">
+              <div class="row">
+                <input id="referral" type="range" min="0" max="100" value="34" />
+                <div class="num"><span id="referral-val">34</span>%</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sum-row">
+            <span class="lbl">Live sum:</span>
+            <span class="val" id="mix-sum">100%</span>
+            <span class="note">// server normalizes to 100% on save — any sum is OK</span>
+          </div>
+        </section>
+
+        <div class="save-bar">
+          <span id="status" class="status" aria-live="polite">Ready</span>
+          <div class="right">
+            <button id="save" class="btn primary">Save mix</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+`;
 ---
-<Base title="Marketing">
-  <h1 class="text-2xl font-bold mb-2">Marketing Mix</h1>
-  <p class="text-nt-text-dim mb-6 text-sm">
-    Distribute attention across channels. They sum to 100% (we'll normalize for you).
-  </p>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Marketing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/css/template.css" />
+<style is:global set:html={pageCss}></style>
+<style is:inline>
+  body { transition: opacity 200ms ease-out; }
+  body.preload { opacity: 0; }
+</style>
+</head>
+<body class="preload">
+<Fragment set:html={pageHtml} />
+<script type="application/json" id="state" set:html={JSON.stringify(stateObj)}></script>
+<script is:inline>
+  try {
+    const s = JSON.parse(document.getElementById('state').textContent);
 
-  <div class="bg-nt-bg-2 p-6 rounded mb-4">
-    <label class="block mb-1">
-      SEO <span id="seo-val" class="text-nt-text-dim">{player.marketing_seo_pct}%</span>
-    </label>
-    <input id="seo" type="range" min="0" max="100" value={player.marketing_seo_pct} class="w-full" />
-    <p class="text-nt-text-dim text-xs mt-1">Slow. Organic. Sticky customers — they stay longer.</p>
-  </div>
-
-  <div class="bg-nt-bg-2 p-6 rounded mb-4">
-    <label class="block mb-1">
-      PPC <span id="ppc-val" class="text-nt-text-dim">{player.marketing_ppc_pct}%</span>
-    </label>
-    <input id="ppc" type="range" min="0" max="100" value={player.marketing_ppc_pct} class="w-full" />
-    <p class="text-nt-text-dim text-xs mt-1">Fast. Expensive. Customers churn quicker.</p>
-  </div>
-
-  <div class="bg-nt-bg-2 p-6 rounded mb-4">
-    <label class="block mb-1">
-      Referral <span id="referral-val" class="text-nt-text-dim">{player.marketing_referral_pct}%</span>
-    </label>
-    <input id="referral" type="range" min="0" max="100" value={player.marketing_referral_pct} class="w-full" />
-    <p class="text-nt-text-dim text-xs mt-1">Slow burn but loyal customers.</p>
-  </div>
-
-  <button id="save" class="px-4 py-2 bg-nt-accent rounded font-semibold">Save</button>
-  <p id="status" class="mt-2 text-sm" aria-live="polite"></p>
-
-  <script>
-    function update(id: string): void {
-      const v = (document.getElementById(id) as HTMLInputElement).value;
-      document.getElementById(id + '-val')!.textContent = v + '%';
+    // Sidebar / topbar hydration (mintára: settings.astro / staff.astro)
+    const crest = document.querySelector('.company-card .crest');
+    if (crest) crest.textContent = s.initials;
+    const cname = document.querySelector('.company-card .name');
+    if (cname && cname.firstChild) cname.firstChild.textContent = s.company + ' ';
+    const csub = document.querySelector('.company-card .sub');
+    if (csub) csub.textContent = 'EST ' + s.founded + ' · ERA ' + s.era + ' · DAY ' + s.day;
+    const ts = document.querySelectorAll('.topbar-stats .tstat .v');
+    if (ts[0] && ts[0].firstChild) ts[0].firstChild.textContent = '$' + s.cashUsd;
+    if (ts[1] && ts[1].firstChild) ts[1].firstChild.textContent = '$' + s.mrrUsd;
+    if (ts[2] && ts[2].firstChild) ts[2].firstChild.textContent = String(s.rep);
+    const me = document.querySelector('.side-foot .me');
+    if (me) {
+      const ava = me.querySelector('.ava');
+      if (ava) ava.textContent = (s.displayName[0] || 'P').toUpperCase();
+      const txt = me.childNodes[me.childNodes.length - 1];
+      if (txt && txt.nodeType === 3) txt.textContent = s.displayName + ' · log out';
     }
-    ['seo', 'ppc', 'referral'].forEach(id => {
-      document.getElementById(id)?.addEventListener('input', () => update(id));
-    });
-    document.getElementById('save')?.addEventListener('click', async () => {
-      const seo = Number((document.getElementById('seo') as HTMLInputElement).value);
-      const ppc = Number((document.getElementById('ppc') as HTMLInputElement).value);
-      const referral = Number((document.getElementById('referral') as HTMLInputElement).value);
-      const status = document.getElementById('status')!;
-      status.textContent = 'Saving...';
-      status.className = 'mt-2 text-sm text-nt-text-dim';
-      const r = await fetch('/api/game/marketing', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ seo, ppc, referral }),
-      });
-      if (!r.ok) {
-        status.textContent = 'Error: ' + await r.text();
-        status.className = 'mt-2 text-sm text-red-400';
-        return;
+
+    // Hydrate sliders from real player values
+    const seoInp = document.getElementById('seo');
+    const ppcInp = document.getElementById('ppc');
+    const refInp = document.getElementById('referral');
+    if (seoInp) seoInp.value = String(s.seo);
+    if (ppcInp) ppcInp.value = String(s.ppc);
+    if (refInp) refInp.value = String(s.referral);
+
+    function refreshOne(id) {
+      const inp = document.getElementById(id);
+      const out = document.getElementById(id + '-val');
+      if (inp && out) out.textContent = String(inp.value);
+    }
+    function refreshSum() {
+      const sum = Number(seoInp.value) + Number(ppcInp.value) + Number(refInp.value);
+      const el = document.getElementById('mix-sum');
+      if (el) {
+        el.textContent = sum + '%';
+        el.classList.toggle('warn', sum !== 100);
       }
-      const d = await r.json() as { mix: { seo: number; ppc: number; referral: number } };
-      const m = d.mix;
-      status.textContent = `✓ Saved (normalized: SEO ${m.seo}% / PPC ${m.ppc}% / Referral ${m.referral}%)`;
-      status.className = 'mt-2 text-sm text-green-400';
-      (document.getElementById('seo') as HTMLInputElement).value = String(m.seo);
-      (document.getElementById('ppc') as HTMLInputElement).value = String(m.ppc);
-      (document.getElementById('referral') as HTMLInputElement).value = String(m.referral);
-      ['seo', 'ppc', 'referral'].forEach(id => update(id));
+    }
+    function refreshAll() {
+      ['seo', 'ppc', 'referral'].forEach(refreshOne);
+      refreshSum();
+    }
+    refreshAll();
+    [seoInp, ppcInp, refInp].forEach(inp => {
+      if (inp) inp.addEventListener('input', refreshAll);
     });
-  </script>
-</Base>
+
+    const saveBtn = document.getElementById('save');
+    const statusEl = document.getElementById('status');
+    function setStatus(msg, cls) {
+      if (!statusEl) return;
+      statusEl.textContent = msg;
+      statusEl.className = 'status' + (cls ? ' ' + cls : '');
+    }
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        const seo = Number(seoInp.value);
+        const ppc = Number(ppcInp.value);
+        const referral = Number(refInp.value);
+        setStatus('Saving…', '');
+        try {
+          const r = await fetch('/api/game/marketing', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ seo, ppc, referral }),
+          });
+          const j = await r.json();
+          if (!j.ok) {
+            setStatus('Error: ' + (j.error || 'unknown'), 'err');
+            return;
+          }
+          // Server normalize-eli — apply back to sliders.
+          const m = j.mix || {};
+          if (typeof m.seo === 'number') seoInp.value = String(m.seo);
+          if (typeof m.ppc === 'number') ppcInp.value = String(m.ppc);
+          if (typeof m.referral === 'number') refInp.value = String(m.referral);
+          refreshAll();
+          setStatus('✓ Saved (SEO ' + m.seo + '% · PPC ' + m.ppc + '% · Referral ' + m.referral + '%)', 'ok');
+        } catch (e) {
+          setStatus('Network error', 'err');
+        }
+      });
+    }
+  } catch (e) { console.error('hydrate', e); }
+</script>
+<script is:inline>
+  window.addEventListener('load', function () {
+    setTimeout(function () { document.body.classList.remove('preload'); }, 30);
+  });
+</script>
+</body>
+</html>

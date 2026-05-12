@@ -2,6 +2,9 @@
 // /play -- main dashboard. Auth-required.
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer } from '../../lib/game/db';
+import { maybeLazyTick } from '../../lib/game/lazy-tick';
+import type { WorkersAIBinding } from '../../lib/ai/workers-ai';
+import type { VectorizeBinding } from '../../lib/ai/vectorize';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -10,8 +13,17 @@ const user = await getCurrentUser(ctx);
 if (!user) return Astro.redirect('/login?next=/play');
 const db = getDB(ctx);
 if (!db) return new Response('No DB', { status: 500 });
-const player = await getPlayer(db, user.id);
-if (!player) return Astro.redirect('/signup');
+const initialPlayer = await getPlayer(db, user.id);
+if (!initialPlayer) return Astro.redirect('/signup');
+
+// Lazy-tick workaround a CF free-tier cron-cap miatt (5/5 trigger): minden
+// /play-load tickteli a játékost, ha 5+ perc telt el az utolsó tick óta.
+// Hibatűrő: a maybeLazyTick belül kapja el a hibákat, return false-szal.
+const runtimeEnv = (Astro.locals as unknown as { runtime?: { env?: { AI?: WorkersAIBinding; VECTORIZE?: VectorizeBinding } } }).runtime?.env ?? {};
+await maybeLazyTick(db, initialPlayer, { ai: runtimeEnv.AI, vectorize: runtimeEnv.VECTORIZE });
+
+// Re-fetch a tick utáni friss cash / MRR megjelenítéshez.
+const player = (await getPlayer(db, user.id)) ?? initialPlayer;
 
 const customerCount = (await db.prepare(
   'SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1',
