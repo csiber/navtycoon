@@ -40,10 +40,10 @@ binding = "VECTORIZE"
 index_name = "navtycoon-customer-memory"
 
 # Durable Objects for shift-mode rooms
+# DO class hosted in a SEPARATE Worker (navtycoon-do, see wrangler.do.toml).
+# Pages cannot host a DO class inline — must bind via script_name.
+# `[[migrations]]` stanza is Workers-only; lives in wrangler.do.toml.
 [[durable_objects.bindings]]
 name = "SHIFT_ROOM"
 class_name = "ShiftRoomDO"
-
-[[migrations]]
-tag = "v1"
-new_sqlite_classes = ["ShiftRoomDO"]
+script_name = "navtycoon-do"

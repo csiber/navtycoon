@@ -1,0 +1,26 @@
+# NavTycoon — DO host Worker (separate script).
+# CF Pages cannot host a Durable Object class inline, so ShiftRoomDO lives in
+# this standalone Worker. Pages binds to it via `script_name = "navtycoon-do"`.
+name = "navtycoon-do"
+main = "src/do-worker-entry.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers AI binding (Llama-3.1-8b)
+[ai]
+binding = "AI"
+
+# D1 binding for player + ticket + customer + llm_usage + shift_history
+[[d1_databases]]
+binding = "DB"
+database_name = "navtycoon-prod"
+database_id = "b044638b-743d-4287-b0ee-181288b8c3a4"
+
+# Durable Object class declared HERE (allowed in Workers config)
+[[durable_objects.bindings]]
+name = "SHIFT_ROOM"
+class_name = "ShiftRoomDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ShiftRoomDO"]

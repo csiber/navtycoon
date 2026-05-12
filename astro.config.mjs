@@ -6,12 +6,6 @@ import sitemap from '@astrojs/sitemap';
 export default defineConfig({
   site: 'https://hyperscaler.game',
   output: 'server',
-  adapter: cloudflare({
-    platformProxy: { enabled: true },
-    workerEntryPoint: {
-      path: 'src/worker.ts',
-      namedExports: ['ShiftRoomDO'],
-    },
-  }),
+  adapter: cloudflare({ platformProxy: { enabled: true } }),
   integrations: [tailwind(), sitemap()],
 });
