@@ -168,5 +168,56 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     });
   } catch (e) { console.error('hydrate', e); }
 </script>
+<div id="settings-edit-wrap" style="max-width: 600px; margin: 24px auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;">
+  <h3 style="font-family: var(--display); margin: 0 0 16px;">Edit profile</h3>
+  <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px;">Company name</label>
+  <input id="set-company-name" type="text" value={player.company_name}
+         maxlength="60" required minlength="2"
+         style="width:100%;padding:10px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);margin-bottom:14px;" />
+  <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px;">City</label>
+  <input id="set-city" type="text" value={player.city ?? ''}
+         maxlength="60"
+         style="width:100%;padding:10px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);margin-bottom:14px;" />
+  <button id="set-save"
+          style="padding:10px 20px;background:var(--indigo);color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer;">Save changes</button>
+  <p id="set-status" style="margin-top:10px;font-size:12px;color:var(--dim);"></p>
+</div>
+<script is:inline>
+  (function () {
+    var btn = document.getElementById('set-save');
+    if (!btn) return;
+    btn.addEventListener('click', async function () {
+      var cn = document.getElementById('set-company-name').value.trim();
+      var city = document.getElementById('set-city').value.trim();
+      var status = document.getElementById('set-status');
+      if (cn.length < 2) {
+        status.textContent = 'Company name min 2 chars';
+        status.style.color = 'var(--pink)';
+        return;
+      }
+      status.textContent = 'Saving...';
+      status.style.color = 'var(--dim)';
+      try {
+        var r = await fetch('/api/game/settings', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ company_name: cn, city: city || null }),
+        });
+        var j = await r.json();
+        if (!j.ok) {
+          status.textContent = 'Error: ' + (j.error || 'unknown');
+          status.style.color = 'var(--pink)';
+          return;
+        }
+        status.textContent = '✓ Saved. Reloading...';
+        status.style.color = 'var(--mint)';
+        setTimeout(function () { location.reload(); }, 800);
+      } catch (e) {
+        status.textContent = 'Network error';
+        status.style.color = 'var(--pink)';
+      }
+    });
+  })();
+</script>
 </body>
 </html>

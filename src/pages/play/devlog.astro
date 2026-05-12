@@ -259,5 +259,46 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     }
   } catch (e) { console.error('hydrate', e); }
 </script>
+<div id="achievements-wrap" style="max-width: 1100px; margin: 24px auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;">
+  <h3 style="font-family: var(--display); margin: 0 0 16px;">🏆 Achievements</h3>
+  <div id="ach-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;"></div>
+</div>
+<script is:inline>
+  (function () {
+    var grid = document.getElementById('ach-grid');
+    if (!grid) return;
+    fetch('/api/game/achievements')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || !j.ok || !Array.isArray(j.achievements)) return;
+        j.achievements.forEach(function (a) {
+          var card = document.createElement('div');
+          card.style.cssText = 'background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;opacity:' + (a.unlocked ? '1' : '.4') + ';';
+          var head = document.createElement('div');
+          head.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;font-family:var(--display);font-weight:600;font-size:13px;';
+          var emoji = document.createElement('span');
+          emoji.style.fontSize = '20px';
+          emoji.textContent = a.emoji || '';
+          var title = document.createElement('span');
+          title.textContent = a.title || '';
+          head.appendChild(emoji);
+          head.appendChild(title);
+          if (a.unlocked) {
+            var tag = document.createElement('span');
+            tag.style.cssText = 'margin-left:auto;font-size:10px;background:var(--mint);color:#000;padding:1px 6px;border-radius:99px;';
+            tag.textContent = 'UNLOCKED';
+            head.appendChild(tag);
+          }
+          var desc = document.createElement('div');
+          desc.style.cssText = 'color:var(--muted);font-size:12px;';
+          desc.textContent = a.description || '';
+          card.appendChild(head);
+          card.appendChild(desc);
+          grid.appendChild(card);
+        });
+      })
+      .catch(function () {});
+  })();
+</script>
 </body>
 </html>

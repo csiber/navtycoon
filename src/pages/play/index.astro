@@ -46,6 +46,25 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
 </head>
 <body>
 <Fragment set:html={pageHtml} />
+<div id="events-overlay" style="position: fixed; top: 80px; right: 20px; width: 380px; max-width: calc(100vw - 40px); z-index: 100; max-height: calc(100vh - 100px); overflow-y: auto; pointer-events: none;"></div>
+<style is:inline>
+  .event-card {
+    pointer-events: auto;
+    background: var(--panel);
+    border: 1px solid var(--line-2);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 8px 24px -8px rgba(0,0,0,.4);
+  }
+  .event-card .title { font-family: var(--display); font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+  .event-card .narrative { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
+  .event-card .opt { display: block; width: 100%; text-align: left; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--text); margin-bottom: 6px; cursor: pointer; }
+  .event-card .opt:hover { border-color: var(--indigo); background: var(--panel-3); }
+  .event-card .opt[disabled] { opacity: .5; cursor: not-allowed; }
+  .event-card .opt .lbl { font-weight: 600; }
+  .event-card .opt .dsc { color: var(--dim); font-size: 11px; margin-top: 2px; }
+</style>
 <script type="application/json" id="state" set:html={JSON.stringify({
     company: companyName, cashUsd, mrrUsd, rep: player.reputation,
     customers: customerCount, servers: serverCount, tickets: openTickets,
@@ -112,5 +131,85 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
       if (ku && ku.firstChild) ku.firstChild.textContent = s.customers + ' ';
     } catch (e) { console.error('hydrate', e); }
   </script>
+<script is:inline>
+  // Event-resolution overlay (Task A): fetch unresolved events, render cards,
+  // each option-button POSTs to /api/game/events/:id/resolve.
+  (function () {
+    function showToast(text) {
+      var t = document.createElement('div');
+      t.style.cssText = 'position:fixed;bottom:30px;right:30px;background:var(--panel);border:1px solid var(--indigo);color:var(--text);padding:12px 18px;border-radius:8px;z-index:200;max-width:400px;box-shadow:0 12px 32px -8px rgba(99,102,241,.4);font-size:13px;';
+      t.textContent = text;
+      document.body.appendChild(t);
+      setTimeout(function () { t.remove(); }, 4000);
+    }
+
+    function renderEventCard(event) {
+      var overlay = document.getElementById('events-overlay');
+      if (!overlay) return;
+      var card = document.createElement('div');
+      card.className = 'event-card';
+      card.dataset.eventId = String(event.id);
+
+      var title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = event.title;
+      card.appendChild(title);
+
+      var narrative = document.createElement('div');
+      narrative.className = 'narrative';
+      narrative.textContent = event.narrative;
+      card.appendChild(narrative);
+
+      (event.options || []).forEach(function (opt) {
+        var btn = document.createElement('button');
+        btn.className = 'opt';
+        btn.type = 'button';
+        btn.onclick = async function () {
+          card.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+          try {
+            var r = await fetch('/api/game/events/' + event.id + '/resolve', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ option_id: opt.id }),
+            });
+            var j = await r.json();
+            if (!j.ok) {
+              alert('Error: ' + (j.error || 'unknown'));
+              card.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+              return;
+            }
+            var msg = (j.message || 'Resolved.') +
+              (j.newly_unlocked_achievement ? ' · 🎉 ' + j.newly_unlocked_achievement : '');
+            showToast(msg);
+            card.remove();
+            setTimeout(function () { location.reload(); }, 1500);
+          } catch (e) {
+            alert('Network error');
+            card.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+          }
+        };
+        var lbl = document.createElement('div');
+        lbl.className = 'lbl';
+        lbl.textContent = opt.label;
+        btn.appendChild(lbl);
+        var dsc = document.createElement('div');
+        dsc.className = 'dsc';
+        dsc.textContent = opt.description;
+        btn.appendChild(dsc);
+        card.appendChild(btn);
+      });
+      overlay.appendChild(card);
+    }
+
+    fetch('/api/game/events')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j && j.ok && Array.isArray(j.events)) {
+          j.events.forEach(renderEventCard);
+        }
+      })
+      .catch(function () {});
+  })();
+</script>
 </body>
 </html>
