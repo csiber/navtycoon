@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Servers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .layout {
+    grid-column: span 12;
+    display: grid; grid-template-columns: 360px 1fr 320px;
+    gap: 18px;
+  }
+  /* Rack */
+  .rack-panel { display: flex; flex-direction: column; }
+  .rack-tabs {
+    display: flex; gap: 4px; padding: 8px 10px 0;
+  }
+  .rack-tabs button {
+    padding: 7px 11px; border-radius: 7px 7px 0 0;
+    background: transparent; border: 1px solid transparent;
+    border-bottom: 0;
+    color: var(--muted); font-size: 12px;
+    font-family: var(--mono);
+  }
+  .rack-tabs button.on {
+    background: var(--panel-2);
+    border-color: var(--line); color: var(--text);
+  }
+  .rack-tabs button.plus { color: var(--dim); font-weight: 700; }
+  .rack-vis {
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 3px;
+    border-top: 1px solid var(--line);
+  }
+  .u-row {
+    height: 28px; border-radius: 4px;
+    background: linear-gradient(90deg, #1a1f33, #232a45 70%, #1a1f33);
+    border: 1px solid #232a45;
+    display: grid; grid-template-columns: 38px 1fr 110px 60px;
+    align-items: center; gap: 10px;
+    padding: 0 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    cursor: pointer; transition: border-color .1s;
+  }
+  .u-row:hover { border-color: var(--indigo); }
+  .u-row.selected {
+    border-color: var(--indigo);
+    box-shadow: 0 0 0 1px var(--indigo);
+  }
+  .u-row .lbl { color: var(--dim); }
+  .u-row .name { color: var(--text); font-weight: 500; }
+  .u-row .leds { display: flex; gap: 4px; }
+  .u-row .leds i { width: 6px; height: 6px; border-radius: 50%; display: block; background: #2a3050; }
+  .u-row .leds i.g { background: var(--mint); box-shadow: 0 0 5px var(--mint); }
+  .u-row .leds i.a { background: var(--amber); box-shadow: 0 0 5px var(--amber); }
+  .u-row .leds i.r { background: var(--pink); box-shadow: 0 0 5px var(--pink); }
+  .u-row .util { text-align: right; color: var(--mint); }
+  .u-row.warn .util { color: var(--amber); }
+  .u-row.warn { background: linear-gradient(90deg, #2a2418, #3a3219 70%, #2a2418); }
+  .u-row.hot { background: linear-gradient(90deg, #2a1a1f, #3b2230 70%, #2a1a1f); border-color: #4a2535; }
+  .u-row.hot .util { color: var(--pink); }
+  .u-row.empty {
+    background: repeating-linear-gradient(45deg, #0d1020 0 6px, #131726 6px 12px);
+    color: var(--dim);
+  }
+  .u-row.empty .util, .u-row.empty .name { color: var(--dim); }
+  .rack-foot {
+    padding: 12px 14px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px;
+    border-top: 1px dashed var(--line);
+  }
+  .mini-stat {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 6px; padding: 8px 9px;
+    font-family: var(--mono);
+  }
+  .mini-stat .k { font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
+  .mini-stat .v { font-size: 14px; font-weight: 700; color: var(--text); margin-top: 2px; font-family: var(--display); }
+  .mini-stat .v.good { color: var(--mint); }
+  .mini-stat .v.warn { color: var(--amber); }
+  .mini-stat .v.bad { color: var(--pink); }
+
+  /* Server detail */
+  .detail-head {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 16px;
+  }
+  .detail-head .badge-u {
+    width: 56px; height: 56px; border-radius: 12px;
+    background: linear-gradient(135deg, #f59e0b, #b45309);
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 18px; color: #1c1300;
+  }
+  .detail-head h2 {
+    margin: 0;
+    font-family: var(--display); font-weight: 600; font-size: 22px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .detail-head .pill {
+    font-family: var(--mono); font-size: 10px;
+    padding: 3px 8px; border-radius: 999px;
+    background: rgba(245,158,11,.15); color: var(--amber);
+    border: 1px solid rgba(245,158,11,.3);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .detail-head .sub {
+    font-family: var(--mono); font-size: 12px; color: var(--dim); margin-top: 4px;
+  }
+  .detail-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  .detail-grid {
+    padding: 18px 20px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  }
+  .dgrid {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .dgrid .k { font-family: var(--mono); font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
+  .dgrid .v { font-family: var(--display); font-weight: 700; font-size: 18px; margin-top: 4px; }
+  .dgrid .v.warn { color: var(--amber); }
+  .dgrid .v.bad { color: var(--pink); }
+  .dgrid .v.good { color: var(--mint); }
+  .dgrid .meta { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .dgrid .meta b { color: var(--text); }
+
+  .detail-section {
+    padding: 16px 20px;
+    border-top: 1px solid var(--line);
+  }
+  .detail-section h4 {
+    margin: 0 0 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .specs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; font-size: 13px; }
+  .specs .r { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+  .specs .r:last-child, .specs .r:nth-last-child(2) { border-bottom: 0; }
+  .specs .r span { color: var(--muted); }
+  .specs .r b { font-family: var(--mono); color: var(--text); font-weight: 500; }
+
+  /* Util gauge */
+  .gauge {
+    margin-top: 4px;
+    display: grid; grid-template-columns: 80px 1fr; gap: 10px;
+    align-items: center;
+  }
+  .gauge .lbl { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .gauge .bar { height: 10px; background: var(--line); border-radius: 5px; overflow: hidden; position: relative; }
+  .gauge .bar i { display: block; height: 100%; }
+  .gauge .bar .val {
+    position: absolute; right: 8px; top: -3px;
+    font-family: var(--mono); font-size: 10px; color: var(--text); font-weight: 700;
+  }
+  .gauge .bar i.cpu { background: linear-gradient(90deg, var(--mint), var(--amber) 70%, var(--pink)); width: 88%; }
+  .gauge .bar i.ram { background: var(--indigo); width: 62%; }
+  .gauge .bar i.disk { background: var(--cyan); width: 41%; }
+  .gauge .bar i.net { background: #a78bfa; width: 28%; }
+
+  /* Workloads */
+  .wl-row {
+    display: grid; grid-template-columns: 28px 1fr auto auto;
+    gap: 10px; padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    align-items: center; font-size: 13px;
+  }
+  .wl-row:last-child { border-bottom: 0; }
+  .wl-row .ico {
+    width: 26px; height: 26px; border-radius: 6px;
+    background: var(--panel-3); border: 1px solid var(--line-2);
+    display: grid; place-items: center;
+    color: var(--cyan); font-family: var(--mono); font-size: 11px; font-weight: 700;
+  }
+  .wl-row .name { color: var(--text); font-weight: 500; }
+  .wl-row .meta { color: var(--dim); font-family: var(--mono); font-size: 11px; }
+  .wl-row .use { font-family: var(--mono); font-size: 11px; color: var(--mint); }
+  .wl-row .age { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+
+  /* Right column: catalog */
+  .cat-panel { display: flex; flex-direction: column; }
+  .cat-search {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(7,9,15,.4);
+  }
+  .cat-search input {
+    width: 100%; padding: 8px 10px; border-radius: 7px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+  }
+  .cat-search input::placeholder { color: var(--dim); }
+  .cat-filters { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .cat-filters button {
+    padding: 4px 9px; border-radius: 999px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--muted); font-size: 11px; font-family: var(--mono);
+  }
+  .cat-filters button.on { background: rgba(99,102,241,.15); color: var(--indigo-2); border-color: rgba(99,102,241,.4); }
+  .cat-list { padding: 6px 12px 14px; }
+  .cat-item {
+    padding: 12px; border-radius: 9px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    margin-top: 8px;
+    cursor: pointer; transition: border-color .12s;
+  }
+  .cat-item:hover { border-color: var(--line-2); }
+  .cat-item.affordable { border-color: rgba(52,211,153,.3); }
+  .cat-item .row1 { display: flex; align-items: center; gap: 8px; }
+  .cat-item .name { font-weight: 600; font-size: 13px; }
+  .cat-item .tag {
+    margin-left: auto;
+    font-family: var(--mono); font-size: 9px; color: var(--mint);
+    padding: 2px 6px; border-radius: 4px;
+    background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.3);
+    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+  }
+  .cat-item .tag.new { background: rgba(99,102,241,.12); color: var(--indigo-2); border-color: rgba(99,102,241,.3); }
+  .cat-item .tag.lock { background: rgba(99,102,241,.05); color: var(--dim); border-color: var(--line); }
+  .cat-item .specs-mini {
+    margin-top: 6px;
+    display: flex; gap: 10px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+  }
+  .cat-item .row2 { display: flex; align-items: center; margin-top: 8px; }
+  .cat-item .price { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--mint); }
+  .cat-item .price.lock { color: var(--dim); }
+  .cat-item .buy {
+    margin-left: auto;
+    padding: 5px 10px; border-radius: 6px;
+    background: var(--text); color: var(--bg);
+    font-size: 11px; font-weight: 600; border: 0;
+  }
+  .cat-item.locked { opacity: 0.6; }
+  .cat-item.locked .buy { background: var(--panel-3); color: var(--dim); }
+
+  .empty-bay {
+    padding: 24px;
+    border: 1px dashed var(--line-2);
+    border-radius: 10px;
+    text-align: center;
+    color: var(--muted);
+    margin-top: 16px;
+  }
+  .empty-bay .icn { font-size: 28px; color: var(--dim); }
+  .empty-bay h4 { margin: 10px 0 4px; font-family: var(--display); font-size: 16px; color: var(--text); }
+
+  @media (max-width: 1240px) {
+    .layout { grid-template-columns: 1fr; }
+    .detail-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar -->
+  <aside>
+    <a class="brand" href="Hyperscaler Dashboard.html"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row">
+        <div class="crest">SN</div>
+        <div>
+          <div class="name">SyncNode <span class="edit">✎</span></div>
+          <div class="sub">EST 2026 · ERA 1 · DAY 12</div>
+        </div>
+      </div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="Hyperscaler Dashboard.html"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item active"><span class="ico">▤</span> Servers <span class="badge muted">2</span></a>
+      <a class="nav-item" href="Hyperscaler Customers.html"><span class="ico">◉</span> Customers <span class="badge new">+1</span></a>
+      <a class="nav-item" href="Hyperscaler Tickets.html"><span class="ico">✉</span> Tickets <span class="badge">3</span></a>
+      <a class="nav-item" href="Hyperscaler Finance.html"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item" href="Hyperscaler Research.html"><span class="ico">⚙</span> Research <span class="badge muted">0/12</span></a>
+      <a class="nav-item" href="Hyperscaler Marketplace.html"><span class="ico">◈</span> Marketplace</a>
+      <a class="nav-item locked" href="Hyperscaler Staff.html"><span class="ico">☰</span> Staff <span class="lock">🔒 Era 2</span></a>
+      <a class="nav-item locked" href="Hyperscaler Network.html"><span class="ico">◴</span> Network <span class="lock">🔒 Era 2</span></a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="Hyperscaler Leaderboard.html"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="Hyperscaler Devlog.html"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="Hyperscaler Settings.html"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot">
+      <div>v0.7.2 · build 18,402</div>
+      <a href="#">⌨ Shortcuts ⌘K</a>
+      <div class="me"><span class="ava">P</span>promnet · log out</div>
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Play</span><span class="sep">›</span><b>Servers</b><span class="sep">›</span><span>RACK-01 / U21</span></div>
+      <div class="clock">
+        <div class="day">Day 12<small> / 365</small></div>
+        <div class="time">03:42 AM</div>
+        <div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div>
+      </div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Servers <span class="count">2 / 24U used</span></h1>
+          <div class="sub">RACK-01 · Budapest · cousin's garage · 22°C ambient</div>
+        </div>
+        <div class="h-right">
+          <button class="btn">View utilization →</button>
+          <button class="btn primary">＋ Buy server</button>
+        </div>
+      </div>
+
+      <div class="layout">
+
+        <!-- Rack visualizer -->
+        <section class="panel rack-panel">
+          <div class="ph">
+            <h3>Rack inventory</h3>
+            <span class="ph-sub">// click to inspect</span>
+            <div class="ph-right"><span class="live"><i></i>LIVE</span></div>
+          </div>
+          <div class="rack-tabs">
+            <button class="on">RACK-01 · BUD</button>
+            <button class="plus">＋ Lease rack 🔒</button>
+          </div>
+          <div class="rack-vis">
+            <div class="u-row"><span class="lbl">U24</span><span class="name">— empty —</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+            <div class="u-row"><span class="lbl">U23</span><span class="name">— empty —</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+            <div class="u-row warn"><span class="lbl">U22</span><span class="name">srv-01 · web</span><span class="leds"><i class="g"></i><i class="g"></i><i></i></span><span class="util">42%</span></div>
+            <div class="u-row hot selected"><span class="lbl">U21</span><span class="name">srv-02 · db</span><span class="leds"><i class="a"></i><i class="g"></i><i class="g"></i></span><span class="util">88%</span></div>
+            <div class="u-row empty"><span class="lbl">U20</span><span class="name">— empty —</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+            <div class="u-row empty"><span class="lbl">U19</span><span class="name">— empty —</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+            <div class="u-row empty"><span class="lbl">U18</span><span class="name">— empty —</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+            <div class="u-row empty"><span class="lbl">U17</span><span class="name">— empty —</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+            <div class="u-row empty"><span class="lbl">U16</span><span class="name">— empty —</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+            <div class="u-row empty"><span class="lbl">U15</span><span class="name">— empty —</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+            <div class="u-row empty"><span class="lbl">U14</span><span class="name">— empty —</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+            <div class="u-row empty"><span class="lbl">U13</span><span class="name">— empty —</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+          </div>
+          <div class="rack-foot">
+            <div class="mini-stat"><div class="k">Used</div><div class="v">2U</div></div>
+            <div class="mini-stat"><div class="k">SLA</div><div class="v warn">99.61%</div></div>
+            <div class="mini-stat"><div class="k">Temp</div><div class="v">22°C</div></div>
+            <div class="mini-stat"><div class="k">Power</div><div class="v">320W</div></div>
+          </div>
+        </section>
+
+        <!-- Server detail -->
+        <section class="panel">
+          <div class="detail-head">
+            <div class="badge-u">U21</div>
+            <div>
+              <h2>srv-02 · primary db <span class="pill">⚠ Hot</span></h2>
+              <div class="sub">1U · Pentium 4 · Bay #1 — bought Day 4 · serving <b style="color:var(--text)">3 customers</b></div>
+            </div>
+            <div class="detail-actions">
+              <button class="btn sm">SSH ▸</button>
+              <button class="btn sm">Restart</button>
+              <button class="btn sm primary">Upgrade →</button>
+            </div>
+          </div>
+
+          <div class="detail-grid">
+            <div class="dgrid">
+              <div class="k">CPU</div>
+              <div class="v warn">88%</div>
+              <div class="meta">Pentium 4 · <b>2.8 GHz</b></div>
+            </div>
+            <div class="dgrid">
+              <div class="k">RAM</div>
+              <div class="v">2.5 / 4 GB</div>
+              <div class="meta">DDR · <b>62%</b> used</div>
+            </div>
+            <div class="dgrid">
+              <div class="k">Disk</div>
+              <div class="v">17 / 40 GB</div>
+              <div class="meta">IDE · <b>4,200 rpm</b></div>
+            </div>
+            <div class="dgrid">
+              <div class="k">Uptime</div>
+              <div class="v good">8d 04h</div>
+              <div class="meta">Last restart <b>Day 4</b></div>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <h4>Live utilization · 5 min window</h4>
+            <div class="gauge"><span class="lbl">CPU</span><div class="bar"><i class="cpu"></i><span class="val">88%</span></div></div>
+            <div class="gauge"><span class="lbl">RAM</span><div class="bar"><i class="ram"></i><span class="val">62%</span></div></div>
+            <div class="gauge"><span class="lbl">Disk I/O</span><div class="bar"><i class="disk"></i><span class="val">41%</span></div></div>
+            <div class="gauge"><span class="lbl">Network</span><div class="bar"><i class="net"></i><span class="val">28%</span></div></div>
+          </div>
+
+          <div class="detail-section">
+            <h4>Specs &amp; hardware</h4>
+            <div class="specs">
+              <div class="r"><span>Form factor</span><b>1U rackmount</b></div>
+              <div class="r"><span>CPU</span><b>Intel Pentium 4 2.8 GHz</b></div>
+              <div class="r"><span>RAM slot</span><b>4 GB DDR · upgradable to 8</b></div>
+              <div class="r"><span>Disk</span><b>40 GB IDE (Maxtor)</b></div>
+              <div class="r"><span>NIC</span><b>100 Mbps · 1 port</b></div>
+              <div class="r"><span>PSU</span><b>250 W · 80 PLUS Bronze</b></div>
+              <div class="r"><span>MTBF</span><b>~14,000 hours</b></div>
+              <div class="r"><span>Salvage value</span><b>$45</b></div>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <h4>Workloads hosted</h4>
+            <div class="wl-row">
+              <div class="ico">DB</div>
+              <div>
+                <div class="name">postgres-14 · nutricoach</div>
+                <div class="meta"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d5beb4a7b0bb95bba0a1a7bcb6bab4b6bdfbbcba">[email&#160;protected]</a> · 18 GB · <span style="color:var(--pink)">slow queries detected</span></div>
+              </div>
+              <div class="use">68% cpu</div>
+              <div class="age">8d</div>
+            </div>
+            <div class="wl-row">
+              <div class="ico">DB</div>
+              <div>
+                <div class="name">postgres-14 · pixelbrew</div>
+                <div class="meta">devon@pixelbrew · 4 GB · healthy</div>
+              </div>
+              <div class="use">14% cpu</div>
+              <div class="age">8d</div>
+            </div>
+            <div class="wl-row">
+              <div class="ico">DB</div>
+              <div>
+                <div class="name">redis-6 · anon-trial</div>
+                <div class="meta">anon@?? · 0.6 GB · cache</div>
+              </div>
+              <div class="use">6% cpu</div>
+              <div class="age">2d</div>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <h4>Recent incidents</h4>
+            <div class="wl-row">
+              <div class="ico" style="color: var(--pink)">!</div>
+              <div>
+                <div class="name">High CPU on postgres-14 (nutricoach)</div>
+                <div class="meta">03:31 AM · Day 12 · triggered Karen P1 ticket</div>
+              </div>
+              <div class="use" style="color:var(--pink)">−6 rep</div>
+              <div class="age">11m</div>
+            </div>
+            <div class="wl-row">
+              <div class="ico" style="color: var(--amber)">⚠</div>
+              <div>
+                <div class="name">Fan duty cycle &gt; 80%</div>
+                <div class="meta">11:48 PM · Day 11 · power overrun</div>
+              </div>
+              <div class="use" style="color:var(--amber)">−$8</div>
+              <div class="age">4h</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Hardware catalog -->
+        <section class="panel cat-panel">
+          <div class="ph">
+            <h3>Hardware catalog</h3>
+            <span class="ph-sub">// 12 in stock</span>
+          </div>
+          <div class="cat-search">
+            <input placeholder="Search 'GPU', 'enterprise', '2U'..." />
+            <div class="cat-filters">
+              <button class="on">All</button>
+              <button>Compute</button>
+              <button>Storage</button>
+              <button>GPU</button>
+              <button>Network</button>
+            </div>
+          </div>
+          <div class="cat-list">
+            <div class="cat-item affordable">
+              <div class="row1">
+                <span class="name">1U Pentium III</span>
+                <span class="tag">In stock</span>
+              </div>
+              <div class="specs-mini"><span>1U · 1 GHz</span><span>2 GB</span><span>20 GB IDE</span></div>
+              <div class="row2">
+                <span class="price">$120</span>
+                <button class="buy">Buy →</button>
+              </div>
+            </div>
+            <div class="cat-item affordable">
+              <div class="row1">
+                <span class="name">1U Pentium 4 +RAM</span>
+                <span class="tag">In stock</span>
+              </div>
+              <div class="specs-mini"><span>1U · 2.8 GHz</span><span>8 GB</span><span>40 GB IDE</span></div>
+              <div class="row2">
+                <span class="price">$180</span>
+                <button class="buy">Buy →</button>
+              </div>
+            </div>
+            <div class="cat-item">
+              <div class="row1">
+                <span class="name">2U Dual Xeon</span>
+                <span class="tag new">Newer</span>
+              </div>
+              <div class="specs-mini"><span>2U · 2× 3.0 GHz</span><span>16 GB ECC</span><span>2× 80 GB</span></div>
+              <div class="row2">
+                <span class="price">$420</span>
+                <button class="buy">Buy →</button>
+              </div>
+            </div>
+            <div class="cat-item">
+              <div class="row1">
+                <span class="name">RAID-5 storage shelf</span>
+                <span class="tag">In stock</span>
+              </div>
+              <div class="specs-mini"><span>3U</span><span>4× 250 GB SCSI</span><span>hot-swap</span></div>
+              <div class="row2">
+                <span class="price">$680</span>
+                <button class="buy">Buy →</button>
+              </div>
+            </div>
+            <div class="cat-item locked">
+              <div class="row1">
+                <span class="name">1U Opteron blade</span>
+                <span class="tag lock">🔒 Era 2</span>
+              </div>
+              <div class="specs-mini"><span>1U · 4× cores</span><span>32 GB</span><span>2× 146 GB SAS</span></div>
+              <div class="row2">
+                <span class="price lock">$1,100</span>
+                <button class="buy">View</button>
+              </div>
+            </div>
+            <div class="cat-item locked">
+              <div class="row1">
+                <span class="name">GPU pod · Quadro FX</span>
+                <span class="tag lock">🔒 Era 3</span>
+              </div>
+              <div class="specs-mini"><span>4U · 2 GPUs</span><span>watts ↑↑</span><span>render only</span></div>
+              <div class="row2">
+                <span class="price lock">$3,400</span>
+                <button class="buy">View</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding: 0 14px 16px;">
+            <div class="empty-bay">
+              <div class="icn">⌐</div>
+              <h4>22 empty bays</h4>
+              <div>Fill them before Karen finds a competitor.</div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+</div>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script></body>
+</html>

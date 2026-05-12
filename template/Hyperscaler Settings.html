@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .layout { grid-column: span 12; display: grid; grid-template-columns: 220px 1fr; gap: 18px; }
+
+  /* Settings nav */
+  .set-nav {
+    position: sticky; top: 18px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 8px;
+  }
+  .set-nav a {
+    display: grid; grid-template-columns: 22px 1fr;
+    align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 7px;
+    font-size: 13px; color: var(--muted);
+    cursor: pointer; transition: background .12s;
+  }
+  .set-nav a:hover { background: var(--panel-2); color: var(--text); }
+  .set-nav a.on { background: var(--panel-2); color: var(--text); }
+  .set-nav a .ico { font-family: var(--mono); color: var(--dim); }
+  .set-nav a.on .ico { color: var(--cyan); }
+
+  /* Section card */
+  .sec {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 0;
+    margin-bottom: 18px;
+  }
+  .sec-head {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sec-head h2 {
+    margin: 0;
+    font-family: var(--display); font-size: 19px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sec-head h2 .ico {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: var(--panel-2); border: 1px solid var(--line-2);
+    display: grid; place-items: center;
+    font-family: var(--mono); font-size: 13px; color: var(--cyan);
+  }
+  .sec-head .sub {
+    font-size: 13px; color: var(--muted); margin-top: 4px;
+  }
+
+  .field {
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 1fr 280px;
+    gap: 24px; align-items: center;
+  }
+  .field:last-child { border-bottom: 0; }
+  .field .label {
+    font-weight: 500; font-size: 14px; color: var(--text);
+  }
+  .field .label small {
+    display: block; font-weight: 400; font-size: 12px;
+    color: var(--muted); margin-top: 3px; line-height: 1.5;
+  }
+  .field .ctrl { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+  .field .warn-note {
+    margin-top: 8px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--amber);
+    display: flex; gap: 6px; align-items: center;
+  }
+
+  /* Toggle */
+  .toggle {
+    width: 44px; height: 24px; border-radius: 999px;
+    background: var(--panel-3); border: 1px solid var(--line-2);
+    position: relative; cursor: pointer; flex: none;
+    transition: background .15s;
+  }
+  .toggle::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--text); transition: transform .15s;
+  }
+  .toggle.on { background: var(--mint); border-color: var(--mint); }
+  .toggle.on::after { transform: translateX(20px); background: #07120c; }
+
+  /* Segmented control */
+  .seg {
+    display: inline-flex; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 7px; padding: 2px;
+  }
+  .seg button {
+    padding: 6px 12px; border-radius: 5px;
+    background: transparent; border: 0;
+    color: var(--muted); font-family: var(--mono); font-size: 11px; font-weight: 500;
+  }
+  .seg button.on { background: var(--text); color: var(--bg); }
+
+  /* Slider */
+  .slider {
+    display: grid; grid-template-columns: 1fr 44px; gap: 12px;
+    align-items: center; width: 240px;
+  }
+  .slider .track {
+    height: 4px; background: var(--line); border-radius: 2px;
+    position: relative;
+  }
+  .slider .track i {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--cyan); border-radius: 2px;
+  }
+  .slider .track i::after {
+    content: ""; position: absolute; right: -7px; top: 50%; transform: translateY(-50%);
+    width: 14px; height: 14px; border-radius: 50%; background: var(--text);
+    border: 2px solid var(--bg); box-shadow: 0 0 0 1px var(--cyan);
+  }
+  .slider .num {
+    font-family: var(--mono); font-size: 12px; font-weight: 700; text-align: right;
+  }
+
+  /* Select */
+  .select {
+    padding: 8px 12px; border-radius: 7px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    min-width: 180px; cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 13px) 14px, calc(100% - 9px) 14px;
+    background-size: 4px 4px, 4px 4px;
+    background-repeat: no-repeat;
+    appearance: none;
+  }
+
+  /* Color swatch row */
+  .swatches { display: flex; gap: 6px; }
+  .swatch {
+    width: 26px; height: 26px; border-radius: 7px;
+    border: 2px solid transparent;
+    cursor: pointer;
+  }
+  .swatch.on { border-color: var(--text); box-shadow: 0 0 0 1px var(--bg) inset; }
+
+  /* Profile head */
+  .profile-head {
+    padding: 22px;
+    display: grid; grid-template-columns: 72px 1fr auto;
+    gap: 18px; align-items: center;
+  }
+  .profile-head .av {
+    width: 72px; height: 72px; border-radius: 18px;
+    background: linear-gradient(135deg, var(--indigo), #4f46e5);
+    display: grid; place-items: center;
+    font-family: var(--display); font-size: 30px; font-weight: 700; color: #fff;
+    position: relative;
+  }
+  .profile-head .av .edit {
+    position: absolute; bottom: -4px; right: -4px;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--bg); border: 2px solid var(--line-2);
+    display: grid; place-items: center;
+    font-size: 11px; color: var(--text);
+  }
+  .profile-head h3 {
+    margin: 0; font-family: var(--display); font-size: 22px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .profile-head .handle {
+    font-family: var(--mono); font-size: 12px; color: var(--dim);
+    margin-top: 4px;
+  }
+  .profile-head .meta {
+    margin-top: 8px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    display: flex; gap: 14px;
+  }
+  .profile-head .meta b { color: var(--text); }
+  .profile-head .actions { display: flex; gap: 8px; }
+
+  /* Save bar */
+  .save-bar {
+    position: sticky; bottom: 0;
+    background: rgba(13,17,28,.92); backdrop-filter: blur(8px);
+    border-top: 1px solid var(--line-2);
+    padding: 14px 22px;
+    margin: 0 -28px -16px;
+    display: flex; align-items: center; gap: 14px;
+    z-index: 5;
+  }
+  .save-bar .status {
+    font-family: var(--mono); font-size: 12px; color: var(--mint);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .save-bar .status i { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 6px var(--mint); }
+  .save-bar .right { margin-left: auto; display: flex; gap: 8px; }
+
+  /* Danger zone */
+  .danger {
+    border-color: rgba(244,63,94,.3) !important;
+    background: linear-gradient(180deg, rgba(244,63,94,.04), var(--panel));
+  }
+  .danger .sec-head h2 .ico { color: var(--pink); background: rgba(244,63,94,.1); border-color: rgba(244,63,94,.3); }
+
+  @media (max-width: 980px) {
+    .layout { grid-template-columns: 1fr; }
+    .field { grid-template-columns: 1fr; gap: 12px; }
+    .field .ctrl { justify-content: flex-start; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <a class="brand" href="Hyperscaler Dashboard.html"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="Hyperscaler Dashboard.html"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="Hyperscaler Servers.html"><span class="ico">▤</span> Servers <span class="badge muted">2</span></a>
+      <a class="nav-item" href="Hyperscaler Customers.html"><span class="ico">◉</span> Customers <span class="badge new">+1</span></a>
+      <a class="nav-item" href="Hyperscaler Tickets.html"><span class="ico">✉</span> Tickets <span class="badge">3</span></a>
+      <a class="nav-item" href="Hyperscaler Finance.html"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item" href="Hyperscaler Research.html"><span class="ico">⚙</span> Research <span class="badge muted">0/12</span></a>
+      <a class="nav-item" href="Hyperscaler Marketplace.html"><span class="ico">◈</span> Marketplace</a>
+      <a class="nav-item locked" href="Hyperscaler Staff.html"><span class="ico">☰</span> Staff <span class="lock">🔒 Era 2</span></a>
+      <a class="nav-item locked" href="Hyperscaler Network.html"><span class="ico">◴</span> Network <span class="lock">🔒 Era 2</span></a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="Hyperscaler Leaderboard.html"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="Hyperscaler Devlog.html"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item active"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Meta</span><span class="sep">›</span><b>Settings</b><span class="sep">›</span><span>Profile, gameplay, AI, audio, data</span></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Settings <span class="count">Auto-saved 2s ago</span></h1>
+          <div class="sub">Tune your save, your face, your AI advisor, and your pager.</div>
+        </div>
+        <div class="h-right">
+          <button class="btn">Reset to defaults</button>
+          <button class="btn primary">Export save (.json)</button>
+        </div>
+      </div>
+
+      <div class="layout">
+
+        <!-- Settings sub-nav -->
+        <nav class="set-nav">
+          <a class="on"><span class="ico">◉</span>Profile</a>
+          <a><span class="ico">▶</span>Gameplay</a>
+          <a><span class="ico">⚙</span>AI advisor</a>
+          <a><span class="ico">✉</span>Notifications</a>
+          <a><span class="ico">♪</span>Audio</a>
+          <a><span class="ico">▣</span>Display &amp; UI</a>
+          <a><span class="ico">⌨</span>Controls</a>
+          <a><span class="ico">⌖</span>Multiplayer</a>
+          <a><span class="ico">💾</span>Save &amp; data</a>
+          <a><span class="ico">⚠</span>Danger zone</a>
+        </nav>
+
+        <!-- Right column -->
+        <div>
+
+          <!-- Profile -->
+          <section class="sec">
+            <div class="sec-head">
+              <h2><span class="ico">◉</span> Profile</h2>
+              <div class="sub">How you show up on leaderboards and other players' reputation pages.</div>
+            </div>
+            <div class="profile-head">
+              <div class="av">P<span class="edit">✎</span></div>
+              <div>
+                <h3>promnet <span style="font-family:var(--mono);font-size:11px;color:var(--mint);padding:3px 8px;border-radius:999px;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.3);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">VERIFIED</span></h3>
+                <div class="handle">@syncnode · joined Season 1 · 142 hours played</div>
+                <div class="meta">
+                  <span>Rank <b>#147</b></span>
+                  <span>Best <b>$1,402</b></span>
+                  <span>Saves <b>3</b></span>
+                  <span>Friends <b>8</b></span>
+                </div>
+              </div>
+              <div class="actions">
+                <button class="btn sm">Share /rep page</button>
+                <button class="btn sm">Edit avatar</button>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Display name<small>Shown on leaderboards and in customer tickets.</small></div>
+              <div class="ctrl">
+                <input class="select" value="promnet" style="font-family: var(--mono);" />
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Company name<small>Your in-game brand. Customers see this on invoices.</small></div>
+              <div class="ctrl">
+                <input class="select" value="SyncNode" style="font-family: var(--mono);" />
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Public reputation page<small>Lets others link to your stats. Disable to stay anonymous.</small></div>
+              <div class="ctrl"><div class="toggle on"></div></div>
+            </div>
+            <div class="field">
+              <div class="label">Show on global leaderboard<small>Your rank and score still update — just hidden from the public ladder.</small></div>
+              <div class="ctrl"><div class="toggle on"></div></div>
+            </div>
+          </section>
+
+          <!-- Gameplay -->
+          <section class="sec">
+            <div class="sec-head">
+              <h2><span class="ico">▶</span> Gameplay</h2>
+              <div class="sub">Tune difficulty, pacing, and how forgiving the sim is.</div>
+            </div>
+            <div class="field">
+              <div class="label">Difficulty<small>Adjusts customer churn rates, P1 spawn frequency, and starting cash.</small></div>
+              <div class="ctrl">
+                <div class="seg">
+                  <button>Casual</button>
+                  <button class="on">Standard</button>
+                  <button>Hard</button>
+                  <button>Karen mode</button>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Game speed multiplier<small>1 in-game day = N seconds of real time. The pause button still works.</small></div>
+              <div class="ctrl">
+                <div class="slider"><div class="track"><i style="width:60%;"></i></div><span class="num">1.5×</span></div>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Auto-pause on P1 ticket<small>Stop the sim when a fire starts so you can read before you panic.</small></div>
+              <div class="ctrl"><div class="toggle on"></div></div>
+            </div>
+            <div class="field">
+              <div class="label">Show tutorial hints<small>Era 1 only. New mechanics get a popup the first time they appear.</small></div>
+              <div class="ctrl"><div class="toggle"></div></div>
+            </div>
+            <div class="field">
+              <div class="label">Permadeath mode<small>If you go bankrupt, the save is sealed. No rewinds. Leaderboard flair.</small></div>
+              <div class="ctrl">
+                <div class="toggle"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- AI advisor -->
+          <section class="sec">
+            <div class="sec-head">
+              <h2><span class="ico">⚙</span> AI advisor</h2>
+              <div class="sub">"Lin-1" reads your sim and surfaces what's about to break. Configure how loud she gets.</div>
+            </div>
+            <div class="field">
+              <div class="label">Advisor model<small>Controls quality of suggestions. Premium runs your own API key — slower but smarter.</small></div>
+              <div class="ctrl">
+                <select class="select">
+                  <option>Built-in (free)</option>
+                  <option>Claude Haiku · default</option>
+                  <option>Claude Sonnet · premium</option>
+                  <option>BYO API key</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Suggestion frequency<small>How often Lin-1 pops up with proactive advice.</small></div>
+              <div class="ctrl">
+                <div class="seg"><button>Off</button><button>Low</button><button class="on">Med</button><button>High</button></div>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Auto-action threshold<small>If confidence is above this, Lin acts without asking (e.g. auto-refund a $19 ticket).</small></div>
+              <div class="ctrl">
+                <div class="slider"><div class="track"><i style="width:85%;"></i></div><span class="num">95%</span></div>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Personality<small>How Lin-1 talks to you. Affects copy in advisor banner.</small></div>
+              <div class="ctrl">
+                <div class="seg"><button>Dry</button><button class="on">Direct</button><button>Warm</button><button>Snarky</button></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Notifications -->
+          <section class="sec">
+            <div class="sec-head">
+              <h2><span class="ico">✉</span> Notifications &amp; pager</h2>
+              <div class="sub">When and how the game interrupts you. Yes, this is the famous "pager" panel.</div>
+            </div>
+            <div class="field">
+              <div class="label">In-game pager — P1 tickets<small>Sound + screen flash when a P1 fires.</small></div>
+              <div class="ctrl"><div class="toggle on"></div></div>
+            </div>
+            <div class="field">
+              <div class="label">Desktop notifications<small>Push notifications when you alt-tab away from the game.</small></div>
+              <div class="ctrl"><div class="toggle on"></div></div>
+            </div>
+            <div class="field">
+              <div class="label">"Quiet hours"<small>Pages defer to a daily summary. Honored by P1+. Configure schedule below.</small></div>
+              <div class="ctrl"><div class="toggle on"></div></div>
+            </div>
+            <div class="field">
+              <div class="label">Quiet hours window<small>Real clock time. Game still runs; you just sleep.</small></div>
+              <div class="ctrl">
+                <select class="select" style="min-width:130px;">
+                  <option>11 PM → 7 AM</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Email digest<small>Daily summary of overnight events.</small></div>
+              <div class="ctrl">
+                <select class="select"><option>Daily 9 AM</option></select>
+              </div>
+            </div>
+          </section>
+
+          <!-- Audio + UI -->
+          <section class="sec">
+            <div class="sec-head">
+              <h2><span class="ico">♪</span> Audio &amp; UI</h2>
+            </div>
+            <div class="field">
+              <div class="label">Master volume</div>
+              <div class="ctrl"><div class="slider"><div class="track"><i style="width:70%;"></i></div><span class="num">70</span></div></div>
+            </div>
+            <div class="field">
+              <div class="label">Pager / alert sounds<small>The 3 AM noise. Tunable.</small></div>
+              <div class="ctrl"><div class="slider"><div class="track"><i style="width:45%;"></i></div><span class="num">45</span></div></div>
+            </div>
+            <div class="field">
+              <div class="label">Ambient datacenter hum<small>Fans, HVAC, distant beeping.</small></div>
+              <div class="ctrl"><div class="slider"><div class="track"><i style="width:30%;"></i></div><span class="num">30</span></div></div>
+            </div>
+            <div class="field">
+              <div class="label">UI theme<small>Dark "rack room" is canon.</small></div>
+              <div class="ctrl">
+                <div class="seg"><button class="on">Dark</button><button>Amber CRT</button><button>High contrast</button></div>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Accent color</div>
+              <div class="ctrl">
+                <div class="swatches">
+                  <div class="swatch on" style="background:#22d3ee;"></div>
+                  <div class="swatch" style="background:#6366f1;"></div>
+                  <div class="swatch" style="background:#34d399;"></div>
+                  <div class="swatch" style="background:#f59e0b;"></div>
+                  <div class="swatch" style="background:#f43f5e;"></div>
+                  <div class="swatch" style="background:#a78bfa;"></div>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">UI density<small>Cozy = more whitespace. Compact = more data per screen.</small></div>
+              <div class="ctrl">
+                <div class="seg"><button>Cozy</button><button class="on">Normal</button><button>Compact</button></div>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Reduce motion<small>Disables clock ticking animations and event-feed slide-ins.</small></div>
+              <div class="ctrl"><div class="toggle"></div></div>
+            </div>
+          </section>
+
+          <!-- Save & data -->
+          <section class="sec">
+            <div class="sec-head">
+              <h2><span class="ico">💾</span> Save &amp; data</h2>
+            </div>
+            <div class="field">
+              <div class="label">Cloud sync<small>3 saves synced across devices. Conflict resolution by last-write.</small></div>
+              <div class="ctrl"><div class="toggle on"></div></div>
+            </div>
+            <div class="field">
+              <div class="label">Auto-save interval<small>Real-time minutes between snapshots.</small></div>
+              <div class="ctrl">
+                <select class="select"><option>Every 2 minutes</option></select>
+              </div>
+            </div>
+            <div class="field">
+              <div class="label">Anonymous gameplay telemetry<small>Helps us tune difficulty. No content, no chat.</small></div>
+              <div class="ctrl"><div class="toggle on"></div></div>
+            </div>
+            <div class="field">
+              <div class="label">Active save · "SyncNode"<small>3 saves · last opened Day 12 · 142 hours total</small></div>
+              <div class="ctrl">
+                <button class="btn sm">Manage saves →</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Danger zone -->
+          <section class="sec danger">
+            <div class="sec-head">
+              <h2><span class="ico">⚠</span> Danger zone</h2>
+              <div class="sub">Permanent. Cannot be undone. Read twice.</div>
+            </div>
+            <div class="field">
+              <div class="label">Reset current save<small>Wipes Day 12 progress. Keeps your profile, leaderboard history, badges.</small></div>
+              <div class="ctrl"><button class="btn sm" style="border-color: rgba(244,63,94,.3); color: var(--pink);">Reset save</button></div>
+            </div>
+            <div class="field">
+              <div class="label">Forfeit season<small>Removes you from Season 3 ladder. You can rejoin next season.</small></div>
+              <div class="ctrl"><button class="btn sm" style="border-color: rgba(244,63,94,.3); color: var(--pink);">Forfeit</button></div>
+            </div>
+            <div class="field">
+              <div class="label">Delete account<small>Removes profile, saves, friends, achievements, /rep page. Permanent.</small></div>
+              <div class="ctrl"><button class="btn sm" style="background: var(--pink); border-color: var(--pink); color: #fff;">Delete account</button></div>
+            </div>
+          </section>
+
+          <!-- Sticky save bar -->
+          <div class="save-bar">
+            <div class="status"><i></i>All changes saved · 2s ago</div>
+            <div class="right">
+              <button class="btn">Discard</button>
+              <button class="btn primary">Apply &amp; resume sim</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

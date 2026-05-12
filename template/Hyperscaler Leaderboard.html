@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Leaderboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .layout { grid-column: span 12; display: grid; grid-template-columns: 1fr 320px; gap: 18px; }
+  .lb-tabs {
+    display: flex; gap: 4px; padding: 8px 12px;
+    border-bottom: 1px solid var(--line); background: rgba(7,9,15,.4);
+  }
+  .lb-tabs button {
+    padding: 7px 12px; border-radius: 7px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--muted); font-size: 12px; font-family: var(--mono);
+  }
+  .lb-tabs button.on { background: var(--panel-2); color: var(--text); border-color: var(--line); }
+  .lb-tabs .right { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--dim); padding: 7px 0; }
+
+  /* Podium */
+  .podium {
+    padding: 26px 24px 36px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;
+    align-items: end;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(245,158,11,.06), transparent 70%);
+  }
+  .pod {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 16px 20px;
+    text-align: center; position: relative;
+  }
+  .pod .rank {
+    position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+    width: 38px; height: 38px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 17px;
+    border: 3px solid var(--bg);
+  }
+  .pod.r1 { border-color: rgba(245,158,11,.4); background: linear-gradient(180deg, rgba(245,158,11,.14), var(--panel-2)); padding-bottom: 28px; }
+  .pod.r1 .rank { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #1c1300; }
+  .pod.r2 .rank { background: linear-gradient(135deg, #cbd5e1, #94a3b8); color: #1c2230; }
+  .pod.r3 .rank { background: linear-gradient(135deg, #f97316, #c2410c); color: #1c0a00; }
+  .pod .av {
+    width: 56px; height: 56px; border-radius: 14px; margin: 6px auto 10px;
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 22px; color: #fff;
+  }
+  .pod.r1 .av { width: 68px; height: 68px; font-size: 26px; }
+  .pod .name { font-family: var(--display); font-weight: 600; font-size: 16px; }
+  .pod .org { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 2px; }
+  .pod .score {
+    margin-top: 12px;
+    font-family: var(--display); font-weight: 700; font-size: 26px;
+  }
+  .pod.r1 .score { color: var(--amber); font-size: 32px; }
+  .pod .stats { margin-top: 8px; display: flex; gap: 10px; justify-content: center; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .pod .stats b { color: var(--text); }
+
+  /* Leaderboard table */
+  .lb-row {
+    display: grid;
+    grid-template-columns: 50px 36px 1fr 90px 90px 90px 90px 90px;
+    gap: 12px; padding: 10px 18px;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .lb-row.head {
+    background: var(--panel-2);
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;
+  }
+  .lb-row.me {
+    background: rgba(99,102,241,.06);
+    border-left: 3px solid var(--indigo);
+    padding-left: 15px;
+  }
+  .lb-row .rk {
+    font-family: var(--display); font-weight: 700; font-size: 16px;
+    text-align: center;
+  }
+  .lb-row .rk small { font-family: var(--mono); font-size: 9px; color: var(--dim); display: block; }
+  .lb-row .rk.up { color: var(--mint); }
+  .lb-row .rk.dn { color: var(--pink); }
+  .lb-row .av {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 13px; color: #fff;
+  }
+  .lb-row .who .name { font-weight: 600; font-size: 13px; }
+  .lb-row .who .org { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 1px; }
+  .lb-row .v { font-family: var(--mono); font-weight: 700; text-align: right; font-size: 12px; }
+  .lb-row .v small { font-family: var(--mono); font-size: 10px; color: var(--dim); font-weight: 400; display: block; }
+  .lb-row .v.score { font-family: var(--display); font-size: 16px; color: var(--text); }
+  .lb-row .v.score small { color: var(--mint); font-weight: 700; }
+  .lb-row .v.score small.dn { color: var(--pink); }
+
+  /* Right side: badges + seasonal */
+  .season-card {
+    padding: 18px;
+    background:
+      linear-gradient(135deg, rgba(99,102,241,.18), rgba(34,211,238,.10));
+    border: 1px solid rgba(99,102,241,.3);
+    border-radius: 14px;
+  }
+  .season-card .lbl {
+    font-family: var(--mono); font-size: 10px; color: var(--indigo-2);
+    text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
+  }
+  .season-card h3 { margin: 6px 0 4px; font-family: var(--display); font-size: 22px; font-weight: 700; }
+  .season-card .sub { font-size: 13px; color: var(--muted); }
+  .season-card .countdown {
+    display: flex; gap: 8px; margin-top: 14px;
+  }
+  .season-card .cd {
+    flex: 1;
+    background: rgba(0,0,0,.3); border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+  }
+  .season-card .cd b {
+    display: block; font-family: var(--display); font-size: 20px; font-weight: 700;
+  }
+  .season-card .cd small { font-family: var(--mono); font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
+  .season-card .rewards {
+    margin-top: 14px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    padding: 10px 12px; border-radius: 8px; background: rgba(0,0,0,.25);
+  }
+  .season-card .rewards b { color: var(--text); }
+
+  /* Badges */
+  .badge-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    padding: 14px 16px;
+  }
+  .b-cell {
+    aspect-ratio: 1;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 8px;
+    position: relative;
+  }
+  .b-cell.have {
+    background: linear-gradient(180deg, rgba(52,211,153,.12), var(--panel-2));
+    border-color: rgba(52,211,153,.3);
+  }
+  .b-cell.locked { opacity: 0.45; }
+  .b-cell .ico {
+    font-family: var(--display); font-size: 24px; font-weight: 700;
+    color: var(--text);
+  }
+  .b-cell.have .ico { color: var(--mint); }
+  .b-cell .name {
+    font-family: var(--mono); font-size: 9px; color: var(--muted);
+    margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em;
+    text-align: center; line-height: 1.2;
+  }
+  .b-cell.have .name { color: var(--text); }
+
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: 1fr; }
+    .lb-row { grid-template-columns: 40px 32px 1fr 80px 80px; }
+    .lb-row .hide-md { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <a class="brand" href="Hyperscaler Dashboard.html"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="Hyperscaler Dashboard.html"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="Hyperscaler Servers.html"><span class="ico">▤</span> Servers <span class="badge muted">2</span></a>
+      <a class="nav-item" href="Hyperscaler Customers.html"><span class="ico">◉</span> Customers <span class="badge new">+1</span></a>
+      <a class="nav-item" href="Hyperscaler Tickets.html"><span class="ico">✉</span> Tickets <span class="badge">3</span></a>
+      <a class="nav-item" href="Hyperscaler Finance.html"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item" href="Hyperscaler Research.html"><span class="ico">⚙</span> Research <span class="badge muted">0/12</span></a>
+      <a class="nav-item" href="Hyperscaler Marketplace.html"><span class="ico">◈</span> Marketplace</a>
+      <a class="nav-item locked" href="Hyperscaler Staff.html"><span class="ico">☰</span> Staff <span class="lock">🔒 Era 2</span></a>
+      <a class="nav-item locked" href="Hyperscaler Network.html"><span class="ico">◴</span> Network <span class="lock">🔒 Era 2</span></a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item active"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="Hyperscaler Devlog.html"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="Hyperscaler Settings.html"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Meta</span><span class="sep">›</span><b>Leaderboard</b><span class="sep">›</span><span>Season 3 · Era 1 ladder</span></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Leaderboard <span class="count">Season 3 · Week 2 of 6 · 2,841 players</span></h1>
+          <div class="sub">Async multiplayer. Your ghost is fighting their ghost. Everyone's losing money.</div>
+        </div>
+        <div class="h-right">
+          <button class="btn">Share my run</button>
+          <button class="btn primary">View season prizes →</button>
+        </div>
+      </div>
+
+      <div class="layout">
+
+        <section class="panel">
+          <div class="lb-tabs">
+            <button class="on">Global</button>
+            <button>Friends · 8</button>
+            <button>Era 1 only</button>
+            <button>Speedrun</button>
+            <button>Customer-mood</button>
+            <span class="right">Updated 1m ago · refresh in 04:12</span>
+          </div>
+
+          <!-- Podium -->
+          <div class="podium">
+            <div class="pod r2">
+              <div class="rank">2</div>
+              <div class="av" style="background: linear-gradient(135deg, #22d3ee, #0e7490);">F</div>
+              <div class="name">Fern Akiyama</div>
+              <div class="org">@ftown_cloud</div>
+              <div class="score">$28,402</div>
+              <div class="stats"><span>MRR <b>$3.4k</b></span><span>Day <b>61</b></span></div>
+            </div>
+            <div class="pod r1">
+              <div class="rank">1</div>
+              <div class="av" style="background: linear-gradient(135deg, #f59e0b, #b45309);">P</div>
+              <div class="name">paulwall</div>
+              <div class="org">@bigironco</div>
+              <div class="score">$41,920</div>
+              <div class="stats"><span>MRR <b>$5.1k</b></span><span>Day <b>58</b></span><span>👑</span></div>
+            </div>
+            <div class="pod r3">
+              <div class="rank">3</div>
+              <div class="av" style="background: linear-gradient(135deg, #a78bfa, #6d28d9);">G</div>
+              <div class="name">grimsdotter</div>
+              <div class="org">@nordpop_se</div>
+              <div class="score">$24,118</div>
+              <div class="stats"><span>MRR <b>$2.9k</b></span><span>Day <b>72</b></span></div>
+            </div>
+          </div>
+
+          <!-- Table -->
+          <div class="lb-row head">
+            <div>Rank</div>
+            <div></div>
+            <div>Player</div>
+            <div>Score</div>
+            <div>MRR</div>
+            <div>Day</div>
+            <div class="hide-md">Cust.</div>
+            <div class="hide-md">Era</div>
+          </div>
+
+          <div class="lb-row">
+            <div class="rk up">4 <small>▲ 2</small></div>
+            <div class="av" style="background:#f43f5e;">K</div>
+            <div class="who"><div class="name">koolaid</div><div class="org">@datacauldron</div></div>
+            <div class="v score">$21,408 <small>+$890 / 24h</small></div>
+            <div class="v">$2.4k</div>
+            <div class="v">68</div>
+            <div class="v hide-md">142</div>
+            <div class="v hide-md" style="color: var(--cyan);">Era 3</div>
+          </div>
+          <div class="lb-row">
+            <div class="rk dn">5 <small>▼ 1</small></div>
+            <div class="av" style="background:#34d399;color:#07120c;">T</div>
+            <div class="who"><div class="name">tia_ops</div><div class="org">@hexapod</div></div>
+            <div class="v score">$19,200 <small class="dn">−$210 / 24h</small></div>
+            <div class="v">$2.1k</div>
+            <div class="v">54</div>
+            <div class="v hide-md">98</div>
+            <div class="v hide-md" style="color: var(--cyan);">Era 3</div>
+          </div>
+          <div class="lb-row">
+            <div class="rk up">6 <small>▲ 4</small></div>
+            <div class="av" style="background:#6366f1;">B</div>
+            <div class="who"><div class="name">bingbong</div><div class="org">@cellar.systems</div></div>
+            <div class="v score">$15,402 <small>+$1.4k / 24h</small></div>
+            <div class="v">$1.9k</div>
+            <div class="v">41</div>
+            <div class="v hide-md">78</div>
+            <div class="v hide-md" style="color: var(--cyan);">Era 2</div>
+          </div>
+          <div class="lb-row">
+            <div class="rk">7 <small>—</small></div>
+            <div class="av" style="background:#22d3ee;color:#063045;">M</div>
+            <div class="who"><div class="name">marcia.exe</div><div class="org">@stratopf</div></div>
+            <div class="v score">$13,890 <small>+$80 / 24h</small></div>
+            <div class="v">$1.7k</div>
+            <div class="v">49</div>
+            <div class="v hide-md">71</div>
+            <div class="v hide-md" style="color: var(--cyan);">Era 2</div>
+          </div>
+          <div class="lb-row">
+            <div class="rk dn">8 <small>▼ 3</small></div>
+            <div class="av" style="background:#a78bfa;">W</div>
+            <div class="who"><div class="name">wirefraud</div><div class="org">@bsides_ix</div></div>
+            <div class="v score">$11,201 <small class="dn">−$1.2k / 24h</small></div>
+            <div class="v">$1.4k</div>
+            <div class="v">39</div>
+            <div class="v hide-md">61</div>
+            <div class="v hide-md" style="color: var(--cyan);">Era 2</div>
+          </div>
+
+          <div class="lb-row" style="background: var(--panel-2); border-top: 2px solid var(--line-2); border-bottom: 2px solid var(--line-2);">
+            <div class="rk" style="color: var(--dim); font-size: 11px; font-family: var(--mono); font-weight: 400;">···</div>
+            <div></div>
+            <div class="who"><div class="name" style="color:var(--dim)">142 players above you</div><div class="org">scroll to find them</div></div>
+            <div></div><div></div><div></div><div class="hide-md"></div><div class="hide-md"></div>
+          </div>
+
+          <div class="lb-row me">
+            <div class="rk up">147 <small>▲ 12</small></div>
+            <div class="av" style="background: linear-gradient(135deg, var(--indigo), #4f46e5);">P</div>
+            <div class="who"><div class="name">promnet — YOU</div><div class="org">@syncnode</div></div>
+            <div class="v score">$390 <small>+$45 / 24h</small></div>
+            <div class="v">$48</div>
+            <div class="v">12</div>
+            <div class="v hide-md">3</div>
+            <div class="v hide-md" style="color: var(--amber);">Era 1</div>
+          </div>
+
+          <div class="lb-row">
+            <div class="rk">148 <small>—</small></div>
+            <div class="av" style="background:#94a3b8;">Z</div>
+            <div class="who"><div class="name">zola.minor</div><div class="org">@cattown</div></div>
+            <div class="v score">$386 <small class="dn">−$4 / 24h</small></div>
+            <div class="v">$29</div>
+            <div class="v">14</div>
+            <div class="v hide-md">2</div>
+            <div class="v hide-md" style="color: var(--amber);">Era 1</div>
+          </div>
+          <div class="lb-row">
+            <div class="rk up">149 <small>▲ 7</small></div>
+            <div class="av" style="background:#fbbf24;color:#1c1300;">H</div>
+            <div class="who"><div class="name">hostmuncher</div><div class="org">@dadbird</div></div>
+            <div class="v score">$382 <small>+$60 / 24h</small></div>
+            <div class="v">$19</div>
+            <div class="v">9</div>
+            <div class="v hide-md">2</div>
+            <div class="v hide-md" style="color: var(--amber);">Era 1</div>
+          </div>
+          <div class="lb-row">
+            <div class="rk dn">150 <small>▼ 4</small></div>
+            <div class="av" style="background:#f97316;">L</div>
+            <div class="who"><div class="name">lex_buckets</div><div class="org">@kettle.io</div></div>
+            <div class="v score">$374 <small class="dn">−$120 / 24h</small></div>
+            <div class="v">$15</div>
+            <div class="v">11</div>
+            <div class="v hide-md">2</div>
+            <div class="v hide-md" style="color: var(--amber);">Era 1</div>
+          </div>
+        </section>
+
+        <!-- Right -->
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+
+          <div class="season-card">
+            <div class="lbl">SEASON 3 · "Bare Metal Summer"</div>
+            <h3>4d 18h until reset</h3>
+            <div class="sub">Top 10 get cosmetic rack skins. Top 100 keep their best run on Hall of Fame.</div>
+            <div class="countdown">
+              <div class="cd"><b>04</b><small>days</small></div>
+              <div class="cd"><b>18</b><small>hours</small></div>
+              <div class="cd"><b>22</b><small>min</small></div>
+              <div class="cd"><b>11</b><small>sec</small></div>
+            </div>
+            <div class="rewards">
+              ★ <b>Top 1</b> — Custom AS number cosmetic<br/>
+              ★ <b>Top 10</b> — "Bare Metal" rack skin<br/>
+              ★ <b>Top 100</b> — Hall of Fame · permanent
+            </div>
+          </div>
+
+          <section class="panel">
+            <div class="ph"><h3>Badges &amp; achievements</h3><span class="ph-sub">// 4 / 24</span></div>
+            <div class="badge-grid">
+              <div class="b-cell have"><div class="ico">★</div><div class="name">First customer</div></div>
+              <div class="b-cell have"><div class="ico">⚡</div><div class="name">Survived shift</div></div>
+              <div class="b-cell have"><div class="ico">$</div><div class="name">$100 cash</div></div>
+              <div class="b-cell have"><div class="ico">✉</div><div class="name">Closed P1 in 5min</div></div>
+              <div class="b-cell"><div class="ico">⌖</div><div class="name">$1k MRR</div></div>
+              <div class="b-cell"><div class="ico">▤</div><div class="name">Full rack</div></div>
+              <div class="b-cell"><div class="ico">◴</div><div class="name">Multi-region</div></div>
+              <div class="b-cell"><div class="ico">⚒</div><div class="name">No 3 AM pages 30d</div></div>
+              <div class="b-cell locked"><div class="ico">🔒</div><div class="name">Era 4</div></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="ph"><h3>Friends online</h3><span class="ph-sub">// 3 of 8</span></div>
+            <div style="padding: 0 0 8px;">
+              <div class="lb-row" style="grid-template-columns: 36px 1fr auto;">
+                <div class="av" style="background:#34d399;color:#07120c;">T</div>
+                <div class="who"><div class="name">tia_ops</div><div class="org">rank 5 · LIVE</div></div>
+                <div style="font-family: var(--mono); font-size: 10px; color: var(--mint);">●</div>
+              </div>
+              <div class="lb-row" style="grid-template-columns: 36px 1fr auto;">
+                <div class="av" style="background:#a78bfa;">W</div>
+                <div class="who"><div class="name">wirefraud</div><div class="org">rank 8 · idle</div></div>
+                <div style="font-family: var(--mono); font-size: 10px; color: var(--amber);">●</div>
+              </div>
+              <div class="lb-row" style="grid-template-columns: 36px 1fr auto; border: 0;">
+                <div class="av" style="background:#f59e0b;color:#1c1300;">N</div>
+                <div class="who"><div class="name">nilsson_co</div><div class="org">rank 73 · LIVE</div></div>
+                <div style="font-family: var(--mono); font-size: 10px; color: var(--mint);">●</div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

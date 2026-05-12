@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Finance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .layout { grid-column: span 12; display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+  .full { grid-column: span 12; }
+
+  /* KPI row */
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .kpi-card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 18px;
+    position: relative; overflow: hidden;
+  }
+  .kpi-card.green { border-color: rgba(52,211,153,.3); background: linear-gradient(180deg, rgba(52,211,153,.08), var(--panel) 60%); }
+  .kpi-card.red { border-color: rgba(244,63,94,.3); background: linear-gradient(180deg, rgba(244,63,94,.08), var(--panel) 60%); }
+  .kpi-card.amber { border-color: rgba(245,158,11,.3); background: linear-gradient(180deg, rgba(245,158,11,.08), var(--panel) 60%); }
+  .kpi-card .k { font-family: var(--mono); font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
+  .kpi-card .v { font-family: var(--display); font-weight: 700; font-size: 30px; margin-top: 6px; line-height: 1; }
+  .kpi-card .v.bad { color: var(--pink); }
+  .kpi-card .v.good { color: var(--mint); }
+  .kpi-card .v.warn { color: var(--amber); }
+  .kpi-card .delta {
+    font-family: var(--mono); font-size: 11px; color: var(--mint);
+    margin-top: 6px; display: flex; align-items: center; gap: 6px;
+  }
+  .kpi-card .delta.dn { color: var(--pink); }
+  .kpi-card .delta.flat { color: var(--dim); }
+  .kpi-card .spark {
+    position: absolute; right: 14px; bottom: 14px; width: 80px; height: 26px;
+  }
+
+  /* Cashflow chart */
+  .chart-wrap { padding: 18px 22px; }
+  .chart-wrap .head {
+    display: flex; align-items: baseline; margin-bottom: 12px; gap: 14px;
+  }
+  .chart-wrap h3 { margin: 0; font-family: var(--display); font-size: 17px; font-weight: 600; }
+  .chart-wrap .legend { display: flex; gap: 14px; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: auto; }
+  .chart-wrap .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .legend .rev i { background: var(--mint); }
+  .legend .exp i { background: var(--pink); }
+  .legend .proj i { background: transparent; border: 1.5px dashed var(--amber); border-radius: 0; }
+  .chart-wrap svg { width: 100%; height: 240px; display: block; }
+  .chart-wrap .x-axis {
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
+    margin-top: 4px;
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+    text-align: center;
+  }
+  .chart-wrap .x-axis .now { color: var(--amber); font-weight: 700; }
+
+  /* P&L table */
+  .pnl-table { padding: 0; }
+  .pnl-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pnl-table th, .pnl-table td {
+    padding: 10px 16px; text-align: right;
+    font-family: var(--mono); font-size: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .pnl-table th { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; background: var(--panel-2); }
+  .pnl-table td:first-child, .pnl-table th:first-child { text-align: left; font-family: var(--body); padding-left: 22px; }
+  .pnl-table td.lbl { color: var(--text); font-weight: 500; }
+  .pnl-table td.sub { padding-left: 38px; color: var(--muted); font-size: 12px; }
+  .pnl-table tr.total td { font-weight: 700; background: var(--panel-2); color: var(--text); }
+  .pnl-table tr.total td.lbl { font-family: var(--display); font-size: 13px; }
+  .pnl-table tr.grand td { background: var(--panel-3); border-top: 2px solid var(--line-2); font-size: 14px; }
+  .pnl-table td.pos { color: var(--mint); }
+  .pnl-table td.neg { color: var(--pink); }
+  .pnl-table td.dim { color: var(--dim); }
+
+  /* Invoices */
+  .inv-row {
+    display: grid; grid-template-columns: 36px 1fr auto auto;
+    gap: 12px; padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    align-items: center;
+  }
+  .inv-row .av {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 13px; color: #fff;
+  }
+  .inv-row .name { font-weight: 500; font-size: 13px; }
+  .inv-row .meta { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 2px; }
+  .inv-row .status {
+    font-family: var(--mono); font-size: 10px; padding: 3px 8px;
+    border-radius: 999px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+  }
+  .inv-row .status.paid { background: rgba(52,211,153,.12); color: var(--mint); border: 1px solid rgba(52,211,153,.3); }
+  .inv-row .status.due  { background: rgba(245,158,11,.12); color: var(--amber); border: 1px solid rgba(245,158,11,.3); }
+  .inv-row .status.late { background: rgba(244,63,94,.12); color: var(--pink); border: 1px solid rgba(244,63,94,.3); }
+  .inv-row .status.waived { background: var(--panel-3); color: var(--dim); border: 1px solid var(--line); }
+  .inv-row .amt { font-family: var(--mono); font-weight: 700; font-size: 14px; min-width: 70px; text-align: right; }
+
+  /* Scenario planner */
+  .scen-card { padding: 16px 18px; }
+  .scen-toggle {
+    display: flex; gap: 6px; padding: 4px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 9px; margin-bottom: 14px;
+  }
+  .scen-toggle button {
+    flex: 1; padding: 7px; border-radius: 6px;
+    background: transparent; border: 0;
+    color: var(--muted); font-size: 12px; font-family: var(--mono); font-weight: 600;
+  }
+  .scen-toggle button.on { background: var(--text); color: var(--bg); }
+  .scen-row {
+    display: grid; grid-template-columns: 1fr auto;
+    align-items: center; padding: 10px 0;
+    border-bottom: 1px dashed var(--line);
+    font-size: 13px;
+  }
+  .scen-row:last-of-type { border-bottom: 0; }
+  .scen-row .lbl small { display: block; color: var(--dim); font-family: var(--mono); font-size: 10px; margin-top: 2px; }
+  .scen-slider { display: flex; align-items: center; gap: 10px; }
+  .scen-slider .bar {
+    width: 110px; height: 5px; background: var(--line); border-radius: 3px; position: relative;
+  }
+  .scen-slider .bar i {
+    position: absolute; height: 100%; background: var(--indigo); border-radius: 3px;
+  }
+  .scen-slider .bar i::after {
+    content: ""; position: absolute; right: -6px; top: -4px;
+    width: 12px; height: 12px; border-radius: 50%; background: var(--text);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.3);
+  }
+  .scen-slider .val { font-family: var(--mono); font-size: 12px; font-weight: 700; min-width: 50px; text-align: right; }
+  .scen-result {
+    margin-top: 14px; padding: 12px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 9px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  }
+  .scen-result .r { font-family: var(--mono); font-size: 11px; }
+  .scen-result .r small { display: block; color: var(--dim); }
+  .scen-result .r b {
+    font-family: var(--display); font-size: 16px; color: var(--text);
+    display: block; margin-top: 2px;
+  }
+  .scen-result .r b.good { color: var(--mint); }
+  .scen-result .r b.bad { color: var(--pink); }
+
+  /* Burn rate */
+  .burn-list .row {
+    display: grid; grid-template-columns: 1fr 80px 56px;
+    gap: 10px; padding: 10px 18px;
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .burn-list .row .b {
+    height: 6px; background: var(--line); border-radius: 3px; overflow: hidden;
+  }
+  .burn-list .row .b i { display: block; height: 100%; }
+  .burn-list .row .v { font-family: var(--mono); font-weight: 700; text-align: right; color: var(--pink); }
+  .burn-list .row .lbl small { display: block; color: var(--dim); font-family: var(--mono); font-size: 10px; margin-top: 1px; }
+
+  @media (max-width: 1240px) {
+    .layout { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <a class="brand" href="Hyperscaler Dashboard.html"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="Hyperscaler Dashboard.html"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="Hyperscaler Servers.html"><span class="ico">▤</span> Servers <span class="badge muted">2</span></a>
+      <a class="nav-item" href="Hyperscaler Customers.html"><span class="ico">◉</span> Customers <span class="badge new">+1</span></a>
+      <a class="nav-item" href="Hyperscaler Tickets.html"><span class="ico">✉</span> Tickets <span class="badge">3</span></a>
+      <a class="nav-item active"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item" href="Hyperscaler Research.html"><span class="ico">⚙</span> Research <span class="badge muted">0/12</span></a>
+      <a class="nav-item" href="Hyperscaler Marketplace.html"><span class="ico">◈</span> Marketplace</a>
+      <a class="nav-item locked" href="Hyperscaler Staff.html"><span class="ico">☰</span> Staff <span class="lock">🔒 Era 2</span></a>
+      <a class="nav-item locked" href="Hyperscaler Network.html"><span class="ico">◴</span> Network <span class="lock">🔒 Era 2</span></a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="Hyperscaler Leaderboard.html"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="Hyperscaler Devlog.html"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="Hyperscaler Settings.html"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Play</span><span class="sep">›</span><b>Finance</b></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Finance <span class="count">Era 1 · Garage</span></h1>
+          <div class="sub">P&amp;L · projections · invoices · burn</div>
+        </div>
+        <div class="h-right">
+          <button class="btn">Export CSV</button>
+          <button class="btn">Take loan $500 🔒</button>
+          <button class="btn primary">Adjust pricing</button>
+        </div>
+      </div>
+
+      <!-- KPI cards -->
+      <div class="kpis full" style="margin-bottom: 14px;">
+        <div class="kpi-card green">
+          <div class="k">Cash on hand</div>
+          <div class="v">$390</div>
+          <div class="delta">▲ +$45 vs. yesterday</div>
+          <svg class="spark" viewBox="0 0 80 26" preserveAspectRatio="none">
+            <polyline fill="none" stroke="var(--mint)" stroke-width="1.5" points="0,18 8,16 16,18 24,14 32,15 40,12 48,13 56,10 64,9 72,7 80,5"/>
+          </svg>
+        </div>
+        <div class="kpi-card">
+          <div class="k">MRR</div>
+          <div class="v">$48</div>
+          <div class="delta">▲ +$19 (Karen, if she stays)</div>
+          <svg class="spark" viewBox="0 0 80 26" preserveAspectRatio="none">
+            <polyline fill="none" stroke="var(--cyan)" stroke-width="1.5" points="0,20 16,20 16,16 32,16 32,12 48,12 48,8 64,8 64,5 80,5"/>
+          </svg>
+        </div>
+        <div class="kpi-card red">
+          <div class="k">Burn rate</div>
+          <div class="v bad">$15/day</div>
+          <div class="delta dn">▼ runway 26 days</div>
+          <svg class="spark" viewBox="0 0 80 26" preserveAspectRatio="none">
+            <polyline fill="none" stroke="var(--pink)" stroke-width="1.5" points="0,8 10,10 20,7 30,12 40,9 50,14 60,11 70,16 80,13"/>
+          </svg>
+        </div>
+        <div class="kpi-card amber">
+          <div class="k">Gross margin</div>
+          <div class="v warn">38%</div>
+          <div class="delta flat">— hardware-heavy</div>
+          <svg class="spark" viewBox="0 0 80 26" preserveAspectRatio="none">
+            <polyline fill="none" stroke="var(--amber)" stroke-width="1.5" points="0,12 16,15 32,11 48,13 64,10 80,9"/>
+          </svg>
+        </div>
+        <div class="kpi-card">
+          <div class="k">Outstanding A/R</div>
+          <div class="v">$67</div>
+          <div class="delta dn">▼ 1 invoice late</div>
+          <svg class="spark" viewBox="0 0 80 26" preserveAspectRatio="none">
+            <polyline fill="none" stroke="var(--indigo-2)" stroke-width="1.5" points="0,18 16,14 32,16 48,11 64,13 80,10"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="layout">
+
+        <!-- Cashflow chart + P&L -->
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+          <section class="panel">
+            <div class="chart-wrap">
+              <div class="head">
+                <h3>Cashflow · 14d back / 14d projection</h3>
+                <div class="legend">
+                  <span class="rev"><i></i>Revenue</span>
+                  <span class="exp"><i></i>Expenses</span>
+                  <span class="proj"><i></i>Projection</span>
+                </div>
+              </div>
+              <svg viewBox="0 0 800 240" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="cfg" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stop-color="#34d399" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#34d399" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <!-- grid -->
+                <g stroke="#1a1f33" stroke-width="1">
+                  <line x1="0" y1="60" x2="800" y2="60"/>
+                  <line x1="0" y1="120" x2="800" y2="120"/>
+                  <line x1="0" y1="180" x2="800" y2="180"/>
+                </g>
+                <!-- baseline -->
+                <line x1="0" y1="120" x2="800" y2="120" stroke="#2a3050" stroke-width="1" stroke-dasharray="3 4"/>
+                <!-- expenses (red bars below) -->
+                <g fill="#f43f5e" opacity="0.55">
+                  <rect x="10" y="120" width="22" height="20" rx="2"/>
+                  <rect x="42" y="120" width="22" height="22" rx="2"/>
+                  <rect x="74" y="120" width="22" height="19" rx="2"/>
+                  <rect x="106" y="120" width="22" height="24" rx="2"/>
+                  <rect x="138" y="120" width="22" height="20" rx="2"/>
+                  <rect x="170" y="120" width="22" height="21" rx="2"/>
+                  <rect x="202" y="120" width="22" height="23" rx="2"/>
+                  <rect x="234" y="120" width="22" height="19" rx="2"/>
+                  <rect x="266" y="120" width="22" height="25" rx="2"/>
+                  <rect x="298" y="120" width="22" height="22" rx="2"/>
+                  <rect x="330" y="120" width="22" height="20" rx="2"/>
+                  <rect x="362" y="120" width="22" height="24" rx="2"/>
+                  <rect x="394" y="120" width="22" height="22" rx="2"/>
+                </g>
+                <!-- revenue (green bars above) -->
+                <g fill="#34d399" opacity="0.7">
+                  <rect x="10" y="110" width="22" height="10" rx="2"/>
+                  <rect x="42" y="108" width="22" height="12" rx="2"/>
+                  <rect x="74" y="104" width="22" height="16" rx="2"/>
+                  <rect x="106" y="102" width="22" height="18" rx="2"/>
+                  <rect x="138" y="98" width="22" height="22" rx="2"/>
+                  <rect x="170" y="92" width="22" height="28" rx="2"/>
+                  <rect x="202" y="86" width="22" height="34" rx="2"/>
+                  <rect x="234" y="78" width="22" height="42" rx="2"/>
+                  <rect x="266" y="72" width="22" height="48" rx="2"/>
+                  <rect x="298" y="66" width="22" height="54" rx="2"/>
+                  <rect x="330" y="60" width="22" height="60" rx="2"/>
+                  <rect x="362" y="50" width="22" height="70" rx="2"/>
+                  <rect x="394" y="44" width="22" height="76" rx="2"/>
+                </g>
+                <!-- cash trend line -->
+                <polyline fill="none" stroke="#34d399" stroke-width="2.5" stroke-linejoin="round"
+                  points="20,170 52,168 84,160 116,156 148,148 180,138 212,128 244,112 276,98 308,82 340,68 372,48 404,32"/>
+                <!-- TODAY divider -->
+                <line x1="420" y1="0" x2="420" y2="220" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 4"/>
+                <text x="424" y="14" fill="#f59e0b" font-family="JetBrains Mono" font-size="10" font-weight="700">DAY 12 · NOW</text>
+                <text x="424" y="26" fill="#f59e0b" font-family="JetBrains Mono" font-size="10">$390</text>
+                <!-- projection (dashed) -->
+                <polyline fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="5 5" stroke-linejoin="round"
+                  points="420,30 452,28 484,40 516,32 548,50 580,42 612,68 644,80 676,100 708,118 740,140 772,160"/>
+                <!-- projection band -->
+                <path d="M 420 22 L 772 130 L 772 180 L 420 50 Z" fill="#f59e0b" opacity="0.07"/>
+
+                <!-- crisis marker on Day 9 (Karen P1 #018) -->
+                <circle cx="148" cy="148" r="4" fill="#f43f5e" stroke="#0a0d18" stroke-width="2"/>
+                <circle cx="244" cy="112" r="4" fill="#f43f5e" stroke="#0a0d18" stroke-width="2"/>
+                <circle cx="404" cy="32" r="5" fill="#f43f5e" stroke="#0a0d18" stroke-width="2"/>
+                <text x="410" y="20" fill="#f43f5e" font-family="JetBrains Mono" font-size="9">Karen P1 #042</text>
+              </svg>
+              <div class="x-axis">
+                <div>Day −12</div><div>Day −9</div><div>Day −6</div><div>Day −3</div>
+                <div class="now">TODAY</div>
+                <div>Day +3</div><div>Day +7</div><div>Day +14</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- P&L -->
+          <section class="panel pnl-table">
+            <div class="ph">
+              <h3>P&amp;L · last 12 days</h3>
+              <span class="ph-sub">// vs. Day 0–12 baseline</span>
+              <div class="ph-right">
+                <select style="background: var(--panel-2); border: 1px solid var(--line); color: var(--text); padding: 4px 8px; border-radius: 6px; font-family: var(--mono); font-size: 11px;">
+                  <option>Last 12 days</option><option>Era 1 lifetime</option><option>Custom…</option>
+                </select>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr><th>Line</th><th>Days 1–6</th><th>Days 7–12</th><th>Total</th></tr>
+              </thead>
+              <tbody>
+                <tr><td class="lbl">Revenue</td><td class="dim">—</td><td class="dim">—</td><td class="dim">—</td></tr>
+                <tr><td class="sub">Subscriptions (Devon, Karen, Mira-lead)</td><td class="pos">$29</td><td class="pos">$87</td><td class="pos">$116</td></tr>
+                <tr><td class="sub">Overage charges</td><td class="pos">$0</td><td class="pos">$14</td><td class="pos">$14</td></tr>
+                <tr><td class="sub">Marketplace referrals</td><td class="pos">$0</td><td class="pos">$8</td><td class="pos">$8</td></tr>
+                <tr class="total"><td class="lbl">Gross revenue</td><td class="pos">$29</td><td class="pos">$109</td><td class="pos">$138</td></tr>
+                <tr><td class="lbl">COGS</td><td class="dim">—</td><td class="dim">—</td><td class="dim">—</td></tr>
+                <tr><td class="sub">Power &amp; cooling</td><td class="neg">−$24</td><td class="neg">−$33</td><td class="neg">−$57</td></tr>
+                <tr><td class="sub">Bandwidth (peering, transit)</td><td class="neg">−$11</td><td class="neg">−$18</td><td class="neg">−$29</td></tr>
+                <tr><td class="sub">Hardware depreciation</td><td class="neg">−$6</td><td class="neg">−$8</td><td class="neg">−$14</td></tr>
+                <tr class="total"><td class="lbl">Gross profit</td><td class="neg">−$12</td><td class="pos">$50</td><td class="pos">$38</td></tr>
+                <tr><td class="lbl">Opex</td><td class="dim">—</td><td class="dim">—</td><td class="dim">—</td></tr>
+                <tr><td class="sub">Refunds &amp; credits</td><td class="neg">−$0</td><td class="neg">−$19</td><td class="neg">−$19</td></tr>
+                <tr><td class="sub">Garage rent (cousin)</td><td class="neg">−$40</td><td class="neg">−$40</td><td class="neg">−$80</td></tr>
+                <tr><td class="sub">Snacks &amp; coffee</td><td class="neg">−$8</td><td class="neg">−$11</td><td class="neg">−$19</td></tr>
+                <tr class="total"><td class="lbl">Operating loss</td><td class="neg">−$60</td><td class="neg">−$20</td><td class="neg">−$80</td></tr>
+                <tr class="grand"><td class="lbl">Δ Cash position</td><td class="neg">−$60</td><td class="neg">−$20</td><td class="neg">−$80</td></tr>
+              </tbody>
+            </table>
+          </section>
+        </div>
+
+        <!-- Right column -->
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+
+          <!-- Scenario planner -->
+          <section class="panel">
+            <div class="ph">
+              <h3>What-if simulator</h3>
+              <span class="ph-sub">// projects 30 days</span>
+            </div>
+            <div class="scen-card">
+              <div class="scen-toggle">
+                <button>Conservative</button>
+                <button class="on">Realistic</button>
+                <button>Bullish</button>
+              </div>
+
+              <div class="scen-row">
+                <div class="lbl">Price bump<small>Starter plan $19 → $24</small></div>
+                <div class="scen-slider">
+                  <div class="bar"><i style="width: 40%"></i></div>
+                  <span class="val">$24</span>
+                </div>
+              </div>
+              <div class="scen-row">
+                <div class="lbl">New customers / day<small>Marketplace + word of mouth</small></div>
+                <div class="scen-slider">
+                  <div class="bar"><i style="width: 30%"></i></div>
+                  <span class="val">0.6</span>
+                </div>
+              </div>
+              <div class="scen-row">
+                <div class="lbl">Server expansion<small>Buy U18-U20 this week</small></div>
+                <div class="scen-slider">
+                  <div class="bar"><i style="width: 66%"></i></div>
+                  <span class="val">3 units</span>
+                </div>
+              </div>
+              <div class="scen-row">
+                <div class="lbl">Churn from price bump<small>Karen leaves at 81% prob</small></div>
+                <div class="scen-slider">
+                  <div class="bar"><i style="width: 81%; background: var(--pink);"></i></div>
+                  <span class="val">−1</span>
+                </div>
+              </div>
+
+              <div class="scen-result">
+                <div class="r"><small>Cash @ Day 42</small><b class="good">$1,184</b></div>
+                <div class="r"><small>MRR @ Day 42</small><b class="good">$162</b></div>
+                <div class="r"><small>Runway</small><b>78 days</b></div>
+                <div class="r"><small>Era 2 ETA</small><b>Day 38</b></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Burn breakdown -->
+          <section class="panel">
+            <div class="ph">
+              <h3>Where the money goes</h3>
+              <span class="ph-sub">// $15/day burn</span>
+            </div>
+            <div class="burn-list">
+              <div class="row">
+                <div class="lbl">Power &amp; cooling<small>1.4 kW · ELMÜ residential rate</small></div>
+                <div class="b"><i style="width: 60%; background: var(--pink);"></i></div>
+                <div class="v">−$5.4</div>
+              </div>
+              <div class="row">
+                <div class="lbl">Bandwidth<small>2 TB egress · upstream resale</small></div>
+                <div class="b"><i style="width: 40%; background: var(--pink);"></i></div>
+                <div class="v">−$3.8</div>
+              </div>
+              <div class="row">
+                <div class="lbl">Garage rent<small>"Cousin Tibi" weekly</small></div>
+                <div class="b"><i style="width: 33%; background: var(--amber);"></i></div>
+                <div class="v">−$3.3</div>
+              </div>
+              <div class="row">
+                <div class="lbl">Hardware deprec.<small>~$10 / server / month</small></div>
+                <div class="b"><i style="width: 18%; background: var(--indigo);"></i></div>
+                <div class="v">−$1.4</div>
+              </div>
+              <div class="row">
+                <div class="lbl">Refunds / credits<small>Karen, twice</small></div>
+                <div class="b"><i style="width: 14%; background: var(--pink);"></i></div>
+                <div class="v">−$1.1</div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </div>
+
+      <!-- Invoices -->
+      <section class="panel full" style="margin-top: 18px;">
+        <div class="ph">
+          <h3>Invoices &amp; transactions</h3>
+          <span class="ph-sub">// 11 total · 1 late</span>
+          <div class="ph-right">
+            <button class="btn sm">All</button>
+            <button class="btn sm">Late · 1</button>
+            <button class="btn sm">Waived · 1</button>
+          </div>
+        </div>
+        <div>
+          <div class="inv-row">
+            <div class="av av-K">K</div>
+            <div>
+              <div class="name">Karen Holloway · INV-009</div>
+              <div class="meta">$19 · Starter · Day 12 (today) · auto-billed</div>
+            </div>
+            <div class="status waived">Waived</div>
+            <div class="amt" style="color: var(--dim);">$0</div>
+          </div>
+          <div class="inv-row">
+            <div class="av av-D">D</div>
+            <div>
+              <div class="name">Devon Park · INV-008</div>
+              <div class="meta">$29 · Builder · Day 11 · card on file ending 4242</div>
+            </div>
+            <div class="status paid">Paid</div>
+            <div class="amt" style="color: var(--mint);">$29</div>
+          </div>
+          <div class="inv-row">
+            <div class="av av-M">M</div>
+            <div>
+              <div class="name">Mira Sato · INV-Q01 (quote)</div>
+              <div class="meta">$1,200 · Enterprise pilot · sent Day 11 · expires Day 14</div>
+            </div>
+            <div class="status due">Pending</div>
+            <div class="amt" style="color: var(--amber);">$1,200</div>
+          </div>
+          <div class="inv-row">
+            <div class="av av-A">A</div>
+            <div>
+              <div class="name">"Anon" · INV-007</div>
+              <div class="meta">$67 · overage · Day 10 · ⚠ payment method unverified</div>
+            </div>
+            <div class="status late">7d late</div>
+            <div class="amt" style="color: var(--pink);">$67</div>
+          </div>
+          <div class="inv-row">
+            <div class="av av-D">D</div>
+            <div>
+              <div class="name">Devon Park · INV-006</div>
+              <div class="meta">$29 · Builder · Day 4</div>
+            </div>
+            <div class="status paid">Paid</div>
+            <div class="amt" style="color: var(--mint);">$29</div>
+          </div>
+          <div class="inv-row">
+            <div class="av av-K">K</div>
+            <div>
+              <div class="name">Karen Holloway · INV-005</div>
+              <div class="meta">$15 → $19 · Starter price bump · Day 7 · she noticed</div>
+            </div>
+            <div class="status paid">Paid</div>
+            <div class="amt" style="color: var(--mint);">$19</div>
+          </div>
+          <div class="inv-row">
+            <div class="av av-R">R</div>
+            <div>
+              <div class="name">Rita Chen (churned) · INV-004</div>
+              <div class="meta">$29 · final invoice · Day 5 · refunded after complaint</div>
+            </div>
+            <div class="status waived">Refunded</div>
+            <div class="amt" style="color: var(--dim);">−$29</div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>

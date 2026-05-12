@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Network (Locked)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .lockwrap { grid-column: span 12; position: relative; }
+  .blur { filter: blur(3px) saturate(0.7); opacity: 0.5; pointer-events: none; user-select: none; }
+  .lock-overlay {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    background: radial-gradient(ellipse at center, rgba(10,13,24,.7) 30%, rgba(10,13,24,.95) 80%); z-index: 10;
+  }
+  .lock-card {
+    width: min(560px, 90%);
+    background: var(--panel); border: 1px solid var(--line-2);
+    border-radius: 16px; padding: 32px; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .lock-card .badge {
+    display: inline-block; font-family: var(--mono); font-size: 11px;
+    padding: 5px 12px; border-radius: 999px;
+    background: rgba(34,211,238,.10); color: var(--cyan);
+    border: 1px solid rgba(34,211,238,.3);
+    text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700;
+    margin-bottom: 16px;
+  }
+  .lock-card h1 {
+    margin: 0 0 8px;
+    font-family: var(--display); font-size: 32px; font-weight: 700;
+    background: linear-gradient(135deg, var(--text), var(--cyan));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .lock-card .sub { font-size: 15px; color: var(--muted); line-height: 1.55; max-width: 420px; margin: 0 auto 24px; }
+  .lock-card .requirements {
+    text-align: left; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;
+  }
+  .lock-card .req {
+    display: grid; grid-template-columns: 24px 1fr auto;
+    align-items: center; gap: 10px; padding: 8px 0; font-size: 13px;
+  }
+  .lock-card .req + .req { border-top: 1px dashed var(--line); }
+  .lock-card .req .ck {
+    width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line-2);
+    display: grid; place-items: center; font-size: 11px; color: transparent;
+  }
+  .lock-card .req.done .ck { background: var(--mint); border-color: var(--mint); color: #07120c; }
+  .lock-card .req.done .lbl { color: var(--dim); text-decoration: line-through; }
+  .lock-card .req .progress { font-family: var(--mono); font-size: 11px; color: var(--cyan); font-weight: 700; }
+  .lock-card .cta-row { display: flex; gap: 10px; justify-content: center; }
+
+  /* Network preview */
+  .map-panel {
+    padding: 0; overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(34,211,238,.06), transparent 60%),
+      var(--panel);
+  }
+  .map-svg { width: 100%; height: 460px; display: block; }
+
+  .city-dot circle { fill: var(--mint); stroke: rgba(52,211,153,.3); }
+  .city-dot.lock circle { fill: var(--dim); stroke: var(--line-2); }
+  .city-dot.target circle { fill: var(--amber); stroke: rgba(245,158,11,.4); }
+  .city-dot text { fill: var(--text); font-family: var(--mono); font-size: 11px; font-weight: 700; }
+  .city-dot.lock text { fill: var(--dim); }
+  .city-dot.target text { fill: var(--amber); }
+
+  /* Peering & latency table */
+  .latency-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+  }
+  .lat-cell {
+    padding: 14px 16px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .lat-cell:last-child { border-right: 0; }
+  .lat-cell .city {
+    font-family: var(--display); font-size: 15px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .lat-cell .city .flag {
+    font-family: var(--mono); font-size: 10px;
+    padding: 2px 6px; border-radius: 4px;
+    background: var(--panel-3); color: var(--muted);
+  }
+  .lat-cell .lat {
+    font-family: var(--display); font-size: 22px; font-weight: 700;
+    margin-top: 8px;
+  }
+  .lat-cell .lat.good { color: var(--mint); }
+  .lat-cell .lat.warn { color: var(--amber); }
+  .lat-cell .lat.bad { color: var(--pink); }
+  .lat-cell .lat small { font-size: 11px; color: var(--dim); font-family: var(--mono); font-weight: 400; }
+  .lat-cell .stats { margin-top: 8px; display: flex; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .lat-cell .stats b { color: var(--text); }
+
+  /* Peers table */
+  .peer-row {
+    display: grid; grid-template-columns: 1fr 100px 100px 80px 100px;
+    gap: 12px; padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px; align-items: center;
+  }
+  .peer-row.head {
+    background: var(--panel-2);
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;
+  }
+  .peer-row .name { font-weight: 600; }
+  .peer-row .asn { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: 2px; }
+  .peer-row .status {
+    font-family: var(--mono); font-size: 10px;
+    padding: 3px 8px; border-radius: 999px; text-align: center;
+    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+  }
+  .peer-row .status.up { background: rgba(52,211,153,.12); color: var(--mint); border: 1px solid rgba(52,211,153,.3); }
+  .peer-row .status.flap { background: rgba(245,158,11,.12); color: var(--amber); border: 1px solid rgba(245,158,11,.3); }
+  .peer-row .v { font-family: var(--mono); font-weight: 700; text-align: right; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <a class="brand" href="Hyperscaler Dashboard.html"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="Hyperscaler Dashboard.html"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="Hyperscaler Servers.html"><span class="ico">▤</span> Servers <span class="badge muted">2</span></a>
+      <a class="nav-item" href="Hyperscaler Customers.html"><span class="ico">◉</span> Customers <span class="badge new">+1</span></a>
+      <a class="nav-item" href="Hyperscaler Tickets.html"><span class="ico">✉</span> Tickets <span class="badge">3</span></a>
+      <a class="nav-item" href="Hyperscaler Finance.html"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item" href="Hyperscaler Research.html"><span class="ico">⚙</span> Research <span class="badge muted">0/12</span></a>
+      <a class="nav-item" href="Hyperscaler Marketplace.html"><span class="ico">◈</span> Marketplace</a>
+      <a class="nav-item locked" href="Hyperscaler Staff.html"><span class="ico">☰</span> Staff <span class="lock">🔒 Era 2</span></a>
+      <a class="nav-item active locked"><span class="ico">◴</span> Network <span class="lock">🔒 Era 2</span></a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="Hyperscaler Leaderboard.html"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="Hyperscaler Devlog.html"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="Hyperscaler Settings.html"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Play</span><span class="sep">›</span><b>Network</b><span class="sep">›</span><span style="color:var(--cyan)">🔒 Era 2 required</span></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Network <span class="count">🔒 unlocks in Era 2 — Colocation</span></h1>
+          <div class="sub">Peering, transit, regions, edge cache. Negotiate with other AS operators.</div>
+        </div>
+        <div class="h-right">
+          <button class="btn">Read peering 101 →</button>
+        </div>
+      </div>
+
+      <div class="lockwrap">
+
+        <div class="lock-overlay">
+          <div class="lock-card">
+            <div class="badge">🔒 Era 2 — Colocation</div>
+            <h1>Build a real network</h1>
+            <p class="sub">Buy IP space, get an ASN, negotiate peering with crusty IX operators (NPCs with grudges), and route traffic across regions.</p>
+            <div class="requirements">
+              <div class="req"><div class="ck"></div><div class="lbl">Lease colo cabinet</div><div class="progress">0 / 1</div></div>
+              <div class="req"><div class="ck"></div><div class="lbl">Buy /24 IPv4 block</div><div class="progress">$220</div></div>
+              <div class="req"><div class="ck"></div><div class="lbl">Get ASN through Era 2 quest</div><div class="progress">locked</div></div>
+              <div class="req done"><div class="ck">✓</div><div class="lbl">First customer signed</div><div class="progress" style="color:var(--mint)">3 / 1</div></div>
+            </div>
+            <div class="cta-row">
+              <a class="btn" href="Hyperscaler Research.html">Era 2 tech →</a>
+              <a class="btn primary" href="Hyperscaler Dashboard.html">Back to dashboard</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="blur">
+          <section class="panel map-panel" style="margin-bottom: 18px;">
+            <div class="ph">
+              <h3>Fleet map · global</h3>
+              <span class="ph-sub">// 1 PoP live · 5 cities targeted</span>
+              <div class="ph-right">
+                <span class="live"><i></i>BUD · primary</span>
+              </div>
+            </div>
+            <svg class="map-svg" viewBox="0 0 880 460" preserveAspectRatio="xMidYMid meet">
+              <!-- abstract world dot grid -->
+              <defs>
+                <pattern id="dots" x="0" y="0" width="14" height="14" patternUnits="userSpaceOnUse">
+                  <circle cx="2" cy="2" r="1" fill="#1a1f33"/>
+                </pattern>
+              </defs>
+              <rect x="0" y="0" width="880" height="460" fill="url(#dots)"/>
+
+              <!-- continent silhouettes (simplified) -->
+              <g fill="#131726" opacity="0.7">
+                <!-- Europe -->
+                <path d="M 380 130 Q 410 110 440 120 Q 470 115 490 130 Q 510 145 500 170 Q 510 200 480 215 Q 450 230 420 220 Q 390 210 380 180 Z"/>
+                <!-- N. America -->
+                <path d="M 90 130 Q 130 100 200 110 Q 260 105 290 140 Q 310 180 280 220 Q 230 250 170 230 Q 110 210 90 180 Z"/>
+                <!-- Asia -->
+                <path d="M 550 110 Q 620 95 700 110 Q 760 130 770 170 Q 760 220 700 230 Q 620 245 560 220 Q 530 180 550 110 Z"/>
+                <!-- S. America -->
+                <path d="M 240 280 Q 280 270 290 320 Q 300 380 260 400 Q 230 405 220 360 Q 215 310 240 280 Z"/>
+                <!-- Africa -->
+                <path d="M 440 240 Q 490 235 500 290 Q 510 360 470 390 Q 430 395 425 340 Q 425 280 440 240 Z"/>
+                <!-- Australia -->
+                <path d="M 700 320 Q 750 310 760 340 Q 755 370 720 375 Q 690 370 700 320 Z"/>
+              </g>
+
+              <!-- Lines from BUD -->
+              <g stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.7" fill="none">
+                <path d="M 460 180 Q 350 130 200 160"/>
+                <path d="M 460 180 Q 600 140 700 170"/>
+                <path d="M 460 180 Q 430 110 410 80"/>
+                <path d="M 460 180 Q 420 280 270 340"/>
+              </g>
+
+              <!-- BUD live -->
+              <g class="city-dot" transform="translate(460, 180)">
+                <circle r="14" fill="rgba(52,211,153,.15)" stroke="none"/>
+                <circle r="6" stroke-width="2"/>
+                <text x="12" y="4">BUD <tspan fill="#34d399">· LIVE</tspan></text>
+                <text x="12" y="18" font-size="9" fill="#7d869c">1 rack · 2 srv</text>
+              </g>
+
+              <!-- Targets -->
+              <g class="city-dot target" transform="translate(200, 160)">
+                <circle r="6" stroke-width="2"/>
+                <text x="12" y="4">NYC</text>
+                <text x="12" y="18" font-size="9" fill="#7d869c">Era 2 target</text>
+              </g>
+              <g class="city-dot target" transform="translate(410, 130)">
+                <circle r="6" stroke-width="2"/>
+                <text x="12" y="4">FRA</text>
+                <text x="12" y="18" font-size="9" fill="#7d869c">peering ready</text>
+              </g>
+              <g class="city-dot lock" transform="translate(700, 170)">
+                <circle r="5" stroke-width="2"/>
+                <text x="10" y="3">SIN</text>
+              </g>
+              <g class="city-dot lock" transform="translate(270, 340)">
+                <circle r="5" stroke-width="2"/>
+                <text x="10" y="3">GRU</text>
+              </g>
+              <g class="city-dot lock" transform="translate(470, 360)">
+                <circle r="5" stroke-width="2"/>
+                <text x="10" y="3">JNB</text>
+              </g>
+              <g class="city-dot lock" transform="translate(750, 350)">
+                <circle r="5" stroke-width="2"/>
+                <text x="10" y="3">SYD</text>
+              </g>
+            </svg>
+          </section>
+
+          <section class="panel" style="margin-bottom: 18px;">
+            <div class="ph"><h3>Latency map</h3><span class="ph-sub">// p50 from your fleet</span></div>
+            <div class="latency-grid">
+              <div class="lat-cell">
+                <div class="city">Budapest <span class="flag">HU · primary</span></div>
+                <div class="lat good">2.4 ms<small> p50</small></div>
+                <div class="stats"><span>p95 <b>6.1</b></span><span>loss <b>0.0%</b></span></div>
+              </div>
+              <div class="lat-cell">
+                <div class="city">Frankfurt <span class="flag">DE</span></div>
+                <div class="lat good">14 ms<small> p50</small></div>
+                <div class="stats"><span>p95 <b>22</b></span><span>via <b>DE-CIX</b></span></div>
+              </div>
+              <div class="lat-cell">
+                <div class="city">London <span class="flag">UK</span></div>
+                <div class="lat warn">38 ms<small> p50</small></div>
+                <div class="stats"><span>p95 <b>61</b></span><span>via <b>transit</b></span></div>
+              </div>
+              <div class="lat-cell">
+                <div class="city">New York <span class="flag">US</span></div>
+                <div class="lat warn">94 ms<small> p50</small></div>
+                <div class="stats"><span>p95 <b>120</b></span><span>via <b>Lumen</b></span></div>
+              </div>
+              <div class="lat-cell">
+                <div class="city">São Paulo <span class="flag">BR</span></div>
+                <div class="lat bad">210 ms<small> p50</small></div>
+                <div class="stats"><span>p95 <b>260</b></span><span>loss <b>1.2%</b></span></div>
+              </div>
+              <div class="lat-cell">
+                <div class="city">Singapore <span class="flag">SG</span></div>
+                <div class="lat bad">182 ms<small> p50</small></div>
+                <div class="stats"><span>p95 <b>240</b></span><span>via <b>Tata</b></span></div>
+              </div>
+              <div class="lat-cell">
+                <div class="city">Tokyo <span class="flag">JP</span></div>
+                <div class="lat bad">220 ms<small> p50</small></div>
+                <div class="stats"><span>p95 <b>290</b></span><span>via <b>HE</b></span></div>
+              </div>
+              <div class="lat-cell">
+                <div class="city">Sydney <span class="flag">AU</span></div>
+                <div class="lat bad">298 ms<small> p50</small></div>
+                <div class="stats"><span>p95 <b>360</b></span><span>via <b>Telstra</b></span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="ph">
+              <h3>Peering &amp; transit</h3>
+              <span class="ph-sub">// AS-SYNCNODE · 4 active sessions</span>
+              <div class="ph-right"><button class="btn sm primary">＋ Open new BGP session</button></div>
+            </div>
+            <div class="peer-row head">
+              <div>Peer</div><div>Type</div><div>Status</div><div>p95</div><div>Cost / 95th</div>
+            </div>
+            <div class="peer-row">
+              <div><div class="name">DE-CIX Frankfurt</div><div class="asn">AS6695 · multilateral RS</div></div>
+              <div>Settlement-free</div>
+              <div class="status up">UP</div>
+              <div class="v">14 ms</div>
+              <div class="v" style="color:var(--mint)">$0</div>
+            </div>
+            <div class="peer-row">
+              <div><div class="name">Lumen (Level3)</div><div class="asn">AS3356 · transit</div></div>
+              <div>Transit</div>
+              <div class="status up">UP</div>
+              <div class="v">62 ms</div>
+              <div class="v">$1.40/Mbps</div>
+            </div>
+            <div class="peer-row">
+              <div><div class="name">Hurricane Electric</div><div class="asn">AS6939 · transit (free for v6)</div></div>
+              <div>Transit · v6</div>
+              <div class="status flap">FLAPPING</div>
+              <div class="v" style="color:var(--amber)">88 ms</div>
+              <div class="v">$0.90/Mbps</div>
+            </div>
+            <div class="peer-row">
+              <div><div class="name">Cloudflare Anycast</div><div class="asn">AS13335 · private peering</div></div>
+              <div>Private peer</div>
+              <div class="status up">UP</div>
+              <div class="v">2 ms</div>
+              <div class="v" style="color:var(--mint)">$0</div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>

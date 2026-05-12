@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Tickets / Shift Mode</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .layout { grid-column: span 12; display: grid; grid-template-columns: 360px 1fr 300px; gap: 18px; }
+
+  /* Shift banner */
+  .shift-banner {
+    grid-column: span 12;
+    margin-bottom: 14px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    background: linear-gradient(90deg, rgba(244,63,94,.15), rgba(245,158,11,.10) 60%, transparent);
+    border: 1px solid rgba(244,63,94,.3);
+    display: flex; align-items: center; gap: 16px;
+    position: relative; overflow: hidden;
+  }
+  .shift-banner::before {
+    content: ""; position: absolute; inset: 0;
+    background: repeating-linear-gradient(45deg, transparent 0 12px, rgba(244,63,94,.04) 12px 24px);
+    pointer-events: none;
+  }
+  .shift-banner .pager {
+    width: 48px; height: 48px; border-radius: 12px;
+    background: var(--pink); display: grid; place-items: center;
+    color: #1c0512; font-size: 22px;
+    animation: pulse 1s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(244,63,94,.6); }
+    50% { transform: scale(1.05); box-shadow: 0 0 0 12px rgba(244,63,94,0); }
+  }
+  .shift-banner h3 {
+    margin: 0; font-family: var(--display); font-size: 18px; font-weight: 600;
+  }
+  .shift-banner .sub { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .shift-banner .timer {
+    margin-left: auto;
+    font-family: var(--mono); font-size: 28px; font-weight: 700; color: var(--pink);
+    letter-spacing: 0.04em;
+  }
+  .shift-banner .timer small { display: block; font-size: 10px; color: var(--muted); font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; }
+  .shift-banner .actions { display: flex; gap: 8px; }
+
+  /* Inbox */
+  .inbox-head {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(7,9,15,.4);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .inbox-tabs { display: flex; gap: 4px; }
+  .inbox-tabs button {
+    padding: 6px 10px; border-radius: 6px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--muted); font-size: 12px; font-family: var(--mono);
+  }
+  .inbox-tabs button.on { background: var(--panel-2); color: var(--text); border-color: var(--line); }
+  .inbox-tabs button .n {
+    margin-left: 4px;
+    padding: 1px 6px; border-radius: 999px;
+    background: var(--panel-3); color: var(--text); font-size: 10px;
+  }
+  .inbox-tabs button.on .n { background: var(--pink); color: #fff; }
+  .inbox-sort { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+
+  .ticket-row {
+    display: grid; grid-template-columns: 36px 1fr;
+    gap: 10px; padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer; position: relative;
+  }
+  .ticket-row:hover { background: var(--panel-2); }
+  .ticket-row.selected { background: rgba(244,63,94,.06); }
+  .ticket-row.selected::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--pink);
+  }
+  .ticket-row .av {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 13px; color: #fff;
+  }
+  .ticket-row .row1 { display: flex; align-items: baseline; gap: 8px; }
+  .ticket-row .name { font-weight: 600; font-size: 13px; }
+  .ticket-row .prio {
+    font-family: var(--mono); font-size: 9px;
+    padding: 1px 6px; border-radius: 4px; text-transform: uppercase;
+    letter-spacing: 0.06em; font-weight: 700;
+  }
+  .ticket-row .prio.p1 { background: rgba(244,63,94,.18); color: var(--pink); border: 1px solid rgba(244,63,94,.35); }
+  .ticket-row .prio.p2 { background: rgba(245,158,11,.15); color: var(--amber); border: 1px solid rgba(245,158,11,.3); }
+  .ticket-row .prio.p3 { background: rgba(99,102,241,.12); color: var(--indigo-2); border: 1px solid rgba(99,102,241,.3); }
+  .ticket-row .age { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--dim); }
+  .ticket-row .subj { font-size: 13px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+  .ticket-row .subj b { color: var(--text); font-weight: 500; }
+  .ticket-row .meta { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 6px; display: flex; gap: 10px; }
+  .ticket-row .meta .sla.red { color: var(--pink); font-weight: 700; }
+  .ticket-row .meta .sla.amber { color: var(--amber); }
+  .ticket-row.urgent .av { box-shadow: 0 0 0 2px rgba(244,63,94,.4), 0 0 18px rgba(244,63,94,.3); }
+
+  /* Ticket detail */
+  .tk-head {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .tk-head h2 {
+    margin: 0; font-family: var(--display); font-size: 22px; font-weight: 600;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .tk-head .id { font-family: var(--mono); color: var(--dim); font-size: 14px; font-weight: 400; }
+  .tk-head .pill {
+    font-family: var(--mono); font-size: 10px; padding: 3px 8px;
+    border-radius: 999px; text-transform: uppercase; letter-spacing: 0.08em;
+    background: rgba(244,63,94,.18); color: var(--pink); border: 1px solid rgba(244,63,94,.35);
+  }
+  .tk-head .actions { margin-left: auto; display: flex; gap: 6px; }
+  .tk-sub {
+    padding: 10px 22px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    border-bottom: 1px solid var(--line);
+    background: var(--panel-2);
+    display: flex; gap: 18px; flex-wrap: wrap;
+  }
+  .tk-sub b { color: var(--text); }
+  .tk-sub .sla {
+    margin-left: auto; color: var(--pink); font-weight: 700;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .tk-sub .sla::before {
+    content: ""; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--pink); animation: blink 1s ease-in-out infinite;
+  }
+  @keyframes blink { 0%, 60% { opacity: 1; } 70%, 100% { opacity: 0.3; } }
+
+  .thread { padding: 18px 22px; display: flex; flex-direction: column; gap: 16px; }
+  .tmsg { display: grid; grid-template-columns: 36px 1fr; gap: 12px; }
+  .tmsg .av {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 14px; color: #fff;
+  }
+  .tmsg.you .av { background: linear-gradient(135deg, var(--indigo), #4f46e5); }
+  .tmsg .head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+  .tmsg .who { font-weight: 600; font-size: 13px; }
+  .tmsg .ts { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+  .tmsg .body {
+    padding: 12px 14px; border-radius: 10px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font-size: 13px; line-height: 1.5; color: var(--text);
+  }
+  .tmsg.you .body { background: rgba(99,102,241,.08); border-color: rgba(99,102,241,.25); }
+  .tmsg .body p { margin: 0 0 8px; }
+  .tmsg .body p:last-child { margin-bottom: 0; }
+  .tmsg .body code {
+    font-family: var(--mono); font-size: 11px;
+    background: var(--panel-3); padding: 1px 5px; border-radius: 3px;
+    color: var(--cyan);
+  }
+  .tmsg .body blockquote {
+    margin: 8px 0; padding: 6px 10px;
+    border-left: 2px solid var(--line-2);
+    color: var(--muted); font-style: italic;
+  }
+  .sys-note {
+    padding: 8px 12px;
+    background: var(--panel-2); border-radius: 8px;
+    border: 1px dashed var(--line-2);
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sys-note b { color: var(--amber); font-weight: 700; }
+
+  .composer {
+    border-top: 1px solid var(--line);
+    padding: 14px 22px 18px;
+    background: rgba(7,9,15,.4);
+  }
+  .composer .ai-suggest {
+    padding: 10px 12px; border-radius: 8px;
+    background: rgba(99,102,241,.08); border: 1px solid rgba(99,102,241,.25);
+    font-size: 12px; color: var(--text);
+    display: flex; gap: 10px; align-items: flex-start;
+    margin-bottom: 10px;
+  }
+  .composer .ai-suggest .lab {
+    font-family: var(--mono); font-size: 10px; color: var(--indigo-2);
+    text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
+    flex-shrink: 0; padding-top: 2px;
+  }
+  .composer .ai-suggest .actions { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
+  .composer textarea {
+    width: 100%; min-height: 90px;
+    padding: 12px; border-radius: 9px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); font-family: var(--body); font-size: 13px; line-height: 1.5;
+    resize: vertical;
+  }
+  .composer textarea:focus { outline: 0; border-color: var(--indigo); }
+  .composer .toolbar {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px;
+  }
+  .composer .toolbar .chips { display: flex; gap: 6px; }
+  .composer .toolbar .chips button {
+    padding: 5px 9px; border-radius: 6px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--muted); font-size: 11px; font-family: var(--mono);
+  }
+  .composer .send-group { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .composer .impact {
+    font-family: var(--mono); font-size: 11px; color: var(--mint); margin-right: 6px;
+  }
+
+  /* Right sidebar */
+  .ctx-section {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .ctx-section h4 {
+    margin: 0 0 10px;
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .ctx-card {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 12px;
+  }
+  .ctx-card .row { display: flex; gap: 10px; align-items: center; }
+  .ctx-card .av {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 14px; color: #fff;
+  }
+  .ctx-card .name { font-weight: 600; font-size: 13px; }
+  .ctx-card .sub { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+  .ctx-card .stats {
+    margin-top: 10px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    font-family: var(--mono); font-size: 11px;
+  }
+  .ctx-card .stats > div { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .ctx-card .stats .v { color: var(--text); font-weight: 700; }
+  .ctx-card .stats .v.bad { color: var(--pink); }
+  .ctx-card .stats .v.good { color: var(--mint); }
+
+  .runbook { padding: 0; }
+  .rb-step {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 20px 1fr auto; gap: 10px;
+    align-items: start;
+    font-size: 12px;
+  }
+  .rb-step:last-child { border-bottom: 0; }
+  .rb-step .ck {
+    width: 16px; height: 16px; border-radius: 4px;
+    border: 1.5px solid var(--line-2); margin-top: 2px;
+    display: grid; place-items: center;
+    font-size: 10px; color: transparent;
+  }
+  .rb-step.done .ck {
+    background: var(--mint); border-color: var(--mint); color: #07120c;
+  }
+  .rb-step.done .body { color: var(--dim); text-decoration: line-through; }
+  .rb-step .ts { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+
+  .impact-list { display: flex; flex-direction: column; gap: 6px; }
+  .imp {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 7px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font-size: 12px;
+  }
+  .imp .ico { font-family: var(--mono); font-weight: 700; }
+  .imp .lbl { color: var(--muted); }
+  .imp .val { margin-left: auto; font-family: var(--mono); font-weight: 700; }
+  .imp.good .val { color: var(--mint); }
+  .imp.bad .val { color: var(--pink); }
+  .imp.warn .val { color: var(--amber); }
+
+  @media (max-width: 1240px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <a class="brand" href="Hyperscaler Dashboard.html"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="Hyperscaler Dashboard.html"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="Hyperscaler Servers.html"><span class="ico">▤</span> Servers <span class="badge muted">2</span></a>
+      <a class="nav-item" href="Hyperscaler Customers.html"><span class="ico">◉</span> Customers <span class="badge new">+1</span></a>
+      <a class="nav-item active"><span class="ico">✉</span> Tickets <span class="badge">3</span></a>
+      <a class="nav-item" href="Hyperscaler Finance.html"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item" href="Hyperscaler Research.html"><span class="ico">⚙</span> Research <span class="badge muted">0/12</span></a>
+      <a class="nav-item" href="Hyperscaler Marketplace.html"><span class="ico">◈</span> Marketplace</a>
+      <a class="nav-item locked" href="Hyperscaler Staff.html"><span class="ico">☰</span> Staff <span class="lock">🔒 Era 2</span></a>
+      <a class="nav-item locked" href="Hyperscaler Network.html"><span class="ico">◴</span> Network <span class="lock">🔒 Era 2</span></a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="Hyperscaler Leaderboard.html"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="Hyperscaler Devlog.html"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="Hyperscaler Settings.html"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Play</span><span class="sep">›</span><b>Tickets</b><span class="sep">›</span><span>#042 — Karen / checkout 500</span></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+
+      <!-- Shift banner -->
+      <div class="shift-banner">
+        <div class="pager">⚡</div>
+        <div>
+          <h3>You're on call. Shift active.</h3>
+          <div class="sub">Resolve P1 within 15 min for +12 rep · breach = forum post + churn</div>
+        </div>
+        <div class="timer">11:24<small>SLA REMAINING</small></div>
+        <div class="actions">
+          <button class="btn">Page advisor</button>
+          <button class="btn primary">End shift early</button>
+        </div>
+      </div>
+
+      <div class="layout">
+
+        <!-- Inbox -->
+        <section class="panel">
+          <div class="inbox-head">
+            <div class="inbox-tabs">
+              <button class="on">Open <span class="n">3</span></button>
+              <button>Mine <span class="n">3</span></button>
+              <button>Closed</button>
+            </div>
+            <div class="inbox-sort">↓ SLA</div>
+          </div>
+
+          <div class="ticket-row selected urgent">
+            <div class="av av-K">K</div>
+            <div>
+              <div class="row1">
+                <span class="name">Karen Holloway</span>
+                <span class="prio p1">P1</span>
+                <span class="age">11m ago</span>
+              </div>
+              <div class="subj"><b>#042 ·</b> Checkout 500 again. Third time. <em>Mentioned forum.</em></div>
+              <div class="meta"><span>nutricoach.io</span><span>U22 · postgres</span><span class="sla red">SLA 11:24</span></div>
+            </div>
+          </div>
+
+          <div class="ticket-row">
+            <div class="av av-A">A</div>
+            <div>
+              <div class="row1">
+                <span class="name">"Anon"</span>
+                <span class="prio p2">P2</span>
+                <span class="age">1h ago</span>
+              </div>
+              <div class="subj"><b>#041 ·</b> Egress unusually high. Asking for raw logs.</div>
+              <div class="meta"><span>?? burner</span><span>U21 · redis</span><span class="sla amber">SLA 02:14</span></div>
+            </div>
+          </div>
+
+          <div class="ticket-row">
+            <div class="av av-D">D</div>
+            <div>
+              <div class="row1">
+                <span class="name">Devon Park</span>
+                <span class="prio p3">P3</span>
+                <span class="age">4h ago</span>
+              </div>
+              <div class="subj"><b>#040 ·</b> Feature request: regional backups in 2 zones.</div>
+              <div class="meta"><span>pixelbrew</span><span>—</span><span class="sla">SLA 22:11</span></div>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- Ticket detail -->
+        <section class="panel">
+          <div class="tk-head">
+            <h2>Checkout 500 again. Third time. <span class="id">#042</span></h2>
+            <span class="pill">⚡ P1 · open</span>
+            <div class="actions">
+              <button class="btn sm">Assign →</button>
+              <button class="btn sm">Snooze</button>
+              <button class="btn sm primary">Close ✓</button>
+            </div>
+          </div>
+          <div class="tk-sub">
+            <span>From <b><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="117a7063747f517f64656378727e7072793f787e">[email&#160;protected]</a></b></span>
+            <span>Opened <b>03:31 AM · Day 12</b></span>
+            <span>Affected <b>U21 / postgres-14</b></span>
+            <span>3rd P1 in <b>4 days</b></span>
+            <span class="sla">SLA breach in 11:24</span>
+          </div>
+
+          <div class="thread">
+            <div class="tmsg">
+              <div class="av av-K">K</div>
+              <div>
+                <div class="head"><span class="who">Karen Holloway</span><span class="ts">03:31 AM</span></div>
+                <div class="body">
+                  <p>This is the <b>THIRD</b> time my checkout has 500'd this week.</p>
+                  <p>I have receipts. I have screenshots. I pay <code>$19/mo</code>. NINETEEN dollars. And I'm losing leads at 3 AM because your DB shits itself.</p>
+                  <blockquote>"the patch we applied last time" — your words, Day 11</blockquote>
+                  <p>If this isn't resolved before sunrise I'm posting on /r/budgethosting. With timestamps.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="sys-note">
+              <span>⚲</span> <b>System</b> · linked incident <b>INC-19</b> on U21 · <b>postgres-14 CPU 88%</b> · slow queries since 03:18 AM
+            </div>
+
+            <div class="tmsg you">
+              <div class="av">P</div>
+              <div>
+                <div class="head"><span class="who">You</span><span class="ts">03:33 AM · draft 1</span></div>
+                <div class="body">
+                  <p>Karen, looking into U22 latency right now. I'll waive your invoice this month and patch the route. Sorry.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="tmsg">
+              <div class="av av-K">K</div>
+              <div>
+                <div class="head"><span class="who">Karen Holloway</span><span class="ts">03:37 AM</span></div>
+                <div class="body">
+                  <p>Patching the "route" doesn't bring back the 4 leads I lost. Waive <b>this month and next</b>, and I'll consider not posting.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="composer">
+            <div class="ai-suggest">
+              <span class="lab">✨ Lin-1</span>
+              <div>
+                Karen responds to <b>specifics</b>, not apologies. Open with what you did to U21, then concede 2 months waived. Don't say "patch" — she clocked that last time.
+              </div>
+              <div class="actions">
+                <button class="btn sm">Apply</button>
+                <button class="btn sm">Dismiss</button>
+              </div>
+            </div>
+            <textarea placeholder="Reply to Karen…">Karen — I migrated your postgres-14 off U21 onto a dedicated bay and capped concurrent queries at 64. Two months waived ($38 credit on file). I won't ask for a chance to earn back trust until you can confirm checkout stays clean for 72h.</textarea>
+            <div class="toolbar">
+              <div class="chips">
+                <button>🎁 Add credit $38</button>
+                <button>📎 Attach logs</button>
+                <button>📜 Saved replies</button>
+              </div>
+              <div class="send-group">
+                <span class="impact">est. +9 rep · saves Karen</span>
+                <button class="btn">Save draft</button>
+                <button class="btn primary">Send reply →</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Context sidebar -->
+        <aside class="panel">
+          <div class="ctx-section">
+            <h4>Customer</h4>
+            <div class="ctx-card">
+              <div class="row">
+                <div class="av av-K">K</div>
+                <div>
+                  <div class="name">Karen Holloway</div>
+                  <div class="sub">nutricoach.io · 8d</div>
+                </div>
+              </div>
+              <div class="stats">
+                <div><span>MRR</span><span class="v">$19</span></div>
+                <div><span>Mood</span><span class="v bad">−42</span></div>
+                <div><span>Tickets</span><span class="v">7</span></div>
+                <div><span>Churn risk</span><span class="v bad">81%</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ctx-section runbook">
+            <h4>Runbook · checkout 500</h4>
+            <div class="rb-step done">
+              <div class="ck">✓</div>
+              <div class="body">Check INC-19 root cause</div>
+              <div class="ts">03:32</div>
+            </div>
+            <div class="rb-step done">
+              <div class="ck">✓</div>
+              <div class="body">Migrate postgres off hot bay</div>
+              <div class="ts">03:36</div>
+            </div>
+            <div class="rb-step done">
+              <div class="ck">✓</div>
+              <div class="body">Cap concurrent queries</div>
+              <div class="ts">03:38</div>
+            </div>
+            <div class="rb-step">
+              <div class="ck"></div>
+              <div class="body">Send reply + credit</div>
+              <div class="ts">—</div>
+            </div>
+            <div class="rb-step">
+              <div class="ck"></div>
+              <div class="body">Verify 72h clean window</div>
+              <div class="ts">Day 15</div>
+            </div>
+          </div>
+
+          <div class="ctx-section">
+            <h4>If you send this</h4>
+            <div class="impact-list">
+              <div class="imp good"><span class="ico">▲</span><span class="lbl">Rep</span><span class="val">+9</span></div>
+              <div class="imp bad"><span class="ico">▼</span><span class="lbl">Cash</span><span class="val">−$38</span></div>
+              <div class="imp good"><span class="ico">●</span><span class="lbl">Churn risk</span><span class="val">81→24%</span></div>
+              <div class="imp warn"><span class="ico">⌖</span><span class="lbl">Forum risk</span><span class="val">defused</span></div>
+            </div>
+          </div>
+
+          <div class="ctx-section">
+            <h4>Related</h4>
+            <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+              <a style="color: var(--cyan); font-family: var(--mono); font-size: 11px;">#029 · Karen · checkout 500 · closed Day 11</a>
+              <a style="color: var(--cyan); font-family: var(--mono); font-size: 11px;">#018 · Karen · checkout 500 · closed Day 9</a>
+              <a style="color: var(--cyan); font-family: var(--mono); font-size: 11px;">INC-19 · postgres CPU spike · open</a>
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </div>
+  </main>
+</div>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script></body>
+</html>

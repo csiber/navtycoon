@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Research</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .layout { grid-column: span 12; display: grid; grid-template-columns: 1fr 340px; gap: 18px; }
+  .tree-wrap {
+    padding: 0; position: relative;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(99,102,241,.04), transparent 60%),
+      radial-gradient(circle at 80% 70%, rgba(34,211,238,.04), transparent 60%);
+  }
+  .tree-wrap .header-pad { padding: 14px 18px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--line); }
+  .tree-wrap h3 { margin: 0; font-family: var(--display); font-size: 17px; font-weight: 600; }
+  .tree-wrap .points {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 999px;
+    background: rgba(34,211,238,.10); border: 1px solid rgba(34,211,238,.3);
+    font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--cyan);
+  }
+  .tree-wrap .points b { font-family: var(--display); font-size: 16px; }
+  .tree-wrap .legend-row {
+    padding: 8px 18px; display: flex; gap: 14px;
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+    border-bottom: 1px solid var(--line); background: var(--panel-2);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .tree-wrap .legend-row b { color: var(--text); font-weight: 700; }
+  .tree-wrap .legend-row span { display: flex; align-items: center; gap: 5px; }
+  .tree-wrap .legend-row i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+  .tree-wrap .legend-row i.av { background: var(--mint); }
+  .tree-wrap .legend-row i.un { background: var(--indigo); }
+  .tree-wrap .legend-row i.lk { background: var(--dim); }
+  .tree-wrap .legend-row i.rs { background: var(--amber); }
+
+  .tree {
+    position: relative; padding: 30px 18px 30px;
+    height: 600px;
+    overflow: auto;
+  }
+  .tree svg.lines {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .node {
+    position: absolute;
+    width: 160px;
+    padding: 10px 12px;
+    border-radius: 11px;
+    background: var(--panel-2); border: 1.5px solid var(--line);
+    cursor: pointer;
+    transition: transform .12s, border-color .12s, box-shadow .12s;
+  }
+  .node:hover { transform: translateY(-1px); border-color: var(--line-2); }
+  .node .ico {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: var(--panel-3); border: 1px solid var(--line-2);
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 12px; color: var(--text);
+    margin-bottom: 6px;
+  }
+  .node .name { font-weight: 600; font-size: 12.5px; line-height: 1.25; }
+  .node .cost {
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+    margin-top: 4px;
+    display: flex; gap: 8px;
+  }
+  .node .cost b { color: var(--text); font-weight: 700; }
+  .node .cost .rp { color: var(--cyan); }
+  .node .cost .ttl { color: var(--amber); }
+  .node.acquired {
+    border-color: rgba(52,211,153,.45);
+    background: linear-gradient(180deg, rgba(52,211,153,.10), var(--panel-2));
+  }
+  .node.acquired .ico { background: var(--mint); color: #07120c; border-color: var(--mint); }
+  .node.acquired::after {
+    content: "✓"; position: absolute; top: -6px; right: -6px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--mint); color: #07120c;
+    font-weight: 700; font-size: 12px;
+    display: grid; place-items: center;
+    border: 2px solid var(--panel);
+  }
+  .node.researching {
+    border-color: rgba(245,158,11,.5);
+    background: linear-gradient(180deg, rgba(245,158,11,.10), var(--panel-2));
+    box-shadow: 0 0 0 1px rgba(245,158,11,.3);
+  }
+  .node.researching .ico { background: var(--amber); color: #1c1300; border-color: var(--amber); }
+  .node.researching .progress {
+    margin-top: 6px; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden;
+  }
+  .node.researching .progress i {
+    display: block; height: 100%; background: var(--amber); width: 62%;
+  }
+  .node.available {
+    border-color: rgba(99,102,241,.45);
+    background: linear-gradient(180deg, rgba(99,102,241,.08), var(--panel-2));
+  }
+  .node.available .ico { background: var(--indigo); color: #fff; border-color: var(--indigo); }
+  .node.available:hover { box-shadow: 0 0 0 2px rgba(99,102,241,.3); }
+  .node.locked { opacity: 0.55; }
+  .node.locked .ico { color: var(--dim); }
+  .node.selected { box-shadow: 0 0 0 2px var(--text); border-color: var(--text); }
+
+  /* Detail sidebar */
+  .det-head { padding: 18px 18px 14px; border-bottom: 1px solid var(--line); }
+  .det-head .ico-lg {
+    width: 56px; height: 56px; border-radius: 14px;
+    background: var(--indigo); color: #fff;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 22px;
+    margin-bottom: 10px;
+  }
+  .det-head h2 { margin: 0; font-family: var(--display); font-size: 20px; font-weight: 600; }
+  .det-head .cat {
+    font-family: var(--mono); font-size: 10px; color: var(--indigo-2);
+    text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px;
+  }
+
+  .det-section { padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .det-section h4 { margin: 0 0 8px; font-family: var(--mono); font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; }
+  .det-section p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--muted); }
+  .det-section p em { font-style: normal; color: var(--text); font-family: var(--mono); }
+
+  .det-effects { display: flex; flex-direction: column; gap: 6px; }
+  .effect {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-radius: 7px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font-size: 12px;
+  }
+  .effect .pos { color: var(--mint); font-family: var(--mono); font-weight: 700; flex-shrink: 0; }
+  .effect .neg { color: var(--pink); font-family: var(--mono); font-weight: 700; flex-shrink: 0; }
+  .effect .lbl { color: var(--text); }
+
+  .det-cost {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  }
+  .det-cost .c {
+    padding: 10px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .det-cost .c .k { font-family: var(--mono); font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
+  .det-cost .c .v { font-family: var(--display); font-weight: 700; font-size: 18px; margin-top: 2px; }
+  .det-cost .c .v.rp { color: var(--cyan); }
+  .det-cost .c .v.ttl { color: var(--amber); }
+
+  .det-action { padding: 14px 18px; }
+  .det-action .btn { width: 100%; padding: 12px; font-size: 14px; }
+
+  /* Queue */
+  .queue-list { padding: 0; }
+  .queue-row {
+    display: grid; grid-template-columns: 32px 1fr auto; gap: 10px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line);
+    align-items: center;
+  }
+  .queue-row .ico {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--amber); color: #1c1300;
+    display: grid; place-items: center; font-family: var(--mono); font-weight: 700;
+  }
+  .queue-row .name { font-weight: 500; font-size: 13px; }
+  .queue-row .pb {
+    margin-top: 4px;
+    width: 100%; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden;
+  }
+  .queue-row .pb i { display: block; height: 100%; background: var(--amber); }
+  .queue-row .ttl { font-family: var(--mono); font-size: 11px; color: var(--amber); font-weight: 700; }
+
+  @media (max-width: 1240px) { .layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <a class="brand" href="Hyperscaler Dashboard.html"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="Hyperscaler Dashboard.html"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="Hyperscaler Servers.html"><span class="ico">▤</span> Servers <span class="badge muted">2</span></a>
+      <a class="nav-item" href="Hyperscaler Customers.html"><span class="ico">◉</span> Customers <span class="badge new">+1</span></a>
+      <a class="nav-item" href="Hyperscaler Tickets.html"><span class="ico">✉</span> Tickets <span class="badge">3</span></a>
+      <a class="nav-item" href="Hyperscaler Finance.html"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item active"><span class="ico">⚙</span> Research <span class="badge muted">0/12</span></a>
+      <a class="nav-item" href="Hyperscaler Marketplace.html"><span class="ico">◈</span> Marketplace</a>
+      <a class="nav-item locked" href="Hyperscaler Staff.html"><span class="ico">☰</span> Staff <span class="lock">🔒 Era 2</span></a>
+      <a class="nav-item locked" href="Hyperscaler Network.html"><span class="ico">◴</span> Network <span class="lock">🔒 Era 2</span></a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="Hyperscaler Leaderboard.html"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="Hyperscaler Devlog.html"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="Hyperscaler Settings.html"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Play</span><span class="sep">›</span><b>Research</b><span class="sep">›</span><span>Tech tree · Era 1</span></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Research <span class="count">3 of 32 unlocked · Era 1 branch</span></h1>
+          <div class="sub">Earn RP from happy customers, postmortems, and outages survived.</div>
+        </div>
+        <div class="h-right">
+          <button class="btn">Switch branch</button>
+          <button class="btn primary">＋ Queue research</button>
+        </div>
+      </div>
+
+      <div class="layout">
+
+        <!-- Tech tree -->
+        <section class="panel tree-wrap">
+          <div class="header-pad">
+            <h3>Tech tree · Era 1 — Garage Engineering</h3>
+            <div class="points"><b>14</b> RP available</div>
+          </div>
+          <div class="legend-row">
+            <span><i class="av"></i><b>Acquired</b></span>
+            <span><i class="rs"></i><b>Researching</b></span>
+            <span><i class="un"></i><b>Available</b></span>
+            <span><i class="lk"></i><b>Locked</b></span>
+            <span style="margin-left:auto;">⌨ scroll to pan</span>
+          </div>
+
+          <div class="tree">
+            <svg class="lines" viewBox="0 0 880 600" preserveAspectRatio="none">
+              <!-- connection lines -->
+              <g stroke="#2a3050" stroke-width="2" fill="none">
+                <!-- root → tier1 -->
+                <path d="M 110 70 L 110 145" stroke="#34d399"/>
+                <path d="M 110 70 L 290 145" stroke="#34d399"/>
+                <path d="M 110 70 L 470 145"/>
+                <!-- tier1 → tier2 -->
+                <path d="M 110 200 L 110 290" stroke="#34d399"/>
+                <path d="M 290 200 L 290 290" stroke="#f59e0b"/>
+                <path d="M 470 200 L 470 290"/>
+                <path d="M 290 200 L 110 290"/>
+                <!-- tier2 → tier3 -->
+                <path d="M 110 345 L 110 440"/>
+                <path d="M 290 345 L 290 440"/>
+                <path d="M 470 345 L 470 440"/>
+                <path d="M 470 345 L 650 440"/>
+                <!-- tier3 → era 2 gate -->
+                <path d="M 110 495 L 380 575" stroke-dasharray="5 4"/>
+                <path d="M 290 495 L 380 575" stroke-dasharray="5 4"/>
+                <path d="M 470 495 L 380 575" stroke-dasharray="5 4"/>
+                <path d="M 650 495 L 380 575" stroke-dasharray="5 4"/>
+              </g>
+            </svg>
+
+            <!-- Root -->
+            <div class="node acquired" style="left: 30px; top: 16px;">
+              <div class="ico">★</div>
+              <div class="name">Garage Engineering</div>
+              <div class="cost"><b>Starter</b></div>
+            </div>
+
+            <!-- Tier 1 -->
+            <div class="node acquired" style="left: 30px; top: 145px;">
+              <div class="ico">⚡</div>
+              <div class="name">Power-strip uplink</div>
+              <div class="cost"><b>Free</b></div>
+            </div>
+            <div class="node researching selected" style="left: 210px; top: 145px;">
+              <div class="ico">↺</div>
+              <div class="name">Auto-restart cron</div>
+              <div class="cost"><span class="rp">4 RP</span><span class="ttl">6h</span></div>
+              <div class="progress"><i></i></div>
+            </div>
+            <div class="node available" style="left: 390px; top: 145px;">
+              <div class="ico">⌨</div>
+              <div class="name">SSH bastion</div>
+              <div class="cost"><span class="rp">5 RP</span><span class="ttl">12h</span></div>
+            </div>
+
+            <!-- Tier 2 -->
+            <div class="node acquired" style="left: 30px; top: 290px;">
+              <div class="ico">▤</div>
+              <div class="name">Rack mounting</div>
+              <div class="cost"><b>Day 6</b></div>
+            </div>
+            <div class="node available" style="left: 210px; top: 290px;">
+              <div class="ico">∿</div>
+              <div class="name">Cron monitoring</div>
+              <div class="cost"><span class="rp">6 RP</span><span class="ttl">18h</span></div>
+            </div>
+            <div class="node available" style="left: 390px; top: 290px;">
+              <div class="ico">⎈</div>
+              <div class="name">Backup tape rotation</div>
+              <div class="cost"><span class="rp">8 RP</span><span class="ttl">1d</span></div>
+            </div>
+
+            <!-- Tier 3 -->
+            <div class="node locked" style="left: 30px; top: 440px;">
+              <div class="ico">≣</div>
+              <div class="name">RAID-5 storage</div>
+              <div class="cost"><span class="rp">10 RP</span><span class="ttl">2d</span></div>
+            </div>
+            <div class="node locked" style="left: 210px; top: 440px;">
+              <div class="ico">⚒</div>
+              <div class="name">Postmortem culture</div>
+              <div class="cost"><span class="rp">12 RP</span><span class="ttl">2d</span></div>
+            </div>
+            <div class="node locked" style="left: 390px; top: 440px;">
+              <div class="ico">⚐</div>
+              <div class="name">Status page</div>
+              <div class="cost"><span class="rp">8 RP</span><span class="ttl">1d</span></div>
+            </div>
+            <div class="node locked" style="left: 570px; top: 440px;">
+              <div class="ico">⌖</div>
+              <div class="name">2nd power feed</div>
+              <div class="cost"><span class="rp">14 RP</span><span class="ttl">3d</span></div>
+            </div>
+
+            <!-- Era 2 gate -->
+            <div class="node locked" style="left: 300px; top: 565px; width: 220px; border-style: dashed;">
+              <div class="ico">🔒</div>
+              <div class="name">ERA 2 · Colocation</div>
+              <div class="cost"><b>Requires 4 Era 1 techs + $1,000</b></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Detail + queue -->
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+
+          <section class="panel">
+            <div class="det-head">
+              <div class="ico-lg" style="background: var(--amber); color: #1c1300;">↺</div>
+              <h2>Auto-restart cron</h2>
+              <div class="cat">Tier 1 · Reliability · in progress</div>
+            </div>
+            <div class="det-section">
+              <h4>What it does</h4>
+              <p>Drops a <em>watchdog</em> on every server that resurrects crashed processes in &lt;15s. Trades a tiny bit of CPU for a lot of fewer 3 AM pages.</p>
+            </div>
+            <div class="det-section">
+              <h4>Effects when complete</h4>
+              <div class="det-effects">
+                <div class="effect"><span class="pos">▲ +35%</span><span class="lbl">SLA on stateless workloads</span></div>
+                <div class="effect"><span class="pos">▲ +6</span><span class="lbl">Customer mood (less downtime)</span></div>
+                <div class="effect"><span class="pos">−40%</span><span class="lbl">P1 ticket rate (est.)</span></div>
+                <div class="effect"><span class="neg">▼ −2%</span><span class="lbl">Average CPU available</span></div>
+              </div>
+            </div>
+            <div class="det-section">
+              <h4>Cost &amp; time</h4>
+              <div class="det-cost">
+                <div class="c"><div class="k">Research</div><div class="v rp">4 RP</div></div>
+                <div class="c"><div class="k">Time left</div><div class="v ttl">2h 14m</div></div>
+                <div class="c"><div class="k">Prereq</div><div class="v" style="font-size:13px;">Garage Eng. ✓</div></div>
+                <div class="c"><div class="k">Unlocks</div><div class="v" style="font-size:13px;">Cron Monitoring</div></div>
+              </div>
+            </div>
+            <div class="det-action">
+              <button class="btn primary">Boost research · $40 (-1h 30m)</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="ph">
+              <h3>Research queue</h3>
+              <span class="ph-sub">// max 2 parallel · Era 1</span>
+            </div>
+            <div class="queue-list">
+              <div class="queue-row">
+                <div class="ico">↺</div>
+                <div>
+                  <div class="name">Auto-restart cron</div>
+                  <div class="pb"><i style="width: 62%"></i></div>
+                </div>
+                <div class="ttl">2h 14m</div>
+              </div>
+              <div class="queue-row" style="opacity: .55;">
+                <div class="ico" style="background: var(--panel-3); color: var(--dim); border: 1px dashed var(--line-2);">＋</div>
+                <div>
+                  <div class="name" style="color: var(--dim);">Slot 2 — empty</div>
+                  <div class="pb"></div>
+                </div>
+                <div class="ttl" style="color: var(--dim);">queue</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="ph">
+              <h3>How to earn RP</h3>
+              <span class="ph-sub">// Era 1</span>
+            </div>
+            <div style="padding: 12px 18px; display: flex; flex-direction: column; gap: 8px;">
+              <div class="effect"><span class="pos">+2 RP</span><span class="lbl">Resolve P1 ticket within SLA</span></div>
+              <div class="effect"><span class="pos">+5 RP</span><span class="lbl">Write postmortem after outage</span></div>
+              <div class="effect"><span class="pos">+1 RP</span><span class="lbl">Customer at mood &gt; 80 for 7 days</span></div>
+              <div class="effect"><span class="pos">+3 RP</span><span class="lbl">Forum post compliments your SLA</span></div>
+            </div>
+          </section>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

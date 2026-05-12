@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Devlog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .layout { grid-column: span 12; display: grid; grid-template-columns: 1fr 320px; gap: 18px; }
+
+  /* Pinned post */
+  .pinned {
+    padding: 24px;
+    background:
+      radial-gradient(ellipse at top right, rgba(245,158,11,.12), transparent 60%),
+      var(--panel);
+    border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  .pin-tag {
+    position: absolute; top: 18px; right: 18px;
+    font-family: var(--mono); font-size: 10px;
+    padding: 4px 10px; border-radius: 999px;
+    background: rgba(245,158,11,.15); color: var(--amber);
+    border: 1px solid rgba(245,158,11,.3);
+    text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700;
+  }
+  .pinned .ver {
+    font-family: var(--mono); font-size: 11px; color: var(--cyan);
+    letter-spacing: 0.06em;
+  }
+  .pinned h2 {
+    margin: 4px 0 8px;
+    font-family: var(--display); font-size: 28px; font-weight: 700;
+    line-height: 1.15;
+  }
+  .pinned .meta {
+    display: flex; gap: 14px; font-family: var(--mono); font-size: 11px; color: var(--dim);
+    margin-bottom: 16px;
+  }
+  .pinned .meta b { color: var(--text); }
+  .pinned p { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 0 0 10px; max-width: 720px; }
+  .pinned .highlights {
+    margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px;
+  }
+  .pinned .hl {
+    display: grid; grid-template-columns: 24px 1fr; gap: 10px;
+    padding: 8px 0; border-top: 1px dashed var(--line);
+    font-size: 13px;
+  }
+  .pinned .hl:nth-child(-n+2) { border-top: 0; }
+  .pinned .hl .pre {
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    padding: 3px 6px; border-radius: 4px;
+    background: var(--panel-3); color: var(--mint);
+    height: fit-content;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .pinned .hl .pre.fix { color: var(--amber); }
+  .pinned .hl .pre.bal { color: var(--cyan); }
+  .pinned .hl .pre.brk { color: var(--pink); }
+  .pinned .actions { margin-top: 18px; display: flex; gap: 10px; }
+
+  /* Patch entries */
+  .patch {
+    padding: 22px 24px;
+    border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 140px 1fr;
+    gap: 28px;
+  }
+  .patch .gutter {
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    text-align: right;
+    position: relative;
+  }
+  .patch .gutter .ver {
+    font-size: 14px; color: var(--text); font-weight: 700; display: block;
+  }
+  .patch .gutter .date { margin-top: 3px; }
+  .patch .gutter .tag {
+    display: inline-block;
+    font-size: 9px; padding: 2px 7px; border-radius: 4px;
+    margin-top: 6px;
+    background: var(--panel-3); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+  }
+  .patch .gutter .tag.major { background: rgba(99,102,241,.15); color: var(--indigo-2); }
+  .patch .gutter .tag.hotfix { background: rgba(244,63,94,.15); color: var(--pink); }
+  .patch h3 {
+    margin: 0 0 6px;
+    font-family: var(--display); font-size: 19px; font-weight: 600;
+  }
+  .patch .author { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-bottom: 12px; }
+  .patch .author .ava {
+    display: inline-block; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--indigo); color: #fff;
+    text-align: center; line-height: 18px; font-size: 10px; font-weight: 700;
+    margin-right: 6px; vertical-align: middle;
+  }
+  .patch ul { margin: 0; padding: 0; list-style: none; }
+  .patch li {
+    display: grid; grid-template-columns: 64px 1fr;
+    gap: 10px; padding: 5px 0;
+    font-size: 13px; color: var(--muted); line-height: 1.5;
+  }
+  .patch li b { color: var(--text); font-weight: 500; }
+  .patch li .pre {
+    font-family: var(--mono); font-size: 9px; font-weight: 700;
+    padding: 2px 6px; border-radius: 4px; height: fit-content; align-self: start;
+    text-transform: uppercase; letter-spacing: 0.06em; text-align: center;
+  }
+  .patch li .pre.new { background: rgba(52,211,153,.12); color: var(--mint); }
+  .patch li .pre.fix { background: rgba(245,158,11,.12); color: var(--amber); }
+  .patch li .pre.bal { background: rgba(34,211,238,.12); color: var(--cyan); }
+  .patch li .pre.brk { background: rgba(244,63,94,.12); color: var(--pink); }
+  .patch li .pre.lore { background: rgba(167,139,250,.12); color: #c4b5fd; }
+  .patch .reactions {
+    margin-top: 14px; display: flex; gap: 6px;
+  }
+  .patch .rx {
+    font-family: var(--mono); font-size: 11px;
+    padding: 4px 10px; border-radius: 999px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--muted); display: inline-flex; gap: 4px; align-items: center;
+  }
+  .patch .rx b { color: var(--text); }
+  .patch .rx.hot { border-color: rgba(245,158,11,.3); }
+
+  /* Right: roadmap + community */
+  .road-item {
+    padding: 12px 16px;
+    border-bottom: 1px dashed var(--line);
+    font-size: 13px;
+    display: grid; grid-template-columns: 14px 1fr auto;
+    gap: 10px; align-items: center;
+  }
+  .road-item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); margin-top: 5px; }
+  .road-item.shipped .dot { background: var(--mint); }
+  .road-item.next .dot { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .road-item.later .dot { background: var(--line-2); }
+  .road-item .name { font-weight: 500; }
+  .road-item .name small { display: block; color: var(--dim); font-family: var(--mono); font-size: 10px; margin-top: 1px; }
+  .road-item .when {
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .road-item.shipped .when { color: var(--mint); }
+  .road-item.next .when { color: var(--amber); }
+
+  /* Discord-style card */
+  .discord {
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(99,102,241,.12), rgba(34,211,238,.08));
+    border: 1px solid rgba(99,102,241,.2);
+    border-radius: 12px;
+    margin: 14px 16px;
+  }
+  .discord h4 {
+    margin: 0 0 4px;
+    font-family: var(--display); font-size: 15px;
+  }
+  .discord p {
+    margin: 0 0 12px;
+    font-size: 12px; color: var(--muted);
+  }
+  .discord .stats { display: flex; gap: 16px; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+  .discord .stats b { color: var(--text); display: block; font-family: var(--display); font-size: 16px; font-weight: 700; }
+  .discord .btn-row { display: flex; gap: 6px; }
+
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: 1fr; }
+    .patch { grid-template-columns: 1fr; gap: 12px; }
+    .patch .gutter { text-align: left; }
+    .pinned .highlights { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <a class="brand" href="Hyperscaler Dashboard.html"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="Hyperscaler Dashboard.html"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="Hyperscaler Servers.html"><span class="ico">▤</span> Servers <span class="badge muted">2</span></a>
+      <a class="nav-item" href="Hyperscaler Customers.html"><span class="ico">◉</span> Customers <span class="badge new">+1</span></a>
+      <a class="nav-item" href="Hyperscaler Tickets.html"><span class="ico">✉</span> Tickets <span class="badge">3</span></a>
+      <a class="nav-item" href="Hyperscaler Finance.html"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item" href="Hyperscaler Research.html"><span class="ico">⚙</span> Research <span class="badge muted">0/12</span></a>
+      <a class="nav-item" href="Hyperscaler Marketplace.html"><span class="ico">◈</span> Marketplace</a>
+      <a class="nav-item locked" href="Hyperscaler Staff.html"><span class="ico">☰</span> Staff <span class="lock">🔒 Era 2</span></a>
+      <a class="nav-item locked" href="Hyperscaler Network.html"><span class="ico">◴</span> Network <span class="lock">🔒 Era 2</span></a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="Hyperscaler Leaderboard.html"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item active"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="Hyperscaler Settings.html"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Meta</span><span class="sep">›</span><b>Devlog</b><span class="sep">›</span><span>Patch notes, roadmap, community</span></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Devlog <span class="count">18 patches · 4 minor · 1 major this season</span></h1>
+          <div class="sub">What we shipped. What we broke. What Karen is mad about this week.</div>
+        </div>
+        <div class="h-right">
+          <button class="btn">RSS</button>
+          <button class="btn">Subscribe</button>
+          <button class="btn primary">Submit feedback →</button>
+        </div>
+      </div>
+
+      <div class="layout">
+        <section class="panel">
+
+          <!-- Pinned major release -->
+          <div class="pinned">
+            <div class="pin-tag">📌 Pinned · current</div>
+            <div class="ver">v0.7 — "Reputation Matters"</div>
+            <h2>Reputation now actually affects who signs up.</h2>
+            <div class="meta">
+              <span>Released <b>Day 0 of Season 3</b></span>
+              <span>Build <b>18,402</b></span>
+              <span>👥 <b>2,841</b> players online</span>
+              <span>💬 <b>412</b> comments</span>
+            </div>
+            <p>You asked: "why does my 12-rep garage attract the same enterprise customers as paulwall?" Fair. We rewrote the customer acquisition model so reputation, region, and price tier all bias the pool of leads you see in Marketplace. Karen is no longer guaranteed to find you.</p>
+            <p>Also: every NPC customer now remembers your past tickets across save files. Yes, Karen will hold a grudge. We're sorry. Continue reading the highlights ↓</p>
+            <div class="highlights">
+              <div class="hl"><span class="pre">NEW</span><div><b>Public reputation page.</b> Every player has a /rep URL showing uptime, response time, last 10 reviews. Linkable in Marketplace.</div></div>
+              <div class="hl"><span class="pre bal">BAL</span><div><b>Customer churn tuned.</b> Loyal personas (Devon-type) tolerate 2 P2s/month; Karen-type tolerates none. Adjust your shift coverage.</div></div>
+              <div class="hl"><span class="pre fix">FIX</span><div><b>Ticket inbox no longer freezes</b> when 200+ tickets stack from a regional outage event. (Sorry, paulwall.)</div></div>
+              <div class="hl"><span class="pre brk">BRK</span><div><b>Pre-Season 3 saves migrate</b> on load. Old reputation numbers will shift up to ±20 to fit the new scale.</div></div>
+            </div>
+            <div class="actions">
+              <button class="btn primary">Read full notes ↗</button>
+              <button class="btn">Watch dev stream (44 min)</button>
+              <button class="btn">412 comments →</button>
+            </div>
+          </div>
+
+          <!-- Patch entries -->
+          <div class="patch">
+            <div class="gutter">
+              <span class="ver">v0.7.2</span>
+              <div class="date">Day 9 · 4 days ago</div>
+              <span class="tag hotfix">Hotfix</span>
+            </div>
+            <div>
+              <h3>The "Karen Spawn Rate" hotfix</h3>
+              <div class="author"><span class="ava">M</span>by mira — Lead Sim · 11 commits</div>
+              <ul>
+                <li><span class="pre fix">FIX</span><div>Karen-type customers were spawning at <b>3× the intended rate</b> for new players in Era 1. Tuned down to 0.4× until Day 30. New players, this is on us.</div></li>
+                <li><span class="pre bal">BAL</span><div>Anon-trial customers now <b>cap at 2 per save</b> during Era 1 (was unlimited). Their abandoned servers were filling racks.</div></li>
+                <li><span class="pre fix">FIX</span><div>Server temperature widget no longer reports <b>22°C</b> when the actual sim value is 31°C+. We were lying to you.</div></li>
+                <li><span class="pre new">NEW</span><div>Pager sound effects now <b>respect system volume</b>. The pinned community thread "PLEASE" was heard.</div></li>
+              </ul>
+              <div class="reactions">
+                <span class="rx hot">🔥 <b>1.2k</b></span>
+                <span class="rx">❤️ <b>418</b></span>
+                <span class="rx">😭 <b>92</b> · "thank you"</span>
+                <span class="rx">💬 <b>87</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="patch">
+            <div class="gutter">
+              <span class="ver">v0.7.1</span>
+              <div class="date">Day 4 · 9 days ago</div>
+              <span class="tag">Patch</span>
+            </div>
+            <div>
+              <h3>Marketplace polish &amp; new persona</h3>
+              <div class="author"><span class="ava" style="background:#34d399;color:#07120c">D</span>by devon — Sim · 24 commits</div>
+              <ul>
+                <li><span class="pre new">NEW</span><div>Meet <b>"Mira" enterprise persona.</b> Long sales cycle, asks compliance questions, signs $400+/mo if you have RAID and a backup story. Era 2+.</div></li>
+                <li><span class="pre new">NEW</span><div>Marketplace lead detail page shows the <b>customer's last 3 horror stories</b> from their previous host. Read them, this is your due diligence.</div></li>
+                <li><span class="pre bal">BAL</span><div>Forum reputation no longer regenerates passively; you have to <b>actually resolve tickets</b>. (You were just waiting it out, we noticed.)</div></li>
+                <li><span class="pre fix">FIX</span><div>"Cousin's garage" rack no longer crashes during summer event when ambient temp &gt; 35°C. Now your fans just spin loud and bill you.</div></li>
+              </ul>
+              <div class="reactions">
+                <span class="rx">🔥 <b>740</b></span>
+                <span class="rx">🚀 <b>331</b></span>
+                <span class="rx">💬 <b>52</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="patch">
+            <div class="gutter">
+              <span class="ver">v0.7.0</span>
+              <div class="date">Season start</div>
+              <span class="tag major">Major</span>
+            </div>
+            <div>
+              <h3>Season 3 — "Bare Metal Summer" launch</h3>
+              <div class="author"><span class="ava" style="background:#a78bfa">L</span>by lin — Game Director · 312 commits</div>
+              <ul>
+                <li><span class="pre new">NEW</span><div><b>Era 1 redesign.</b> Garage Era now lasts 30 in-game days (was 14). More time to make mistakes before you matter.</div></li>
+                <li><span class="pre new">NEW</span><div><b>AI-generated tickets</b> with persistent persona voices. Karen sounds like Karen across save files; she remembers your name.</div></li>
+                <li><span class="pre new">NEW</span><div><b>Public reputation pages</b> at /rep/[your-handle]. Shareable. Shame is a feature.</div></li>
+                <li><span class="pre lore">LORE</span><div>Background timeline event in Era 3: <b>"The 2014 GPU Gold Rush."</b> NPCs reference it; some are still bitter.</div></li>
+                <li><span class="pre brk">BRK</span><div>Save files from Season 2 will <b>migrate but not preserve leaderboard rank</b>. Fresh ladder.</div></li>
+              </ul>
+              <div class="reactions">
+                <span class="rx hot">🔥 <b>3.4k</b></span>
+                <span class="rx">🚀 <b>1.1k</b></span>
+                <span class="rx">😭 <b>208</b> · "rank reset 😭"</span>
+                <span class="rx">💬 <b>892</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="patch">
+            <div class="gutter">
+              <span class="ver">v0.6.4</span>
+              <div class="date">Last season</div>
+              <span class="tag">Patch</span>
+            </div>
+            <div>
+              <h3>The "stop spawning P1s at 3 AM" patch</h3>
+              <div class="author"><span class="ava" style="background:#f59e0b;color:#1c1300">K</span>by karen-dev (community) — 4 commits</div>
+              <ul>
+                <li><span class="pre bal">BAL</span><div>P1 tickets now only spawn between <b>9 AM – 11 PM in-game time</b>. Off-hours go to P3.</div></li>
+                <li><span class="pre fix">FIX</span><div>Pager intensity scaled by <b>customer mood</b>, not customer count. A happy whale is quieter than ten grumpy guppies.</div></li>
+                <li><span class="pre new">NEW</span><div>"Quiet hours" toggle in Settings — for when you actually need to sleep IRL. Pages defer to a daily summary.</div></li>
+              </ul>
+              <div class="reactions">
+                <span class="rx">😴 <b>2.1k</b> · "finally"</span>
+                <span class="rx">❤️ <b>540</b></span>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding: 20px; text-align: center;">
+            <button class="btn">Load older patches (14 more) →</button>
+          </div>
+
+        </section>
+
+        <!-- Right column -->
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+
+          <section class="panel">
+            <div class="ph"><h3>Roadmap</h3><span class="ph-sub">// next 90 days, ish</span></div>
+            <div class="road-item shipped"><div class="dot"></div><div class="name">Reputation system overhaul<small>v0.7 · shipped</small></div><div class="when">Done</div></div>
+            <div class="road-item shipped"><div class="dot"></div><div class="name">"Mira" enterprise persona<small>v0.7.1 · shipped</small></div><div class="when">Done</div></div>
+            <div class="road-item next"><div class="dot"></div><div class="name">Async multiplayer raids<small>your fleet vs. another's, off-hours</small></div><div class="when">v0.8 · soon</div></div>
+            <div class="road-item next"><div class="dot"></div><div class="name">Era 4 — "Hyperscale" preview<small>private peering, custom silicon</small></div><div class="when">v0.8 · soon</div></div>
+            <div class="road-item"><div class="dot"></div><div class="name">BYO model — plug your API key<small>let your real Claude run support shifts</small></div><div class="when">v0.9</div></div>
+            <div class="road-item"><div class="dot"></div><div class="name">Steam Workshop · custom NPCs<small>upload your own customer persona</small></div><div class="when">v0.9</div></div>
+            <div class="road-item later"><div class="dot"></div><div class="name">Console port<small>controller-first UI overhaul</small></div><div class="when">Later</div></div>
+            <div class="road-item later"><div class="dot"></div><div class="name">Mod tools / tech tree editor<small>users have asked for this since closed alpha</small></div><div class="when">Later</div></div>
+          </section>
+
+          <section class="panel" style="padding-bottom: 4px;">
+            <div class="ph"><h3>Community</h3><span class="ph-sub">// be loud, be helpful</span></div>
+            <div class="discord">
+              <h4>💬 Hyperscaler Discord</h4>
+              <p>Devs hang in #devlog. Karen mains hang in #venting.</p>
+              <div class="stats">
+                <div><b>14.2k</b>members</div>
+                <div><b>892</b>online</div>
+                <div><b>#42</b>channels</div>
+              </div>
+              <div class="btn-row">
+                <button class="btn sm primary">Join</button>
+                <button class="btn sm">Open in browser</button>
+              </div>
+            </div>
+            <div style="padding: 0 16px 16px; display: flex; flex-direction: column; gap: 8px;">
+              <a href="#" class="btn" style="text-align: left; justify-content: flex-start;">🐦 /r/hyperscaler · 28k</a>
+              <a href="#" class="btn" style="text-align: left; justify-content: flex-start;">🐤 @hyperscalerco · 41k</a>
+              <a href="#" class="btn" style="text-align: left; justify-content: flex-start;">📺 Twitch: dev streams · Fri</a>
+              <a href="#" class="btn" style="text-align: left; justify-content: flex-start;">🐛 Bug tracker · open issues 142</a>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="ph"><h3>From the devs</h3><span class="ph-sub">// this week's drama</span></div>
+            <div style="padding: 14px 16px;">
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+                <div style="width:32px;height:32px;border-radius:50%;background:#a78bfa;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;">L</div>
+                <div>
+                  <div style="font-weight:600;font-size:13px;">Lin (Game Director)</div>
+                  <div style="font-family:var(--mono);font-size:10px;color:var(--dim);">replying to thread "Karen is OP"</div>
+                </div>
+              </div>
+              <p style="font-size:13px;color:var(--muted);line-height:1.55;margin:0;">"Karen is intentionally hard. She's the tutorial for the rest of the game. If you can keep her happy at $19/mo, you can keep anyone happy. We will not be nerfing Karen. We <b style="color:var(--text)">might</b> nerf her spawn rate (we did). That's it."</p>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

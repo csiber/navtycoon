@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Customers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .layout { grid-column: span 12; display: grid; grid-template-columns: 340px 1fr; gap: 18px; }
+  .cust-list { display: flex; flex-direction: column; }
+  .cust-search {
+    padding: 10px 12px; border-bottom: 1px solid var(--line);
+    background: rgba(7,9,15,.4);
+  }
+  .cust-search input {
+    width: 100%; padding: 8px 10px; border-radius: 7px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+  }
+  .cust-search input::placeholder { color: var(--dim); }
+  .cust-filters { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .cust-filters button {
+    padding: 4px 9px; border-radius: 999px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--muted); font-size: 11px; font-family: var(--mono);
+  }
+  .cust-filters button.on { background: rgba(99,102,241,.15); color: var(--indigo-2); border-color: rgba(99,102,241,.4); }
+  .cust-row {
+    display: grid; grid-template-columns: 36px 1fr auto;
+    gap: 10px; padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer; align-items: center;
+  }
+  .cust-row:hover { background: var(--panel-2); }
+  .cust-row.selected { background: rgba(99,102,241,.08); border-left: 3px solid var(--indigo); padding-left: 11px; }
+  .cust-row .av {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 13px; color: #fff;
+    position: relative;
+  }
+  .cust-row .av::after {
+    content: ""; position: absolute; bottom: -1px; right: -1px;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--mint); border: 2px solid var(--panel);
+  }
+  .cust-row .av.angry::after { background: var(--pink); }
+  .cust-row .av.warn::after { background: var(--amber); }
+  .cust-row .name { font-weight: 600; font-size: 13px; }
+  .cust-row .meta { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 1px; }
+  .cust-row .right { text-align: right; }
+  .cust-row .mrr { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--text); }
+  .cust-row .mood { font-family: var(--mono); font-size: 10px; }
+  .cust-row .mood.good { color: var(--mint); }
+  .cust-row .mood.bad { color: var(--pink); }
+  .cust-row .mood.warn { color: var(--amber); }
+  .cust-row .mood.muted { color: var(--dim); }
+
+  /* Profile */
+  .prof-head {
+    padding: 22px 24px;
+    border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: auto 1fr auto; gap: 20px;
+    align-items: center;
+    background: linear-gradient(180deg, rgba(244,63,94,.06), transparent);
+  }
+  .prof-head .av {
+    width: 80px; height: 80px; border-radius: 18px;
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 36px; color: #fff;
+    position: relative;
+  }
+  .prof-head .av::after {
+    content: ""; position: absolute; bottom: -3px; right: -3px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--pink); border: 4px solid var(--panel);
+  }
+  .prof-head h2 {
+    margin: 0;
+    font-family: var(--display); font-weight: 700; font-size: 26px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .prof-head h2 .pill {
+    font-family: var(--mono); font-size: 10px;
+    padding: 3px 8px; border-radius: 999px;
+    background: rgba(244,63,94,.15); color: var(--pink);
+    border: 1px solid rgba(244,63,94,.3);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .prof-head .org { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .prof-head .org b { color: var(--text); }
+  .prof-actions { display: flex; gap: 8px; }
+
+  .stats-row {
+    padding: 18px 24px;
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .pstat {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 9px; padding: 12px 14px;
+  }
+  .pstat .k { font-family: var(--mono); font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
+  .pstat .v { font-family: var(--display); font-weight: 700; font-size: 18px; margin-top: 4px; }
+  .pstat .v.bad { color: var(--pink); }
+  .pstat .v.good { color: var(--mint); }
+  .pstat .v.warn { color: var(--amber); }
+  .pstat .meta { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .twocol { display: grid; grid-template-columns: 1.3fr 1fr; gap: 0; }
+  .col { padding: 18px 24px; }
+  .col + .col { border-left: 1px solid var(--line); }
+
+  /* Chat */
+  h4.sec {
+    margin: 0 0 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .chat { display: flex; flex-direction: column; gap: 10px; }
+  .msg {
+    display: grid; grid-template-columns: 28px 1fr; gap: 10px;
+  }
+  .msg .av-mini {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 11px; color: #fff;
+  }
+  .msg.me { grid-template-columns: 1fr 28px; }
+  .msg.me .av-mini { background: linear-gradient(135deg, var(--indigo), #4f46e5); }
+  .msg .bubble {
+    padding: 10px 12px; border-radius: 10px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font-size: 13px; color: var(--text);
+    max-width: 100%;
+  }
+  .msg.me .bubble {
+    background: rgba(99,102,241,.12); border-color: rgba(99,102,241,.3);
+    grid-row: 1; grid-column: 1;
+  }
+  .msg .ts { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 4px; }
+  .msg.me .ts { text-align: right; }
+  .msg .bubble.recall {
+    background: rgba(245,158,11,.06); border-style: dashed;
+    border-color: rgba(245,158,11,.3); color: var(--amber);
+    font-family: var(--mono); font-size: 11px;
+  }
+  .reply {
+    margin-top: 14px;
+    padding: 12px; border-radius: 10px;
+    background: var(--panel-2); border: 1px solid var(--line);
+  }
+  .reply textarea {
+    width: 100%; min-height: 60px;
+    background: transparent; border: 0; resize: none;
+    color: var(--text); font-family: var(--body); font-size: 13px;
+  }
+  .reply textarea:focus { outline: 0; }
+  .reply .row {
+    display: flex; align-items: center; gap: 8px; margin-top: 8px;
+    padding-top: 8px; border-top: 1px dashed var(--line);
+  }
+  .reply .row .ai {
+    font-family: var(--mono); font-size: 11px; color: var(--indigo-2);
+  }
+  .reply .send { margin-left: auto; }
+
+  /* Timeline */
+  .tl { display: flex; flex-direction: column; gap: 0; }
+  .tl-ev {
+    display: grid; grid-template-columns: 64px 20px 1fr; gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--line);
+    align-items: start;
+  }
+  .tl-ev:last-child { border-bottom: 0; }
+  .tl-ev .day { font-family: var(--mono); font-size: 10px; color: var(--dim); padding-top: 3px; }
+  .tl-ev .dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--bg); border: 2px solid var(--indigo);
+    margin: 4px 4px 0; position: relative;
+  }
+  .tl-ev.good .dot { border-color: var(--mint); }
+  .tl-ev.bad .dot { border-color: var(--pink); }
+  .tl-ev.warn .dot { border-color: var(--amber); }
+  .tl-ev .body { font-size: 13px; color: var(--text); }
+  .tl-ev .body small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .tl-ev .impact { font-family: var(--mono); font-size: 11px; font-weight: 600; }
+  .tl-ev.good .impact { color: var(--mint); }
+  .tl-ev.bad .impact { color: var(--pink); }
+
+  /* Persona memory */
+  .mem-list { display: flex; flex-direction: column; gap: 8px; }
+  .mem {
+    padding: 10px 12px; border-radius: 8px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    font-size: 12px;
+  }
+  .mem .head { display: flex; align-items: center; gap: 8px; }
+  .mem .head .tag {
+    font-family: var(--mono); font-size: 9px;
+    padding: 1px 6px; border-radius: 4px;
+    background: rgba(245,158,11,.15); color: var(--amber);
+    border: 1px solid rgba(245,158,11,.3);
+    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+  }
+  .mem .head .tag.pos { background: rgba(52,211,153,.12); color: var(--mint); border-color: rgba(52,211,153,.25); }
+  .mem .head .ago { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--dim); }
+  .mem .text { margin-top: 6px; color: var(--text); line-height: 1.45; }
+  .mem .text em { font-style: normal; color: var(--amber); font-family: var(--mono); font-size: 11px; }
+
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .twocol { grid-template-columns: 1fr; }
+    .col + .col { border-left: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <a class="brand" href="Hyperscaler Dashboard.html"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="Hyperscaler Dashboard.html"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="Hyperscaler Servers.html"><span class="ico">▤</span> Servers <span class="badge muted">2</span></a>
+      <a class="nav-item active"><span class="ico">◉</span> Customers <span class="badge new">+1</span></a>
+      <a class="nav-item" href="Hyperscaler Tickets.html"><span class="ico">✉</span> Tickets <span class="badge">3</span></a>
+      <a class="nav-item" href="Hyperscaler Finance.html"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item" href="Hyperscaler Research.html"><span class="ico">⚙</span> Research <span class="badge muted">0/12</span></a>
+      <a class="nav-item" href="Hyperscaler Marketplace.html"><span class="ico">◈</span> Marketplace</a>
+      <a class="nav-item locked" href="Hyperscaler Staff.html"><span class="ico">☰</span> Staff <span class="lock">🔒 Era 2</span></a>
+      <a class="nav-item locked" href="Hyperscaler Network.html"><span class="ico">◴</span> Network <span class="lock">🔒 Era 2</span></a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="Hyperscaler Leaderboard.html"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="Hyperscaler Devlog.html"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="Hyperscaler Settings.html"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Play</span><span class="sep">›</span><b>Customers</b><span class="sep">›</span><span>Karen Holloway</span></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Customers <span class="count">3 active · 1 trial · 1 lead</span></h1>
+          <div class="sub">Every account is a persistent LLM agent. They remember.</div>
+        </div>
+        <div class="h-right">
+          <button class="btn">Export CSV</button>
+          <button class="btn primary">＋ Invite customer</button>
+        </div>
+      </div>
+
+      <div class="layout">
+
+        <!-- Customer list -->
+        <section class="panel cust-list">
+          <div class="cust-search">
+            <input placeholder="Search name, org, email..." />
+            <div class="cust-filters">
+              <button class="on">All · 5</button>
+              <button>Paying · 2</button>
+              <button>Trial · 1</button>
+              <button>At risk · 1</button>
+              <button>Leads · 1</button>
+            </div>
+          </div>
+          <div class="cust-row selected">
+            <div class="av av-K angry">K</div>
+            <div>
+              <div class="name">Karen Holloway</div>
+              <div class="meta">@ nutricoach.io · 8d</div>
+            </div>
+            <div class="right">
+              <div class="mrr">$19/mo</div>
+              <div class="mood bad">−42 · P1</div>
+            </div>
+          </div>
+          <div class="cust-row">
+            <div class="av av-D">D</div>
+            <div>
+              <div class="name">Devon Park</div>
+              <div class="meta">@ pixelbrew · 8d</div>
+            </div>
+            <div class="right">
+              <div class="mrr">$29/mo</div>
+              <div class="mood good">+88 · loyal</div>
+            </div>
+          </div>
+          <div class="cust-row">
+            <div class="av av-A warn">A</div>
+            <div>
+              <div class="name">"Anon"</div>
+              <div class="meta">@ ?? burner · 2d trial</div>
+            </div>
+            <div class="right">
+              <div class="mrr">$0 trial</div>
+              <div class="mood warn">? vibes</div>
+            </div>
+          </div>
+          <div class="cust-row">
+            <div class="av av-M warn">M</div>
+            <div>
+              <div class="name">Mira Sato</div>
+              <div class="meta">@ glassmap · lead 6h</div>
+            </div>
+            <div class="right">
+              <div class="mrr">$1.2k/mo</div>
+              <div class="mood warn">quote due 48h</div>
+            </div>
+          </div>
+          <div class="cust-row">
+            <div class="av av-R">R</div>
+            <div>
+              <div class="name">Rita Chen</div>
+              <div class="meta">@ finchat · churned</div>
+            </div>
+            <div class="right">
+              <div class="mrr" style="color:var(--dim)">$0</div>
+              <div class="mood muted">left Day 5</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Profile -->
+        <section class="panel">
+          <div class="prof-head">
+            <div class="av av-K">K</div>
+            <div>
+              <h2>Karen Holloway <span class="pill">⚠ Churn risk</span></h2>
+              <div class="org">karen@<b>nutricoach.io</b> · solo founder · LLM persona: <b>frustrated indie SaaS</b></div>
+            </div>
+            <div class="prof-actions">
+              <button class="btn sm">Refund $19</button>
+              <button class="btn sm">Offer discount</button>
+              <button class="btn sm primary">Reply to ticket #042</button>
+            </div>
+          </div>
+
+          <div class="stats-row">
+            <div class="pstat"><div class="k">MRR</div><div class="v">$19</div><div class="meta">Since Day 4</div></div>
+            <div class="pstat"><div class="k">LTV (est)</div><div class="v warn">$73</div><div class="meta">Below break-even</div></div>
+            <div class="pstat"><div class="k">Mood</div><div class="v bad">−42</div><div class="meta">3rd P1 ticket</div></div>
+            <div class="pstat"><div class="k">Churn risk</div><div class="v bad">81%</div><div class="meta">Forum risk: high</div></div>
+            <div class="pstat"><div class="k">Tickets</div><div class="v">7</div><div class="meta">5 closed · 2 open</div></div>
+          </div>
+
+          <div class="twocol">
+            <!-- Chat -->
+            <div class="col">
+              <h4 class="sec">Conversation · last 24h</h4>
+              <div class="chat">
+                <div class="msg">
+                  <div class="av-mini av-K">K</div>
+                  <div>
+                    <div class="bubble">This is the THIRD time my checkout has 500'd this week. I have receipts and screenshots. I pay $19/mo. NINETEEN.</div>
+                    <div class="ts">03:31 AM · Day 12</div>
+                  </div>
+                </div>
+                <div class="msg">
+                  <div class="av-mini av-K">K</div>
+                  <div>
+                    <div class="bubble recall">⚲ persona memory recalled · "you bumped my price Day 7 without notice"</div>
+                    <div class="ts">03:31 AM · auto-injected</div>
+                  </div>
+                </div>
+                <div class="msg me">
+                  <div>
+                    <div class="bubble">Karen, looking into U22 latency right now. I'll waive your invoice this month and patch the route. Sorry.</div>
+                    <div class="ts">03:33 AM · you</div>
+                  </div>
+                  <div class="av-mini">P</div>
+                </div>
+                <div class="msg">
+                  <div class="av-mini av-K">K</div>
+                  <div>
+                    <div class="bubble">Patching the "route" doesn't bring back the 4 leads I lost. But fine. Waive this month and next, and I'll consider not posting on /r/budgethosting.</div>
+                    <div class="ts">03:37 AM · Day 12</div>
+                  </div>
+                </div>
+              </div>
+              <div class="reply">
+                <textarea placeholder="Reply to Karen... (the LLM reads everything you say, forever)"></textarea>
+                <div class="row">
+                  <span class="ai">✨ Lin-1 suggests: "Two months waived, sincere apology, no spin."</span>
+                  <button class="btn sm">Refund $19</button>
+                  <button class="btn sm primary send">Send →</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Timeline + memory -->
+            <div class="col">
+              <h4 class="sec">Relationship timeline</h4>
+              <div class="tl">
+                <div class="tl-ev good">
+                  <div class="day">Day 4</div>
+                  <div class="dot"></div>
+                  <div>
+                    <div class="body">Signed up via Marketplace listing</div>
+                    <small>Picked $19 Starter plan · auto-billed</small>
+                  </div>
+                </div>
+                <div class="tl-ev good">
+                  <div class="day">Day 5</div>
+                  <div class="dot"></div>
+                  <div><div class="body">First positive feedback</div><small>"setup was actually easy, surprised"</small></div>
+                </div>
+                <div class="tl-ev warn">
+                  <div class="day">Day 7</div>
+                  <div class="dot"></div>
+                  <div><div class="body">Price bump from $15→$19</div><small>Didn't email her first · she noticed</small></div>
+                </div>
+                <div class="tl-ev bad">
+                  <div class="day">Day 9</div>
+                  <div class="dot"></div>
+                  <div><div class="body">P1 ticket #018 · checkout 500</div><small>Resolved in 2h · she said "noted"</small></div>
+                </div>
+                <div class="tl-ev bad">
+                  <div class="day">Day 11</div>
+                  <div class="dot"></div>
+                  <div><div class="body">P1 ticket #029 · checkout 500 again</div><small>Resolved in 6h · cold reply</small></div>
+                </div>
+                <div class="tl-ev bad">
+                  <div class="day">Day 12</div>
+                  <div class="dot"></div>
+                  <div><div class="body">P1 ticket #042 · open now</div><small>Mentioned forum publicly · ⚠</small></div>
+                </div>
+              </div>
+
+              <h4 class="sec" style="margin-top: 20px;">Persona memory (LLM context)</h4>
+              <div class="mem-list">
+                <div class="mem">
+                  <div class="head"><span class="tag">grudge</span><span class="ago">Day 7</span></div>
+                  <div class="text">You bumped her plan from $15 to <em>$19/mo</em> without an email. She found out from the invoice.</div>
+                </div>
+                <div class="mem">
+                  <div class="head"><span class="tag">pattern</span><span class="ago">Day 9–12</span></div>
+                  <div class="text">Three checkout 500s in 4 days. All on <em>U22</em>. She tracks errors in a spreadsheet.</div>
+                </div>
+                <div class="mem">
+                  <div class="head"><span class="tag pos">leverage</span><span class="ago">Day 12</span></div>
+                  <div class="text">She has <em>4,200 followers</em> on a small SaaS newsletter. Forum thread risk is real.</div>
+                </div>
+                <div class="mem">
+                  <div class="head"><span class="tag pos">soft spot</span><span class="ago">Day 5</span></div>
+                  <div class="text">She liked your setup flow. Lead with that if you apologize.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

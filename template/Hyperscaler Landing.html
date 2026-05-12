@@ -1,0 +1,1270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Run a hosting empire where every customer is AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #07090f;
+    --bg-1: #0b0e17;
+    --bg-2: #11141f;
+    --panel: #121626;
+    --panel-2: #161a2c;
+    --line: #1e2338;
+    --line-2: #262c46;
+    --text: #e9ecf5;
+    --muted: #8b92ad;
+    --dim: #5d6483;
+    --indigo: #6366f1;
+    --indigo-2: #818cf8;
+    --amber: #f59e0b;
+    --mint: #34d399;
+    --pink: #f43f5e;
+    --cyan: #22d3ee;
+    --display: "Space Grotesk", "Inter", system-ui, sans-serif;
+    --body: "Inter", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; }
+
+  /* Background grid */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(99,102,241,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,102,241,.045) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse at 50% 0%, #000 30%, transparent 75%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(900px 500px at 12% -10%, rgba(99,102,241,.18), transparent 60%),
+      radial-gradient(700px 500px at 95% 5%, rgba(244,63,94,.10), transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; position: relative; z-index: 1; }
+
+  /* ───── Nav ───── */
+  nav.top {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(14px);
+    background: rgba(7,9,15,.7);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--display);
+    font-weight: 700; font-size: 19px; letter-spacing: -0.01em;
+  }
+  .brand-mark {
+    width: 28px; height: 28px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--indigo) 0%, #4f46e5 100%);
+    display: grid; place-items: center;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.08) inset, 0 8px 24px -8px rgba(99,102,241,.7);
+    position: relative;
+  }
+  .brand-mark::before {
+    content: ""; width: 12px; height: 12px;
+    background: #fff;
+    clip-path: polygon(55% 0, 0 60%, 45% 60%, 30% 100%, 100% 35%, 55% 35%);
+  }
+  .nav-links { display: flex; gap: 28px; align-items: center; font-size: 14px; color: var(--muted); font-weight: 500; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-links .badge {
+    margin-left: 6px;
+    font-family: var(--mono); font-size: 10px;
+    padding: 2px 6px; border-radius: 4px;
+    background: rgba(52,211,153,.12); color: var(--mint);
+    border: 1px solid rgba(52,211,153,.25);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .nav-cta {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 14px; border-radius: 8px;
+    background: var(--text); color: var(--bg);
+    font-weight: 600; font-size: 13px;
+  }
+
+  /* ───── Hero ───── */
+  .hero {
+    padding: 72px 0 56px;
+    position: relative;
+  }
+  .pre-tag {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 6px 12px 6px 8px;
+    background: var(--panel);
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+  }
+  .pre-tag .pulse {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--mint);
+    box-shadow: 0 0 0 0 rgba(52,211,153,.6);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(52,211,153,.6); }
+    70% { box-shadow: 0 0 0 8px rgba(52,211,153,0); }
+    100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 56px;
+    align-items: center;
+    margin-top: 28px;
+  }
+  h1.hero-title {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(40px, 5.6vw, 72px);
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    margin: 0 0 22px;
+  }
+  h1.hero-title .accent {
+    background: linear-gradient(105deg, var(--indigo-2) 0%, #c4b5fd 40%, var(--amber) 95%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero-sub {
+    font-size: 18px; color: var(--muted); max-width: 540px;
+    margin: 0 0 32px;
+  }
+  .hero-sub b { color: var(--text); font-weight: 600; }
+  .cta-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 22px; border-radius: 10px; border: 0;
+    background: linear-gradient(180deg, var(--indigo-2), var(--indigo));
+    color: #fff; font-weight: 600; font-size: 15px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 12px 32px -10px rgba(99,102,241,.7);
+    transition: transform .12s ease;
+  }
+  .btn-primary:hover { transform: translateY(-1px); }
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 18px; border-radius: 10px;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--line-2);
+    font-weight: 600; font-size: 15px;
+  }
+  .btn-ghost:hover { background: var(--panel-2); }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 22px 26px;
+    margin-top: 32px; padding-top: 24px;
+    border-top: 1px dashed var(--line);
+    font-family: var(--mono); font-size: 12px; color: var(--dim);
+  }
+  .meta-row b { color: var(--text); font-weight: 600; }
+  .meta-row .dot { color: var(--dim); margin: 0 4px; }
+
+  /* ───── Game UI Mockup (right hero) ───── */
+  .game-card {
+    background: linear-gradient(180deg, rgba(22,26,44,.95), rgba(11,14,23,.95));
+    border: 1px solid var(--line-2);
+    border-radius: 16px;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.02) inset;
+    overflow: hidden;
+    transform: perspective(1400px) rotateY(-3deg) rotateX(2deg);
+  }
+  .game-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(11,14,23,.6);
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+  }
+  .game-bar .dots { display: flex; gap: 5px; margin-right: 6px; }
+  .game-bar .dots i { width: 9px; height: 9px; border-radius: 50%; display: block; background: var(--line-2); }
+  .game-bar .dots i:nth-child(1) { background: #ef4444; }
+  .game-bar .dots i:nth-child(2) { background: var(--amber); }
+  .game-bar .dots i:nth-child(3) { background: var(--mint); }
+  .game-bar .url { color: var(--dim); flex: 1; text-align: center; }
+  .game-bar .clock { color: var(--mint); }
+
+  .game-body {
+    display: grid; grid-template-columns: 1.1fr 1fr;
+    min-height: 420px;
+  }
+  /* Rack column */
+  .rack {
+    padding: 18px 16px;
+    border-right: 1px solid var(--line);
+    background:
+      radial-gradient(80% 60% at 50% 0%, rgba(99,102,241,.07), transparent 70%),
+      linear-gradient(180deg, rgba(7,9,15,.6), rgba(11,14,23,.6));
+  }
+  .rack-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--muted); margin-bottom: 12px;
+  }
+  .rack-head .loc { color: var(--text); font-weight: 600; }
+  .rack-stack { display: flex; flex-direction: column; gap: 5px; }
+  .u {
+    height: 18px; border-radius: 3px;
+    background: linear-gradient(90deg, #1a1f33, #232a45 70%, #1a1f33);
+    border: 1px solid #232a45;
+    display: grid; grid-template-columns: 36px 1fr 60px;
+    align-items: center;
+    padding: 0 8px; gap: 8px;
+    font-family: var(--mono); font-size: 9px; color: var(--dim);
+  }
+  .u .lbl { color: var(--muted); }
+  .u .leds { display: flex; gap: 3px; justify-content: flex-start; }
+  .u .leds i { width: 5px; height: 5px; border-radius: 50%; display: block; background: #2a3050; }
+  .u .leds i.g { background: var(--mint); box-shadow: 0 0 6px var(--mint); }
+  .u .leds i.a { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .u .leds i.r { background: var(--pink); box-shadow: 0 0 6px var(--pink); }
+  .u .util { font-family: var(--mono); font-size: 9px; color: var(--mint); text-align: right; }
+  .u.hot { background: linear-gradient(90deg, #2a1a1f, #3b2230 70%, #2a1a1f); border-color: #4a2535; }
+  .u.hot .util { color: var(--pink); }
+  .u.warn .util { color: var(--amber); }
+  .u.empty { background: repeating-linear-gradient(45deg, #10131f 0 5px, #131726 5px 10px); }
+  .u.empty .util { color: var(--dim); }
+
+  .rack-foot {
+    margin-top: 16px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+    font-family: var(--mono); font-size: 10px;
+  }
+  .stat-pill {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 6px; padding: 8px 9px;
+  }
+  .stat-pill .k { color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; font-size: 9px; }
+  .stat-pill .v { font-size: 15px; font-weight: 700; color: var(--text); margin-top: 2px; font-family: var(--display); }
+  .stat-pill .v.warn { color: var(--amber); }
+  .stat-pill .v.good { color: var(--mint); }
+
+  /* Tickets column */
+  .tickets-col {
+    padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    background: rgba(11,14,23,.4);
+  }
+  .tickets-head {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--muted);
+  }
+  .tickets-head .count {
+    background: rgba(244,63,94,.15); color: var(--pink);
+    padding: 2px 7px; border-radius: 999px; font-weight: 600;
+    border: 1px solid rgba(244,63,94,.3);
+  }
+  .ticket {
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 11px 12px;
+    display: grid; grid-template-columns: 28px 1fr auto; gap: 10px;
+    align-items: start;
+  }
+  .ticket .av {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    color: #fff;
+  }
+  .av-1 { background: linear-gradient(135deg, #f97316, #ea580c); }
+  .av-2 { background: linear-gradient(135deg, #22d3ee, #0891b2); }
+  .av-3 { background: linear-gradient(135deg, #a78bfa, #7c3aed); }
+  .av-4 { background: linear-gradient(135deg, #f43f5e, #e11d48); }
+  .ticket .who {
+    font-size: 12px; font-weight: 600; color: var(--text);
+  }
+  .ticket .who .org { color: var(--dim); font-weight: 400; font-family: var(--mono); font-size: 10px; }
+  .ticket .msg { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+  .ticket .sev {
+    font-family: var(--mono); font-size: 9px; padding: 2px 6px; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+  }
+  .sev.p1 { background: rgba(244,63,94,.16); color: var(--pink); border: 1px solid rgba(244,63,94,.3); }
+  .sev.p2 { background: rgba(245,158,11,.16); color: var(--amber); border: 1px solid rgba(245,158,11,.3); }
+  .sev.p3 { background: rgba(52,211,153,.12); color: var(--mint); border: 1px solid rgba(52,211,153,.25); }
+
+  /* Floating widget */
+  .float-widget {
+    position: absolute; right: -28px; top: -22px;
+    background: var(--panel); border: 1px solid var(--line-2);
+    border-radius: 10px; padding: 10px 14px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    box-shadow: 0 10px 30px -8px rgba(0,0,0,.6);
+    transform: rotate(2deg);
+  }
+  .float-widget b { color: var(--mint); font-size: 13px; display: block; }
+  .float-widget-2 {
+    position: absolute; left: -36px; bottom: 60px;
+    background: var(--panel); border: 1px solid var(--line-2);
+    border-radius: 10px; padding: 12px 14px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    box-shadow: 0 10px 30px -8px rgba(0,0,0,.6);
+    transform: rotate(-3deg);
+    max-width: 200px;
+  }
+  .float-widget-2 .lh { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; color: var(--text); }
+  .float-widget-2 .lh i { width: 6px; height: 6px; border-radius: 50%; background: var(--pink); animation: pulse 1.6s infinite; }
+
+  .hero-right-wrap { position: relative; }
+
+  /* ───── Ticker ───── */
+  .ticker {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-1);
+    overflow: hidden;
+    position: relative;
+    margin-top: 32px;
+  }
+  .ticker-track {
+    display: flex; gap: 48px;
+    padding: 14px 0;
+    animation: scroll 60s linear infinite;
+    white-space: nowrap;
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    width: max-content;
+  }
+  .ticker-item { display: inline-flex; align-items: center; gap: 10px; }
+  .ticker-item .who { color: var(--text); }
+  .ticker-item .sev-mini {
+    font-size: 9px; padding: 1px 5px; border-radius: 3px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 700;
+  }
+  .ticker-item .sev-mini.p1 { background: rgba(244,63,94,.15); color: var(--pink); }
+  .ticker-item .sev-mini.p2 { background: rgba(245,158,11,.15); color: var(--amber); }
+  .ticker-item .sev-mini.p3 { background: rgba(52,211,153,.12); color: var(--mint); }
+  @keyframes scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* ───── Section heading ───── */
+  section.section { padding: 96px 0; position: relative; }
+  .sec-label {
+    font-family: var(--mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.16em;
+    color: var(--indigo-2);
+    margin-bottom: 14px;
+  }
+  .sec-label::before { content: "// "; opacity: .5; }
+  h2 {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(30px, 3.6vw, 46px);
+    letter-spacing: -0.02em; line-height: 1.05;
+    margin: 0 0 14px;
+  }
+  .sec-sub { color: var(--muted); font-size: 17px; max-width: 640px; margin: 0; }
+
+  /* ───── Personas ───── */
+  .personas {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 16px; margin-top: 44px;
+  }
+  .persona {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px 20px;
+    display: flex; flex-direction: column;
+    transition: transform .15s ease, border-color .15s ease;
+  }
+  .persona:hover { transform: translateY(-3px); border-color: var(--line-2); }
+  .persona .avatar {
+    width: 72px; height: 72px; border-radius: 14px;
+    display: grid; place-items: center;
+    margin-bottom: 16px; position: relative;
+    font-family: var(--mono); font-weight: 700; font-size: 28px; color: #fff;
+    box-shadow: 0 8px 24px -6px rgba(0,0,0,.5);
+  }
+  .persona .avatar::after {
+    content: ""; position: absolute; bottom: -2px; right: -2px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--mint); border: 3px solid var(--panel);
+  }
+  .persona.angry .avatar::after { background: var(--pink); }
+  .persona.weird .avatar::after { background: var(--amber); }
+  .persona-name { font-family: var(--display); font-weight: 600; font-size: 18px; }
+  .persona-role { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .persona-quote {
+    margin-top: 14px; padding: 12px 14px;
+    background: rgba(7,9,15,.7); border: 1px solid var(--line);
+    border-radius: 10px;
+    font-size: 13px; color: var(--muted); line-height: 1.5;
+    position: relative;
+  }
+  .persona-quote::before {
+    content: ""; position: absolute; left: 18px; top: -6px;
+    width: 10px; height: 10px;
+    background: rgba(7,9,15,.7);
+    border-left: 1px solid var(--line); border-top: 1px solid var(--line);
+    transform: rotate(45deg);
+  }
+  .persona-stats {
+    margin-top: auto; padding-top: 14px;
+    display: flex; gap: 12px;
+    font-family: var(--mono); font-size: 10px; color: var(--dim);
+  }
+  .persona-stats span b { color: var(--text); font-size: 11px; }
+
+  /* ───── Timeline ───── */
+  .timeline {
+    margin-top: 48px;
+    position: relative;
+    padding: 0 20px;
+  }
+  .timeline-line {
+    position: absolute; left: 20px; right: 20px; top: 38px;
+    height: 2px; background: var(--line);
+  }
+  .timeline-line::after {
+    content: ""; position: absolute; left: 0; top: 0; height: 100%;
+    width: 70%;
+    background: linear-gradient(90deg, var(--indigo), var(--amber));
+  }
+  .timeline-grid {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px;
+    position: relative;
+  }
+  .era {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 56px 16px 18px;
+    position: relative;
+    text-align: left;
+  }
+  .era::before {
+    content: "";
+    position: absolute; left: 18px; top: 30px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--bg);
+    border: 3px solid var(--indigo);
+    z-index: 2;
+  }
+  .era.active::before { background: var(--indigo); box-shadow: 0 0 0 4px rgba(99,102,241,.2); }
+  .era.future::before { border-color: var(--line-2); }
+  .era .year {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--muted); letter-spacing: 0.06em;
+  }
+  .era .name {
+    font-family: var(--display); font-weight: 600; font-size: 16px;
+    margin-top: 4px;
+  }
+  .era .blurb { font-size: 12px; color: var(--dim); margin-top: 8px; line-height: 1.5; }
+  .era.active .name { color: var(--amber); }
+
+  /* ───── Screenshot showcase ───── */
+  .shots {
+    display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 18px;
+    margin-top: 44px;
+  }
+  .shot {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+  }
+  .shot-img {
+    aspect-ratio: 16/10;
+    background:
+      repeating-linear-gradient(135deg, rgba(99,102,241,.06) 0 12px, transparent 12px 24px),
+      linear-gradient(180deg, #161a2c, #0d1020);
+    display: grid; place-items: center;
+    position: relative;
+    border-bottom: 1px solid var(--line);
+  }
+  .shot.tall .shot-img { aspect-ratio: 4/5; }
+  .shot-img .ph {
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+    text-align: center;
+    padding: 16px 20px;
+    border: 1px dashed var(--line-2);
+    border-radius: 8px;
+    background: rgba(7,9,15,.4);
+    max-width: 80%;
+  }
+  .shot-img .ph b { color: var(--text); font-size: 13px; display: block; margin-bottom: 4px; }
+  .shot-cap {
+    padding: 16px 18px;
+  }
+  .shot-cap h4 {
+    font-family: var(--display); font-weight: 600; font-size: 16px;
+    margin: 0 0 4px;
+  }
+  .shot-cap p {
+    font-size: 13px; color: var(--muted); margin: 0;
+  }
+  .shot-tag {
+    position: absolute; top: 14px; left: 14px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 8px; border-radius: 4px;
+    background: rgba(7,9,15,.7); border: 1px solid var(--line-2);
+    color: var(--muted);
+  }
+
+  /* Big game preview */
+  .preview-wide {
+    margin-top: 64px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+    position: relative;
+  }
+  .preview-wide .pw-bar {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+    display: flex; gap: 14px; align-items: center;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    background: rgba(7,9,15,.4);
+  }
+  .preview-wide .pw-bar .tab {
+    padding: 4px 10px; border-radius: 5px;
+    background: var(--panel-2); border: 1px solid var(--line);
+  }
+  .preview-wide .pw-bar .tab.on { color: var(--text); background: rgba(99,102,241,.15); border-color: rgba(99,102,241,.4); }
+  .preview-wide .pw-body {
+    aspect-ratio: 21/9;
+    background:
+      radial-gradient(60% 80% at 30% 60%, rgba(99,102,241,.12), transparent 70%),
+      radial-gradient(40% 60% at 78% 30%, rgba(245,158,11,.10), transparent 70%),
+      repeating-linear-gradient(135deg, rgba(99,102,241,.04) 0 16px, transparent 16px 32px),
+      linear-gradient(180deg, #0e1220, #07090f);
+    display: grid; place-items: center;
+    position: relative;
+  }
+  .preview-wide .pw-body .ph-lg {
+    font-family: var(--mono); font-size: 13px;
+    color: var(--muted); text-align: center;
+    padding: 32px 40px;
+    border: 1px dashed var(--line-2);
+    border-radius: 12px;
+    background: rgba(7,9,15,.5);
+  }
+  .preview-wide .pw-body .ph-lg b {
+    display: block; color: var(--text); font-family: var(--display); font-size: 20px; margin-bottom: 8px;
+  }
+
+  /* Float chip on preview */
+  .chip-float {
+    position: absolute;
+    font-family: var(--mono); font-size: 11px;
+    background: rgba(7,9,15,.85); border: 1px solid var(--line-2);
+    border-radius: 8px; padding: 8px 12px;
+    color: var(--muted);
+    backdrop-filter: blur(8px);
+  }
+  .chip-float b { color: var(--text); }
+  .chip-float .dot-g { width: 6px; height: 6px; background: var(--mint); border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: 1px; }
+  .chip-float .dot-r { width: 6px; height: 6px; background: var(--pink); border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: 1px; }
+
+  /* ───── Features grid ───── */
+  .features {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 18px; margin-top: 44px;
+  }
+  .feature {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 26px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .feature-ico {
+    width: 40px; height: 40px; border-radius: 9px;
+    background: rgba(99,102,241,.1); border: 1px solid rgba(99,102,241,.3);
+    display: grid; place-items: center;
+    margin-bottom: 16px;
+    color: var(--indigo-2);
+    font-family: var(--mono); font-weight: 700;
+  }
+  .feature.amber .feature-ico { background: rgba(245,158,11,.1); border-color: rgba(245,158,11,.3); color: var(--amber); }
+  .feature.mint  .feature-ico { background: rgba(52,211,153,.1); border-color: rgba(52,211,153,.3); color: var(--mint); }
+  .feature.pink  .feature-ico { background: rgba(244,63,94,.1); border-color: rgba(244,63,94,.3); color: var(--pink); }
+  .feature.cyan  .feature-ico { background: rgba(34,211,238,.1); border-color: rgba(34,211,238,.3); color: var(--cyan); }
+  .feature h3 {
+    font-family: var(--display); font-weight: 600; font-size: 19px;
+    margin: 0 0 8px; letter-spacing: -0.01em;
+  }
+  .feature p { color: var(--muted); font-size: 14px; margin: 0; }
+  .feature-tag {
+    display: inline-block; margin-top: 14px;
+    font-family: var(--mono); font-size: 10px;
+    color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em;
+  }
+
+  /* ───── Reviews / fake forum ───── */
+  .forum {
+    margin-top: 44px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .forum-head {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(7,9,15,.4);
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .forum-head b { color: var(--text); }
+  .forum-list { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .post {
+    padding: 20px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 36px 1fr; gap: 14px;
+  }
+  .post:nth-child(2n) { border-right: 0; }
+  .post:nth-last-child(-n+2) { border-bottom: 0; }
+  .post .pav {
+    width: 36px; height: 36px; border-radius: 8px;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 12px; color: #fff;
+  }
+  .post .pmeta { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-bottom: 6px; }
+  .post .pmeta b { color: var(--text); font-weight: 600; }
+  .post .pmsg { font-size: 14px; color: var(--text); line-height: 1.55; }
+  .post .pstars { color: var(--amber); font-family: var(--mono); letter-spacing: 1px; margin-top: 6px; font-size: 12px; }
+
+  /* ───── CTA ───── */
+  .cta-final {
+    background: linear-gradient(135deg, #1b1f3a 0%, #0d1024 100%);
+    border: 1px solid var(--line-2);
+    border-radius: 20px;
+    padding: 60px 56px;
+    display: grid; grid-template-columns: 1.4fr 1fr; gap: 40px;
+    align-items: center;
+    position: relative; overflow: hidden;
+    margin-top: 44px;
+  }
+  .cta-final::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(40% 80% at 100% 50%, rgba(245,158,11,.15), transparent 60%),
+      radial-gradient(50% 90% at 0% 100%, rgba(99,102,241,.2), transparent 60%);
+    pointer-events: none;
+  }
+  .cta-final h2 { font-size: 40px; margin: 0 0 14px; }
+  .cta-final p { color: var(--muted); margin: 0 0 24px; }
+  .cta-final .cta-row { position: relative; z-index: 1; }
+  .cta-side {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    background: rgba(7,9,15,.5); border: 1px solid var(--line);
+    border-radius: 12px; padding: 22px;
+    position: relative; z-index: 1;
+  }
+  .cta-side .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  .cta-side .row:last-child { border-bottom: 0; }
+  .cta-side .row b { color: var(--text); }
+  .cta-side .row .y { color: var(--mint); }
+  .cta-side .row .n { color: var(--dim); }
+
+  /* ───── Footer ───── */
+  footer {
+    border-top: 1px solid var(--line);
+    margin-top: 80px;
+    padding: 56px 0 40px;
+    color: var(--muted); font-size: 13px;
+  }
+  .foot {
+    display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr;
+    gap: 40px;
+  }
+  .foot h5 { font-family: var(--display); font-size: 13px; color: var(--text); margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .foot ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .foot a:hover { color: var(--text); }
+  .foot-bottom {
+    margin-top: 40px; padding-top: 24px;
+    border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+  }
+
+  /* ───── Responsive ───── */
+  @media (max-width: 1100px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .game-card { transform: none; }
+    .float-widget, .float-widget-2 { display: none; }
+    .personas { grid-template-columns: repeat(2, 1fr); }
+    .timeline-grid { grid-template-columns: repeat(3, 1fr); }
+    .shots { grid-template-columns: 1fr 1fr; }
+    .features { grid-template-columns: 1fr 1fr; }
+    .cta-final { grid-template-columns: 1fr; padding: 40px; }
+    .foot { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 0 20px; }
+    .nav-links { display: none; }
+    section.section { padding: 64px 0; }
+    .personas { grid-template-columns: 1fr; }
+    .timeline-grid { grid-template-columns: repeat(2, 1fr); }
+    .shots { grid-template-columns: 1fr; }
+    .features { grid-template-columns: 1fr; }
+    .game-body { grid-template-columns: 1fr; }
+    .rack { border-right: 0; border-bottom: 1px solid var(--line); }
+    .forum-list { grid-template-columns: 1fr; }
+    .post { border-right: 0; }
+    .meta-row { gap: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ───── Nav ───── -->
+<nav class="top">
+  <div class="wrap nav-inner">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      Hyperscaler
+    </div>
+    <div class="nav-links">
+      <a href="#game">The Game</a>
+      <a href="#customers">AI Customers</a>
+      <a href="#timeline">Eras</a>
+      <a href="#features">Features</a>
+      <a href="#community">Community<span class="badge">12.4k online</span></a>
+    </div>
+    <a class="nav-cta" href="#play">Launch beta →</a>
+  </div>
+</nav>
+
+<!-- ───── Hero ───── -->
+<header class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <span class="pre-tag"><span class="pulse"></span>OPEN BETA · v0.7.2 "Cold Start"</span>
+        <h1 class="hero-title">
+          Run a hosting empire.<br>
+          <span class="accent">Your customers are AI.</span>
+        </h1>
+        <p class="hero-sub">
+          A browser-based tycoon where every angry customer, every weird ticket, every late-night
+          panic is generated by a <b>real LLM that remembers your past mistakes</b>. Start with one
+          beige tower in a garage in 2002. End up running edge nodes in seventeen cities — or
+          bankrupt at 4 AM debugging a Karen.
+        </p>
+        <div class="cta-row">
+          <button class="btn-primary">▶ Start playing free</button>
+          <a class="btn-ghost" href="#trailer">Watch 90-sec trailer</a>
+        </div>
+        <div class="meta-row">
+          <span><b>Free</b> to play <span class="dot">·</span> no signup to try</span>
+          <span><b>Saves locally</b> <span class="dot">·</span> bring your own LLM key</span>
+          <span><b>~30 min</b> per shift</span>
+        </div>
+      </div>
+
+      <div class="hero-right-wrap">
+        <div class="float-widget">
+          UPTIME (30d)<br>
+          <b>99.61%</b>
+        </div>
+        <div class="float-widget-2">
+          <div class="lh"><i></i><b>NEW TICKET</b></div>
+          <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1b707a697e755b756e6f697278747a7873357274">[email&#160;protected]</a>: "this is the THIRD time"
+        </div>
+
+        <div class="game-card">
+          <div class="game-bar">
+            <div class="dots"><i></i><i></i><i></i></div>
+            <span class="url">hyperscaler.game / ops / rack-01</span>
+            <span class="clock">● 03:42 AM · DAY 184</span>
+          </div>
+          <div class="game-body">
+            <!-- Rack -->
+            <div class="rack">
+              <div class="rack-head">
+                <span class="loc">RACK-01 · BUDAPEST</span>
+                <span>24U · 70% util</span>
+              </div>
+              <div class="rack-stack">
+                <div class="u"><span class="lbl">U24</span><span class="leds"><i class="g"></i><i class="g"></i><i></i></span><span class="util">42%</span></div>
+                <div class="u"><span class="lbl">U23</span><span class="leds"><i class="g"></i><i class="g"></i><i class="g"></i></span><span class="util">61%</span></div>
+                <div class="u warn"><span class="lbl">U22</span><span class="leds"><i class="a"></i><i class="g"></i><i class="g"></i></span><span class="util">88%</span></div>
+                <div class="u hot"><span class="lbl">U21</span><span class="leds"><i class="r"></i><i class="r"></i><i class="a"></i></span><span class="util">97%</span></div>
+                <div class="u"><span class="lbl">U20</span><span class="leds"><i class="g"></i><i class="g"></i><i class="g"></i></span><span class="util">55%</span></div>
+                <div class="u"><span class="lbl">U19</span><span class="leds"><i class="g"></i><i class="g"></i><i></i></span><span class="util">38%</span></div>
+                <div class="u empty"><span class="lbl">U18</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+                <div class="u"><span class="lbl">U17</span><span class="leds"><i class="g"></i><i class="g"></i><i class="g"></i></span><span class="util">71%</span></div>
+                <div class="u warn"><span class="lbl">U16</span><span class="leds"><i class="a"></i><i class="a"></i><i class="g"></i></span><span class="util">82%</span></div>
+                <div class="u empty"><span class="lbl">U15</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>
+              </div>
+              <div class="rack-foot">
+                <div class="stat-pill"><div class="k">MRR</div><div class="v">$8,420</div></div>
+                <div class="stat-pill"><div class="k">SLA</div><div class="v good">99.6%</div></div>
+                <div class="stat-pill"><div class="k">TEMP</div><div class="v warn">28°C</div></div>
+              </div>
+            </div>
+
+            <!-- Tickets -->
+            <div class="tickets-col">
+              <div class="tickets-head">
+                <span>INBOX · LIVE</span>
+                <span class="count">7 open</span>
+              </div>
+              <div class="ticket">
+                <div class="av av-1">K</div>
+                <div>
+                  <div class="who">Karen Holloway <span class="org">@ nutricoach.io</span></div>
+                  <div class="msg">"This is the THIRD time my checkout has 500'd this week. I have receipts."</div>
+                </div>
+                <span class="sev p1">P1</span>
+              </div>
+              <div class="ticket">
+                <div class="av av-2">D</div>
+                <div>
+                  <div class="who">Devon Park <span class="org">@ pixelbrew</span></div>
+                  <div class="msg">"Migration finished but my DB is in Frankfurt now? It was in Warsaw."</div>
+                </div>
+                <span class="sev p2">P2</span>
+              </div>
+              <div class="ticket">
+                <div class="av av-3">A</div>
+                <div>
+                  <div class="who">Anonymous <span class="org">@ ?? · burner</span></div>
+                  <div class="msg">"hi do you host shady stuff. asking for a friend."</div>
+                </div>
+                <span class="sev p3">P3</span>
+              </div>
+              <div class="ticket">
+                <div class="av av-4">M</div>
+                <div>
+                  <div class="who">Mira Sato <span class="org">@ glassmap</span></div>
+                  <div class="msg">"Need GPU pod in Tokyo by Monday or we churn. Sorry, love your support btw."</div>
+                </div>
+                <span class="sev p2">P2</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ticker -->
+    <div class="ticker">
+      <div class="ticker-track" id="ticker">
+        <!-- duplicated in JS -->
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ───── AI Customers ───── -->
+<section class="section" id="customers">
+  <div class="wrap">
+    <div class="sec-label">The catch</div>
+    <h2>Your customers are not scripts.<br>They are language models with grudges.</h2>
+    <p class="sec-sub">
+      Every account you sign is a persistent LLM agent with memory, mood, a billing history and
+      friends on the forum. They'll praise you on Day 12 and leak your downtime on Day 47.
+    </p>
+
+    <div class="personas">
+      <article class="persona angry">
+        <div class="avatar av-1">K</div>
+        <div class="persona-name">Karen Holloway</div>
+        <div class="persona-role">Solo founder · 3rd complaint</div>
+        <div class="persona-quote">"I pay $19 a month. NINETEEN. I should not be the one telling YOU that europe-west-2 is on fire."</div>
+        <div class="persona-stats">
+          <span>MRR <b>$19</b></span>
+          <span>Mood <b style="color:var(--pink)">−42</b></span>
+          <span>Churn risk <b style="color:var(--pink)">81%</b></span>
+        </div>
+      </article>
+      <article class="persona">
+        <div class="avatar av-2">D</div>
+        <div class="persona-name">Devon Park</div>
+        <div class="persona-role">CTO · loyal since '24</div>
+        <div class="persona-quote">"Hey — the new staging region is chef's kiss. Can you also do Singapore? I'll prepay 6 months."</div>
+        <div class="persona-stats">
+          <span>MRR <b>$1.2k</b></span>
+          <span>Mood <b style="color:var(--mint)">+88</b></span>
+          <span>Refers <b>4</b></span>
+        </div>
+      </article>
+      <article class="persona weird">
+        <div class="avatar av-3">A</div>
+        <div class="persona-name">"Anon"</div>
+        <div class="persona-role">Burner · vibes off</div>
+        <div class="persona-quote">"do you do egress without logs. paying in crypto. say no and I delete this account."</div>
+        <div class="persona-stats">
+          <span>MRR <b>$840</b></span>
+          <span>Risk <b style="color:var(--amber)">HIGH</b></span>
+          <span>Pays <b>on time</b></span>
+        </div>
+      </article>
+      <article class="persona">
+        <div class="avatar av-4">M</div>
+        <div class="persona-name">Mira Sato</div>
+        <div class="persona-role">Eng lead · enterprise</div>
+        <div class="persona-quote">"Procurement will need SOC 2 by Q3. If you can ship audit logs, I can sell you internally."</div>
+        <div class="persona-stats">
+          <span>MRR <b>$14k</b></span>
+          <span>Mood <b style="color:var(--mint)">+22</b></span>
+          <span>Expansion <b style="color:var(--mint)">3×</b></span>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ───── Timeline ───── -->
+<section class="section" id="timeline" style="padding-top: 0;">
+  <div class="wrap">
+    <div class="sec-label">2002 → 2026</div>
+    <h2>From beige tower in your<br>cousin's garage to global edge.</h2>
+    <p class="sec-sub">
+      The tech tree is the real one. The hardware costs real money (well, fake money). Every era
+      unlocks new servers, new customers, new ways to fail.
+    </p>
+
+    <div class="timeline">
+      <div class="timeline-line"></div>
+      <div class="timeline-grid">
+        <div class="era">
+          <div class="year">2002</div>
+          <div class="name">Garage Era</div>
+          <div class="blurb">1U Pentium 4. Your roommate is the cooling system.</div>
+        </div>
+        <div class="era">
+          <div class="year">2006</div>
+          <div class="name">Colo</div>
+          <div class="blurb">Rent a half-rack. Learn what BGP costs.</div>
+        </div>
+        <div class="era">
+          <div class="year">2012</div>
+          <div class="name">VPS Boom</div>
+          <div class="blurb">Sell slices of metal. Pray no one mines.</div>
+        </div>
+        <div class="era">
+          <div class="year">2018</div>
+          <div class="name">Containers</div>
+          <div class="blurb">k8s, Stripe webhooks, your first SOC 2.</div>
+        </div>
+        <div class="era active">
+          <div class="year">2024</div>
+          <div class="name">GPU Gold Rush</div>
+          <div class="blurb">Llamas. Lots of llamas. Watts cost more than rent.</div>
+        </div>
+        <div class="era future">
+          <div class="year">2026</div>
+          <div class="name">Global Edge</div>
+          <div class="blurb">17 cities. Sub-30ms anywhere. One bad cert away from ruin.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───── Wide game preview ───── -->
+<section class="section" id="game" style="padding-top: 0;">
+  <div class="wrap">
+    <div class="sec-label">Inside the game</div>
+    <h2>A real ops console.<br>Pretending to be a game.</h2>
+    <p class="sec-sub">
+      You don't click a "happy customer" button. You triage tickets, route traffic, scale fleets,
+      decide who to refund and who to fire. Every decision has a paper trail the LLM reads back to
+      you later.
+    </p>
+
+    <div class="preview-wide">
+      <div class="pw-bar">
+        <div class="dots" style="display:flex;gap:5px;"><i style="width:9px;height:9px;border-radius:50%;background:#ef4444;display:block;"></i><i style="width:9px;height:9px;border-radius:50%;background:var(--amber);display:block;"></i><i style="width:9px;height:9px;border-radius:50%;background:var(--mint);display:block;"></i></div>
+        <span class="tab on">Ops</span>
+        <span class="tab">Fleet</span>
+        <span class="tab">Customers</span>
+        <span class="tab">Finance</span>
+        <span class="tab">Tickets <span style="color:var(--pink)">·7</span></span>
+        <span style="margin-left:auto;color:var(--mint);">● LIVE · Day 184 · $8,420 MRR</span>
+      </div>
+      <div class="pw-body">
+        <div class="ph-lg">
+          <b>[ Screenshot ] Ops console — fleet map</b>
+          1920×900 · 17 cities · live latency overlay · drag-to-route
+        </div>
+        <div class="chip-float" style="top:24px; left:32px;"><span class="dot-g"></span>frankfurt · <b>12ms</b></div>
+        <div class="chip-float" style="top:80px; right:60px;"><span class="dot-r"></span>singapore · <b>473ms</b></div>
+        <div class="chip-float" style="bottom:36px; left:80px;"><span class="dot-g"></span>budapest · <b>4ms</b> · home</div>
+        <div class="chip-float" style="bottom:80px; right:40px;"><span class="dot-g"></span>são paulo · <b>89ms</b></div>
+      </div>
+    </div>
+
+    <div class="shots">
+      <div class="shot tall">
+        <span class="shot-tag">Ticket queue</span>
+        <div class="shot-img">
+          <div class="ph">
+            <b>[ Screenshot ] Ticket triage panel</b>
+            960×1200 · LLM-generated complaints · sentiment heatmap · "remember when" recall
+          </div>
+        </div>
+        <div class="shot-cap">
+          <h4>Triage at 3 AM</h4>
+          <p>Every ticket is a fresh LLM completion that knows your past 90 days.</p>
+        </div>
+      </div>
+      <div class="shot">
+        <span class="shot-tag">Finance</span>
+        <div class="shot-img">
+          <div class="ph">
+            <b>[ Screenshot ] P&L dashboard</b>
+            720×800 · burn vs. revenue · per-region margin
+          </div>
+        </div>
+        <div class="shot-cap">
+          <h4>Watch the burn</h4>
+          <p>Power bills, payroll, GPU rentals — all real-time.</p>
+        </div>
+      </div>
+      <div class="shot">
+        <span class="shot-tag">Hiring</span>
+        <div class="shot-img">
+          <div class="ph">
+            <b>[ Screenshot ] Hire screen</b>
+            720×800 · NPC engineers with stats and personality
+          </div>
+        </div>
+        <div class="shot-cap">
+          <h4>Hire (and lose) staff</h4>
+          <p>Your SRE quits if you keep paging her at 4 AM. Fair.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───── Features ───── -->
+<section class="section" id="features" style="padding-top: 0;">
+  <div class="wrap">
+    <div class="sec-label">What makes it different</div>
+    <h2>Six things no other tycoon does.</h2>
+
+    <div class="features">
+      <article class="feature">
+        <div class="feature-ico">01</div>
+        <h3>LLM-native NPCs</h3>
+        <p>Customers, staff and competitors are language model agents with persistent memory. No scripted trees.</p>
+        <span class="feature-tag">// Llama 3.1 70B · Claude · GPT-4o</span>
+      </article>
+      <article class="feature amber">
+        <div class="feature-ico">02</div>
+        <h3>Real tech tree</h3>
+        <p>From IDE racks and tape backups to liquid-cooled GPU pods. Every node has a cost, a watt draw, a MTBF.</p>
+        <span class="feature-tag">// 280+ unlockables</span>
+      </article>
+      <article class="feature mint">
+        <div class="feature-ico">03</div>
+        <h3>Support shifts</h3>
+        <p>Sit down for a 30-minute live shift. Triage 10 angry tickets. Get scored on first-touch and refund cost.</p>
+        <span class="feature-tag">// Run anywhere · 1 tab</span>
+      </article>
+      <article class="feature pink">
+        <div class="feature-ico">04</div>
+        <h3>Public reputation</h3>
+        <p>The in-game Hacker News equivalent will absolutely roast you if you have a bad outage. Search "hyperscaler down".</p>
+        <span class="feature-tag">// Karma matters</span>
+      </article>
+      <article class="feature cyan">
+        <div class="feature-ico">05</div>
+        <h3>Bring your own model</h3>
+        <p>Paste an API key and your customers run on the LLM of your choice. Or use the free hosted model with caps.</p>
+        <span class="feature-tag">// Local Ollama supported</span>
+      </article>
+      <article class="feature">
+        <div class="feature-ico">06</div>
+        <h3>Async multiplayer</h3>
+        <p>Compete on the global leaderboard. Acquire rival providers. Get acquired. Sleep, your fleet runs.</p>
+        <span class="feature-tag">// Cross-shard auctions</span>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ───── Community ───── -->
+<section class="section" id="community" style="padding-top: 0;">
+  <div class="wrap">
+    <div class="sec-label">Players say</div>
+    <h2>1,247 hosts. 38,000 angry tickets.<br>This week.</h2>
+
+    <div class="forum">
+      <div class="forum-head">
+        <span><b>/r/hyperscaler</b> · top this week</span>
+        <span>● 12,418 online</span>
+      </div>
+      <div class="forum-list">
+        <div class="post">
+          <div class="pav av-1">jp</div>
+          <div>
+            <div class="pmeta"><b>jpetersen</b> · 2d · "I lost a customer to lore"</div>
+            <div class="pmsg">A customer left because his agent "remembered" I bumped his price two quarters ago. The LLM literally cited the chat. I forgot. I lost $400 MRR to my own paper trail. 10/10.</div>
+            <div class="pstars">★★★★★</div>
+          </div>
+        </div>
+        <div class="post">
+          <div class="pav av-2">ms</div>
+          <div>
+            <div class="pmeta"><b>mira_s</b> · 4d · "Game makes me a better PM"</div>
+            <div class="pmsg">I now write status pages at my real job the way the game scolds me to. My boss thinks I went to a conference. I just played Hyperscaler for a weekend.</div>
+            <div class="pstars">★★★★★</div>
+          </div>
+        </div>
+        <div class="post">
+          <div class="pav av-3">dv</div>
+          <div>
+            <div class="pmeta"><b>devops_dad</b> · 5d · "Pricing rant"</div>
+            <div class="pmsg">Why does running my own Llama key cost 3× more than the in-game power bill. Felt very meta. Wife checked on me at 3am.</div>
+            <div class="pstars">★★★★☆</div>
+          </div>
+        </div>
+        <div class="post">
+          <div class="pav av-4">ka</div>
+          <div>
+            <div class="pmeta"><b>karen_irl</b> · 6d · "I am Karen Holloway"</div>
+            <div class="pmsg">My name is Karen. The NPC named Karen yelled at me. Closed the tab. Opened it again. Refunded her. 1/10 emotional damage, would play forever.</div>
+            <div class="pstars">★★★★★</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───── CTA ───── -->
+<section class="section" id="play" style="padding-top: 0;">
+  <div class="wrap">
+    <div class="cta-final">
+      <div>
+        <h2>Your first rack<br>is waiting.</h2>
+        <p>No signup. Saves locally. You can paste your own LLM key if you want bigger customers. Closed beta is open.</p>
+        <div class="cta-row">
+          <button class="btn-primary">▶ Boot first server</button>
+          <a class="btn-ghost" href="#">Join the Discord →</a>
+        </div>
+      </div>
+      <div class="cta-side">
+        <div class="row"><span>Price</span><b class="y">Free during beta</b></div>
+        <div class="row"><span>Signup required</span><b class="n">No</b></div>
+        <div class="row"><span>Saves</span><b>Local + cloud sync</b></div>
+        <div class="row"><span>LLM</span><b>Hosted · BYO key</b></div>
+        <div class="row"><span>Platforms</span><b>Any modern browser</b></div>
+        <div class="row"><span>Shift length</span><b>~30 min</b></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───── Footer ───── -->
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <div class="brand"><div class="brand-mark"></div>Hyperscaler</div>
+        <p style="margin-top:12px;max-width:280px;">A browser tycoon by two grumpy ex-SREs. Made between on-call rotations.</p>
+      </div>
+      <div>
+        <h5>Game</h5>
+        <ul>
+          <li><a href="#">Play beta</a></li>
+          <li><a href="#">Roadmap</a></li>
+          <li><a href="#">Changelog</a></li>
+          <li><a href="#">Mods</a></li>
+        </ul>
+      </div>
+      <div>
+        <h5>Community</h5>
+        <ul>
+          <li><a href="#">Discord</a></li>
+          <li><a href="#">Forum</a></li>
+          <li><a href="#">Leaderboard</a></li>
+          <li><a href="#">Bug tracker</a></li>
+        </ul>
+      </div>
+      <div>
+        <h5>About</h5>
+        <ul>
+          <li><a href="#">Devlog</a></li>
+          <li><a href="#">Press kit</a></li>
+          <li><a href="#">Privacy</a></li>
+          <li><a href="#">Contact</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 Hyperscaler · Built on Cloudflare · No real customers were harmed</span>
+      <span>v0.7.2 "Cold Start" · build 18,402</span>
+    </div>
+  </div>
+</footer>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+  // Build infinite ticker
+  const items = [
+    {who: "karen@nutricoach.io", msg: "I want a refund. Again.", sev: "p1"},
+    {who: "devon@pixelbrew", msg: "Frankfurt feels slow today?", sev: "p2"},
+    {who: "ops-bot", msg: "U21 hitting 97% CPU", sev: "p1"},
+    {who: "anon@burner", msg: "do you log egress.", sev: "p3"},
+    {who: "mira@glassmap", msg: "Need GPU pod by Monday", sev: "p2"},
+    {who: "billing", msg: "Stripe webhook 502 ×4", sev: "p2"},
+    {who: "hn:user1842", msg: "is hyperscaler down again?", sev: "p1"},
+    {who: "sre:lin", msg: "PTO request — declined, you're on call", sev: "p3"},
+    {who: "narek@vault", msg: "SOC 2 evidence by EOQ pls", sev: "p2"},
+    {who: "rita@finchat", msg: "love the new dashboard btw", sev: "p3"},
+    {who: "ops-bot", msg: "RACK-03 fan failure · BUDAPEST", sev: "p1"},
+    {who: "leo@toolset", msg: "thinking of churning, sorry", sev: "p2"},
+  ];
+  const track = document.getElementById("ticker");
+  const html = items.map(i =>
+    `<span class="ticker-item"><span class="sev-mini ${i.sev}">${i.sev}</span><span class="who">${i.who}</span><span style="color:var(--dim)">›</span>${i.msg}</span>`
+  ).join("");
+  track.innerHTML = html + html; // duplicate for seamless loop
+
+  // Subtle: animate a random rack LED every couple seconds
+  const leds = document.querySelectorAll(".u .leds i");
+  setInterval(() => {
+    const idx = Math.floor(Math.random() * leds.length);
+    const led = leds[idx];
+    if (!led.dataset.orig) led.dataset.orig = led.className;
+    led.className = "a";
+    setTimeout(() => { led.className = led.dataset.orig; }, 350);
+  }, 1800);
+</script>
+
+</body>
+</html>

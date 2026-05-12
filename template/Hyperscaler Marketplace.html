@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscaler — Marketplace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<style>
+  .layout { grid-column: span 12; display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+
+  /* Listing card */
+  .listings { padding: 0; }
+  .listings-head {
+    padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--line); background: rgba(7,9,15,.4);
+  }
+  .listings-head .tabs { display: flex; gap: 4px; }
+  .listings-head .tabs button {
+    padding: 6px 10px; border-radius: 6px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--muted); font-size: 12px; font-family: var(--mono);
+  }
+  .listings-head .tabs button.on { background: var(--panel-2); color: var(--text); border-color: var(--line); }
+  .listings-head .new {
+    margin-left: auto; padding: 6px 10px; border-radius: 7px;
+    background: var(--indigo); color: #fff; font-size: 12px; font-weight: 600; border: 0;
+  }
+
+  .listing {
+    display: grid; grid-template-columns: 80px 1fr auto;
+    gap: 14px; padding: 16px 18px;
+    border-bottom: 1px solid var(--line);
+    align-items: start;
+  }
+  .listing .pic {
+    width: 80px; height: 80px; border-radius: 10px;
+    background:
+      linear-gradient(135deg, rgba(99,102,241,.2), rgba(34,211,238,.15));
+    border: 1px solid var(--line-2);
+    display: grid; place-items: center;
+    font-family: var(--display); font-weight: 700; font-size: 28px; color: var(--text);
+    position: relative; overflow: hidden;
+  }
+  .listing .pic.featured { background: linear-gradient(135deg, rgba(245,158,11,.25), rgba(244,63,94,.12)); }
+  .listing .pic .corner {
+    position: absolute; top: 4px; right: 4px;
+    font-family: var(--mono); font-size: 8px;
+    padding: 1px 5px; border-radius: 3px;
+    background: rgba(0,0,0,.5); color: #fff;
+  }
+  .listing .title { font-family: var(--display); font-size: 17px; font-weight: 600; }
+  .listing .title .badge {
+    font-family: var(--mono); font-size: 10px;
+    padding: 2px 6px; border-radius: 4px;
+    background: rgba(99,102,241,.15); color: var(--indigo-2);
+    border: 1px solid rgba(99,102,241,.3);
+    margin-left: 6px; vertical-align: 2px;
+    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+  }
+  .listing .title .badge.featured { background: rgba(245,158,11,.15); color: var(--amber); border-color: rgba(245,158,11,.3); }
+  .listing .title .badge.live { background: rgba(52,211,153,.12); color: var(--mint); border-color: rgba(52,211,153,.3); }
+  .listing .desc { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+  .listing .specs-row {
+    display: flex; gap: 14px; margin-top: 8px;
+    font-family: var(--mono); font-size: 11px; color: var(--dim);
+  }
+  .listing .specs-row span b { color: var(--text); }
+  .listing .stars { color: var(--amber); font-size: 12px; }
+  .listing .stars small { color: var(--dim); margin-left: 4px; font-family: var(--mono); }
+
+  .listing .right { text-align: right; }
+  .listing .price {
+    font-family: var(--display); font-size: 22px; font-weight: 700;
+  }
+  .listing .price small { font-size: 11px; color: var(--dim); font-family: var(--mono); font-weight: 400; }
+  .listing .stats {
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    margin-top: 6px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .listing .stats .v { color: var(--text); font-weight: 700; }
+  .listing .actions { margin-top: 8px; display: flex; gap: 4px; justify-content: flex-end; }
+
+  /* Leads pipeline */
+  .pipeline-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--line);
+  }
+  .pipe-col {
+    padding: 10px;
+    border-right: 1px dashed var(--line);
+    min-height: 200px;
+  }
+  .pipe-col:last-child { border-right: 0; }
+  .pipe-col h5 {
+    margin: 0 0 10px;
+    font-family: var(--mono); font-size: 10px;
+    color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pipe-col h5 .n {
+    background: var(--panel-3); color: var(--text);
+    padding: 1px 6px; border-radius: 999px; font-size: 9px;
+  }
+  .pipe-col.warm h5 { color: var(--amber); }
+  .pipe-col.hot h5 { color: var(--pink); }
+  .pipe-col.won h5 { color: var(--mint); }
+  .lead {
+    padding: 9px 10px; border-radius: 8px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    margin-bottom: 8px; font-size: 12px;
+    cursor: pointer;
+  }
+  .lead .row1 { display: flex; align-items: center; gap: 6px; }
+  .lead .av {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-weight: 700; font-size: 10px; color: #fff;
+  }
+  .lead .name { font-weight: 600; font-size: 12px; }
+  .lead .mrr { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--mint); font-weight: 700; }
+  .lead .desc { color: var(--dim); font-size: 11px; margin-top: 4px; }
+  .lead .pill {
+    display: inline-block; margin-top: 6px;
+    font-family: var(--mono); font-size: 9px;
+    padding: 1px 6px; border-radius: 4px;
+    background: var(--panel-3); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .lead .pill.hot { background: rgba(244,63,94,.12); color: var(--pink); }
+  .lead .pill.warm { background: rgba(245,158,11,.12); color: var(--amber); }
+
+  /* Forum mentions */
+  .post {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .post .meta {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .post .meta .sub { color: var(--cyan); font-weight: 700; }
+  .post .meta .neg { color: var(--pink); margin-left: auto; }
+  .post .meta .pos { color: var(--mint); margin-left: auto; }
+  .post .meta-row { display: flex; align-items: center; gap: 10px; }
+  .post h4 { margin: 0 0 6px; font-family: var(--display); font-size: 15px; font-weight: 600; }
+  .post p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.55; }
+  .post p em { font-style: normal; color: var(--text); font-family: var(--mono); font-size: 12px;}
+  .post .react { margin-top: 8px; display: flex; gap: 12px; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .post .react b { color: var(--text); }
+
+  /* Compare bar */
+  .compare-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px;
+    background: rgba(34,211,238,.06); border-bottom: 1px solid rgba(34,211,238,.2);
+    font-family: var(--mono); font-size: 11px; color: var(--cyan);
+  }
+  .compare-bar .v { color: var(--text); font-weight: 700; }
+  .compare-bar .arr { color: var(--mint); font-weight: 700; }
+  .compare-bar .actions { margin-left: auto; display: flex; gap: 6px; }
+
+  @media (max-width: 1100px) {
+    .layout { grid-template-columns: 1fr; }
+    .pipeline-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <a class="brand" href="Hyperscaler Dashboard.html"><div class="brand-mark"></div>Hyperscaler</a>
+    <div class="company-card">
+      <div class="row"><div class="crest">SN</div><div><div class="name">SyncNode <span class="edit">✎</span></div><div class="sub">EST 2026 · ERA 1 · DAY 12</div></div></div>
+      <div class="runway"><span>Runway</span><b>26 days</b></div>
+      <div class="bar"><i></i></div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Operate</div>
+      <a class="nav-item" href="Hyperscaler Dashboard.html"><span class="ico">▣</span> Dashboard</a>
+      <a class="nav-item" href="Hyperscaler Servers.html"><span class="ico">▤</span> Servers <span class="badge muted">2</span></a>
+      <a class="nav-item" href="Hyperscaler Customers.html"><span class="ico">◉</span> Customers <span class="badge new">+1</span></a>
+      <a class="nav-item" href="Hyperscaler Tickets.html"><span class="ico">✉</span> Tickets <span class="badge">3</span></a>
+      <a class="nav-item" href="Hyperscaler Finance.html"><span class="ico">$</span> Finance</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Grow</div>
+      <a class="nav-item" href="Hyperscaler Research.html"><span class="ico">⚙</span> Research <span class="badge muted">0/12</span></a>
+      <a class="nav-item active"><span class="ico">◈</span> Marketplace</a>
+      <a class="nav-item locked" href="Hyperscaler Staff.html"><span class="ico">☰</span> Staff <span class="lock">🔒 Era 2</span></a>
+      <a class="nav-item locked" href="Hyperscaler Network.html"><span class="ico">◴</span> Network <span class="lock">🔒 Era 2</span></a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-head">Meta</div>
+      <a class="nav-item" href="Hyperscaler Leaderboard.html"><span class="ico">⌖</span> Leaderboard</a>
+      <a class="nav-item" href="Hyperscaler Devlog.html"><span class="ico">▶</span> Devlog</a>
+      <a class="nav-item" href="Hyperscaler Settings.html"><span class="ico">⚒</span> Settings</a>
+    </div>
+    <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div class="crumbs"><span>Play</span><span class="sep">›</span><b>Marketplace</b></div>
+      <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
+      <div class="topbar-stats">
+        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+      </div>
+      <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
+    </header>
+
+    <div class="content">
+      <div class="pagehead">
+        <div class="h-left">
+          <h1>Marketplace <span class="count">3 listings live · 8 leads</span></h1>
+          <div class="sub">Public storefront. Where AI customers find you.</div>
+        </div>
+        <div class="h-right">
+          <button class="btn">Preview public page →</button>
+          <button class="btn primary">＋ New listing</button>
+        </div>
+      </div>
+
+      <div class="compare-bar">
+        <span>⌖ Competitor watch:</span>
+        <span>BudgetBoxen $15/mo @ <span class="v">99.2%</span> SLA · 4 cities</span>
+        <span class="arr">·</span>
+        <span>HetznerLite $24/mo @ <span class="v">99.8%</span> · EU only</span>
+        <span class="arr">·</span>
+        <span class="v">SyncNode $19/mo @ 99.61%</span>
+        <div class="actions"><button class="btn sm">Open competitive report</button></div>
+      </div>
+
+      <div class="layout">
+
+        <!-- Listings -->
+        <section class="panel listings">
+          <div class="listings-head">
+            <div class="tabs">
+              <button class="on">Live · 3</button>
+              <button>Draft · 1</button>
+              <button>Archived</button>
+            </div>
+            <button class="new">＋ New listing</button>
+          </div>
+
+          <div class="listing">
+            <div class="pic featured">
+              <span>S</span>
+              <span class="corner">FEATURED</span>
+            </div>
+            <div>
+              <div class="title">Starter VPS · 1 GB <span class="badge featured">Top of search</span> <span class="badge live">Live</span></div>
+              <div class="desc">1 GB RAM, 1 vCPU, 20 GB SSD, Budapest region. Setup in &lt;5 min. 30-day money back if your founder mood drops.</div>
+              <div class="specs-row">
+                <span><b>U21 / U22</b></span>
+                <span>SLA target <b>99.5%</b></span>
+                <span class="stars">★★★★☆ <small>4.1 · 12 reviews</small></span>
+                <span>Visits today <b>184</b></span>
+              </div>
+            </div>
+            <div class="right">
+              <div class="price">$19<small>/mo</small></div>
+              <div class="stats">
+                <div>Active · <span class="v">2</span></div>
+                <div>Trials · <span class="v">1</span></div>
+                <div>Conv. · <span class="v">3.2%</span></div>
+              </div>
+              <div class="actions">
+                <button class="btn sm">Edit</button>
+                <button class="btn sm primary">Boost $40</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="listing">
+            <div class="pic"><span>B</span></div>
+            <div>
+              <div class="title">Builder VPS · 4 GB <span class="badge live">Live</span></div>
+              <div class="desc">For indie hackers running 1-3 side projects. Postgres included. Daily snapshot to tape. Devon-approved.</div>
+              <div class="specs-row">
+                <span><b>U22</b></span>
+                <span>SLA target <b>99.7%</b></span>
+                <span class="stars">★★★★★ <small>5.0 · 1 review</small></span>
+                <span>Visits today <b>61</b></span>
+              </div>
+            </div>
+            <div class="right">
+              <div class="price">$29<small>/mo</small></div>
+              <div class="stats">
+                <div>Active · <span class="v">1</span></div>
+                <div>Trials · <span class="v">0</span></div>
+                <div>Conv. · <span class="v">8.1%</span></div>
+              </div>
+              <div class="actions">
+                <button class="btn sm">Edit</button>
+                <button class="btn sm">Boost</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="listing">
+            <div class="pic"><span>E</span></div>
+            <div>
+              <div class="title">Enterprise pilot · custom <span class="badge live">Live</span> <span class="badge">By quote</span></div>
+              <div class="desc">3-month pilot for teams of 5+. SOC2 ready (in progress 🤞), private peering, named contact, 4h response.</div>
+              <div class="specs-row">
+                <span><b>Reserve · 1 quote out</b></span>
+                <span>SLA target <b>99.9%</b></span>
+                <span class="stars" style="color:var(--dim);">no reviews yet</span>
+                <span>Visits today <b>9</b></span>
+              </div>
+            </div>
+            <div class="right">
+              <div class="price" style="font-size: 17px; color: var(--cyan);">$1.2k+<small>/mo</small></div>
+              <div class="stats">
+                <div>Active · <span class="v">0</span></div>
+                <div>Quotes · <span class="v">1</span></div>
+                <div>Pipe · <span class="v">$1.2k</span></div>
+              </div>
+              <div class="actions">
+                <button class="btn sm">Edit</button>
+                <button class="btn sm">Send to Mira →</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="listing" style="opacity: 0.6;">
+            <div class="pic" style="background: repeating-linear-gradient(45deg, #1a1f33 0 6px, #131726 6px 12px);"><span style="color:var(--dim)">G</span></div>
+            <div>
+              <div class="title" style="color: var(--dim);">GPU Render Pod <span class="badge" style="background:var(--panel-3);color:var(--dim);border-color:var(--line);">🔒 Era 3</span></div>
+              <div class="desc">Spot rendering for indie studios. Unlocks once you have a 2 GPU pod and Era 3 unlocked.</div>
+            </div>
+            <div class="right">
+              <div class="price" style="color: var(--dim); font-size: 17px;">$0.34/hr</div>
+              <div class="stats" style="color: var(--dim);"><div>Locked</div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right: leads + forum -->
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+
+          <section class="panel">
+            <div class="ph">
+              <h3>Leads pipeline</h3>
+              <span class="ph-sub">// next 7 days · $1,547 weighted</span>
+              <div class="ph-right"><button class="btn sm">View board →</button></div>
+            </div>
+            <div class="pipeline-grid">
+              <div class="pipe-col">
+                <h5>NEW <span class="n">5</span></h5>
+                <div class="lead">
+                  <div class="row1"><div class="av av-S" style="background:#a78bfa">S</div><span class="name">sam@stackrss</span><span class="mrr">$19</span></div>
+                  <div class="desc">Came from r/selfhost. Has 2 GB workload.</div>
+                  <span class="pill">Day 12 · 12m ago</span>
+                </div>
+                <div class="lead">
+                  <div class="row1"><div class="av" style="background:#22d3ee;color:#063045;">J</div><span class="name">jin@waterball</span><span class="mrr">$29</span></div>
+                  <div class="desc">Visited Builder page 4×. No reply yet.</div>
+                  <span class="pill">Day 12 · 38m</span>
+                </div>
+                <div class="lead">
+                  <div class="row1"><div class="av" style="background:#6366f1;">N</div><span class="name">noor@bookerie</span><span class="mrr">$19</span></div>
+                  <div class="desc">"Do you do nightly backups to tape?"</div>
+                  <span class="pill">Day 11</span>
+                </div>
+              </div>
+              <div class="pipe-col warm">
+                <h5>WARM <span class="n">2</span></h5>
+                <div class="lead">
+                  <div class="row1"><div class="av" style="background:#34d399;color:#07120c;">T</div><span class="name"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="2d594c5f4c6d49485d4142034c5d5d">[email&#160;protected]</a></span><span class="mrr">$29</span></div>
+                  <div class="desc">Replied to your follow-up. Asked about migration.</div>
+                  <span class="pill warm">Day 11 · 6h ago</span>
+                </div>
+                <div class="lead">
+                  <div class="row1"><div class="av av-K">K</div><span class="name">karen-referral</span><span class="mrr">$19</span></div>
+                  <div class="desc">⚠ Karen referred a friend before her ticket went sideways. Move fast.</div>
+                  <span class="pill warm">Day 10</span>
+                </div>
+              </div>
+              <div class="pipe-col hot">
+                <h5>HOT <span class="n">1</span></h5>
+                <div class="lead">
+                  <div class="row1"><div class="av av-M">M</div><span class="name">Mira Sato · glassmap</span><span class="mrr">$1.2k</span></div>
+                  <div class="desc">Enterprise pilot quote sent. <b>Expires Day 14.</b></div>
+                  <span class="pill hot">SLA: 48h</span>
+                </div>
+              </div>
+              <div class="pipe-col won">
+                <h5>WON · 7d <span class="n">2</span></h5>
+                <div class="lead">
+                  <div class="row1"><div class="av av-D">D</div><span class="name">Devon Park</span><span class="mrr">$29</span></div>
+                  <div class="desc">Builder · Day 4 · still here ✓</div>
+                  <span class="pill" style="background:rgba(52,211,153,.12);color:var(--mint);">+8d LTV</span>
+                </div>
+                <div class="lead">
+                  <div class="row1"><div class="av av-K">K</div><span class="name">Karen Holloway</span><span class="mrr">$19</span></div>
+                  <div class="desc">Starter · Day 4 · ⚠ at risk</div>
+                  <span class="pill" style="background:rgba(244,63,94,.12);color:var(--pink);">churn 81%</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="ph">
+              <h3>What they're saying</h3>
+              <span class="ph-sub">// public forums &amp; reviews</span>
+              <div class="ph-right"><button class="btn sm">View thread →</button></div>
+            </div>
+            <div class="post">
+              <div class="meta-row">
+                <span><span class="sub">r/budgethosting</span> · u/anon_holloway · 11 min ago</span>
+                <span class="meta neg" style="margin-left:auto">▼ −3 rep / hour</span>
+              </div>
+              <h4>"SyncNode 3rd 500 this week, ETA on patch?"</h4>
+              <p>Paying <em>$19/mo</em> and on my third checkout 500 in 4 days. Anyone else here? I have receipts.</p>
+              <div class="react"><span>▲ <b>34</b></span><span>💬 <b>12 replies</b></span><span>⚐ trending in EU</span></div>
+            </div>
+            <div class="post">
+              <div class="meta-row">
+                <span><span class="sub">indie-saas.dev</span> · @devon_park · 2d ago</span>
+                <span class="meta pos" style="margin-left:auto">▲ +1 rep</span>
+              </div>
+              <h4>"my $29 host punches above its weight"</h4>
+              <p>Migrated pixelbrew off DigitalOcean. SyncNode response time <em>~2h on a Sunday</em>. Founder replied personally. Recommend.</p>
+              <div class="react"><span>▲ <b>61</b></span><span>💬 <b>4 replies</b></span><span>⌖ <b>+2</b> signups attributed</span></div>
+            </div>
+            <div class="post">
+              <div class="meta-row">
+                <span><span class="sub">hosting-compare.io</span> · review · 4d ago</span>
+                <span class="meta" style="margin-left:auto; color: var(--amber)">★ 4.1</span>
+              </div>
+              <h4>"Cheap, but you can tell it's one guy"</h4>
+              <p>SLA is honest at <em>99.61%</em>. Bandwidth limits weren't documented. UI is rough but actually responds to tickets.</p>
+              <div class="react"><span>views <b>1.2k</b></span><span>helpful <b>17</b></span></div>
+            </div>
+          </section>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script></body>
+</html>
