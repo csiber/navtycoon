@@ -168,6 +168,44 @@ describe('tickPlayer', () => {
     }
   }, 10000);
 
+  it('daily shift-counter reset: stale last_shift_reset_at → counters zeroed', async () => {
+    const db2 = await createTestDb();
+    await createPlayer(db2, { user_id: 'u-reset', company_name: 'R', city: null });
+    // Set yesterday's reset + ate-up quota
+    const now = 1715000000;
+    const yesterday = Math.floor(now / 86400) * 86400 - 86400;
+    await db2.prepare(
+      'UPDATE players SET free_shifts_today = 1, paid_shifts_today = 4, last_shift_reset_at = ? WHERE user_id = ?',
+    ).bind(yesterday, 'u-reset').run();
+    const player = await getPlayer(db2, 'u-reset');
+    if (!player) throw new Error('player gone');
+    await tickPlayer(db2, player, now);
+    const after = await db2.prepare(
+      'SELECT free_shifts_today, paid_shifts_today, last_shift_reset_at FROM players WHERE user_id = ?',
+    ).bind('u-reset').first<{ free_shifts_today: number; paid_shifts_today: number; last_shift_reset_at: number }>();
+    expect(after?.free_shifts_today).toBe(0);
+    expect(after?.paid_shifts_today).toBe(0);
+    expect(after?.last_shift_reset_at).toBe(Math.floor(now / 86400) * 86400);
+  });
+
+  it('daily shift-counter reset: same-day → no zeroing', async () => {
+    const db2 = await createTestDb();
+    await createPlayer(db2, { user_id: 'u-same', company_name: 'S', city: null });
+    const now = 1715000000;
+    const todayStart = Math.floor(now / 86400) * 86400;
+    await db2.prepare(
+      'UPDATE players SET free_shifts_today = 1, paid_shifts_today = 2, last_shift_reset_at = ? WHERE user_id = ?',
+    ).bind(todayStart, 'u-same').run();
+    const player = await getPlayer(db2, 'u-same');
+    if (!player) throw new Error('player gone');
+    await tickPlayer(db2, player, now);
+    const after = await db2.prepare(
+      'SELECT free_shifts_today, paid_shifts_today FROM players WHERE user_id = ?',
+    ).bind('u-same').first<{ free_shifts_today: number; paid_shifts_today: number }>();
+    expect(after?.free_shifts_today).toBe(1);
+    expect(after?.paid_shifts_today).toBe(2);
+  });
+
   it('uses AI when env.ai + env.vectorize provided and budget allows', async () => {
     const db2 = await createTestDb();
     await createPlayer(db2, { user_id: 'u-ai', company_name: 'AI Inc', city: null });

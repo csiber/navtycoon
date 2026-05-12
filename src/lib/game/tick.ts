@@ -80,6 +80,17 @@ export async function tickPlayer(
   let customersAcquired = 0;
   let marketingSpent = 0;
 
+  // 0. Daily shift-counter rollover (UTC midnight). Without this,
+  //    free_shifts_today / paid_shifts_today never reset → players are
+  //    capped at the day-1 quota forever (real bug found in prod).
+  const todayUtcStart = Math.floor(now / 86400) * 86400;
+  const lastShiftReset = (player as { last_shift_reset_at?: number }).last_shift_reset_at ?? 0;
+  if (lastShiftReset < todayUtcStart) {
+    await db.prepare(
+      'UPDATE players SET free_shifts_today = 0, paid_shifts_today = 0, last_shift_reset_at = ? WHERE user_id = ?',
+    ).bind(todayUtcStart, player.user_id).run();
+  }
+
   // 1. Money trickle: MRR cents/month → per-tick cents
   if (player.mrr_usd_cents > 0) {
     moneyAdded = Math.round(player.mrr_usd_cents * (TICK_MINUTES / (60 * 24 * 30)));
