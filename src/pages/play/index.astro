@@ -1,8 +1,9 @@
 ---
 // /play -- main dashboard. Auth-required.
-import { getCurrentUser, getDB } from '../../lib/auth';
+import { getCurrentUser, getDB, getPromnetDB } from '../../lib/auth';
 import { getPlayer } from '../../lib/game/db';
 import { maybeLazyTick } from '../../lib/game/lazy-tick';
+import { syncProStatus } from '../../lib/game/pro-sync';
 import type { WorkersAIBinding } from '../../lib/ai/workers-ai';
 import type { VectorizeBinding } from '../../lib/ai/vectorize';
 
@@ -21,6 +22,15 @@ if (!initialPlayer) return Astro.redirect('/signup');
 // Hibatűrő: a maybeLazyTick belül kapja el a hibákat, return false-szal.
 const runtimeEnv = (Astro.locals as unknown as { runtime?: { env?: { AI?: WorkersAIBinding; VECTORIZE?: VectorizeBinding } } }).runtime?.env ?? {};
 await maybeLazyTick(db, initialPlayer, { ai: runtimeEnv.AI, vectorize: runtimeEnv.VECTORIZE });
+
+// Pro-status auto-sync from PromNET subscriptions (no Stripe in hyperscaler;
+// active PromNET sub → Pro grant). Hibatűrő: try/catch belül.
+try {
+  const promnetDb = getPromnetDB(ctx);
+  await syncProStatus(db as unknown as Parameters<typeof syncProStatus>[0], promnetDb as unknown as Parameters<typeof syncProStatus>[1], user.id);
+} catch (e) {
+  console.error('pro-sync failed', e);
+}
 
 // Re-fetch a tick utáni friss cash / MRR megjelenítéshez.
 const player = (await getPlayer(db, user.id)) ?? initialPlayer;

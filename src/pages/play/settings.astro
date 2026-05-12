@@ -185,6 +185,37 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
   <button id="set-save"
           style="padding:10px 20px;background:var(--indigo);color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer;">Save changes</button>
   <p id="set-status" style="margin-top:10px;font-size:12px;color:var(--dim);"></p>
+
+  <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line);">
+    <h3 style="font-family: var(--display); margin: 0 0 8px; font-size: 16px;">Subscription</h3>
+    {isPro ? (
+      <div>
+        <p style="margin: 0 0 12px; font-size: 13px; color: var(--mint);">
+          ✓ Pro active{proUntilStr ? ` until ${proUntilStr}` : ''}
+        </p>
+        <p style="margin: 0 0 12px; font-size: 12px; color: var(--muted);">
+          Pro grants 5 shifts/day, 50 LLM calls/day, and priority customer-pool. Pro status syncs from your PromNET subscription.
+        </p>
+        <a href="https://promnet.hu/app/szamlazas" target="_blank" rel="noopener"
+           style="display:inline-block;padding:8px 16px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;font-size:13px;text-decoration:none;">
+          Manage subscription on PromNET →
+        </a>
+      </div>
+    ) : (
+      <div>
+        <p style="margin: 0 0 12px; font-size: 13px; color: var(--muted);">
+          You're on the Free tier: 1 shift/day, 5 LLM calls/day. Upgrade to Pro on PromNET to unlock 5× shifts, 10× AI budget.
+        </p>
+        <a href="https://promnet.hu/app/szamlazas" target="_blank" rel="noopener"
+           style="display:inline-block;padding:10px 20px;background:linear-gradient(135deg, var(--indigo), #4f46e5);color:#fff;border:0;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;">
+          Upgrade to Pro →
+        </a>
+        <p style="margin: 10px 0 0; font-size: 11px; color: var(--dim); font-family: var(--mono);">
+          Active PromNET sub → Pro grant on next page-load.
+        </p>
+      </div>
+    )}
+  </div>
 </div>
 <script is:inline>
   (function () {
