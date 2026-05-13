@@ -1,8 +1,11 @@
 ---
 // Shared dashboard i18n bootstrap. Drop this into ANY /play/*.astro
-// page (anywhere in the body) to enable HU/DE locale-switching for
-// elements with `data-i18n="key"` attributes. Reads `localStorage.hs_lang`
-// (persisted by the landing's lang switcher) or ?lang=… query.
+// page (anywhere in the body) to enable HU/DE locale-switching for:
+//   1) elements with `data-i18n="key"` attributes (per-page semantic keys)
+//   2) globally-known dashboard copy (panel titles, common labels) via
+//      a static EN→HU/DE text dictionary that walks every text node
+// Reads `localStorage.hs_lang` (persisted by the landing's lang switcher)
+// or ?lang=… query.
 import { TRANSLATIONS } from '../lib/i18n';
 ---
 <script is:inline define:vars={{ DASH_TRANSLATIONS: TRANSLATIONS }}>
@@ -20,7 +23,10 @@ import { TRANSLATIONS } from '../lib/i18n';
       if (SUPPORTED.includes(nav)) return nav;
       return 'en';
     }
-    function applyI18n(locale) {
+    const locale = resolveLocale();
+
+    // ───── 1) data-i18n attribute swap ─────────────────────────────────
+    function applyI18nAttrs() {
       const dict = DASH_TRANSLATIONS[locale] || DASH_TRANSLATIONS.en;
       document.querySelectorAll('[data-i18n]').forEach((el) => {
         const key = el.getAttribute('data-i18n');
@@ -30,6 +36,233 @@ import { TRANSLATIONS } from '../lib/i18n';
       });
       document.documentElement.setAttribute('lang', locale);
     }
-    applyI18n(resolveLocale());
+
+    // ───── 2) Static EN→HU/DE text walker for cross-page mock copy ─────
+    // Keyed by EXACT trimmed text. Only one-shot literal swaps; we never
+    // do partial-match because that breaks dynamic content (cash, dates).
+    const STATIC = {
+      hu: {
+        // ─── Panel headings + sub-labels (recur across /play/*) ───
+        'Live event feed': 'Élő esemény-folyam',
+        'Open tickets': 'Nyitott ticketek',
+        'Customer mood': 'Ügyfél-hangulat',
+        'Quick actions': 'Gyors műveletek',
+        'Weekly goals': 'Heti célok',
+        'Era progress': 'Korszak-haladás',
+        'Cash flow · 14 days': 'Pénzforgalom · 14 nap',
+        'Fleet — RACK-01': 'Flotta — RACK-01',
+        'Rack inventory': 'Rack-leltár',
+        'Server detail': 'Szerver-részletek',
+        'Hardware catalog': 'Hardver-katalógus',
+        'Servers': 'Szerverek',
+        'Customers': 'Ügyfelek',
+        'Tickets': 'Ticketek',
+        'Finance': 'Pénzügy',
+        'Research': 'Kutatás',
+        'Marketplace': 'Piactér',
+        'Leaderboard': 'Ranglista',
+        'Devlog': 'Devlog',
+        'Settings': 'Beállítások',
+        'Dashboard': 'Vezérlő',
+        // ─── Common card labels ───
+        'Cash on hand': 'Készpénz',
+        'MRR': 'MRR',
+        'Reputation': 'Hírnév',
+        'Burn rate': 'Égési ráta',
+        'Gross margin': 'Bruttó margó',
+        'Outstanding A/R': 'Kintlévő követelés',
+        'Avg LTV': 'Átlag LTV',
+        'Daily income': 'Napi bevétel',
+        'Daily burn': 'Napi égés',
+        'Runway': 'Futamidő',
+        'Era 1 · Garage': '1. korszak · Garázs',
+        'Era 2 · Colo': '2. korszak · Colo',
+        // ─── Common buttons ───
+        'Buy server': 'Szerver vétel',
+        'List on Marketplace': 'Hirdetés a Piactéren',
+        'Hire support agent': 'Support-ügynök felvétele',
+        'Start support shift': 'Műszak indítása',
+        'Start a shift': 'Műszak indítása',
+        'Start shift now': 'Műszak most',
+        '▶ Start shift now': '▶ Műszak most',
+        'Take loan $500 🔒': '$500 kölcsön 🔒',
+        'Adjust pricing': 'Ár-szabályozás',
+        'Export CSV': 'CSV export',
+        '+ New listing': '+ Új hirdetés',
+        '＋ New listing': '＋ Új hirdetés',
+        'Preview public page →': 'Nyilvános előnézet →',
+        'Page advisor': 'Tanácsadó hívása',
+        'End shift early': 'Műszak korábbi vége',
+        'Share my run': 'Run megosztása',
+        'View season prizes →': 'Szezon-jutalmak →',
+        'Submit feedback →': 'Visszajelzés →',
+        'View thread →': 'Téma megtekintése →',
+        // ─── Crumbs / clock / topbar ───
+        'Play': 'Játék',
+        'Meta': 'Meta',
+        // ─── Devlog ───
+        'Patch notes, roadmap, community': 'Patch-jegyzetek, roadmap, közösség',
+        'Your real timeline — events, upgrades, customer joins.': 'A te valós idővonalad — események, fejlesztések, ügyfél-csatlakozások.',
+        'No activity yet': 'Még nincs aktivitás',
+        // ─── Marketplace placeholder ───
+        'Marketplace v0.8 — coming soon': 'Piactér v0.8 — hamarosan',
+        // ─── Leaderboard ───
+        'Async multiplayer. Your ghost is fighting their ghost. Everyone\'s losing money.': 'Aszinkron többjátékos. A te szellemed harcol az övékkel. Mindenki pénzt veszít.',
+        'Global': 'Globális',
+        'Friends · 8': 'Barátok · 8',
+        'Era 1 only': 'Csak 1. korszak',
+        'Speedrun': 'Speedrun',
+        'Customer-mood': 'Ügyfél-hangulat',
+        'Rank': 'Hely',
+        'Player': 'Játékos',
+        'Score': 'Pontszám',
+        'Day': 'Nap',
+        'Cust.': 'Ügyf.',
+        'Era': 'Korszak',
+        'Badges & achievements': 'Kitűzők',
+        'Friends online': 'Barátok online',
+        // ─── Finance helpers ───
+        'Where the money goes': 'Hová megy a pénz',
+        'What-if simulator': 'Mi-történne szimulátor',
+        'Cashflow · 14d back / 14d projection': 'Pénzforgalom · 14 nap vissza / 14 nap előre',
+        'P&L · last 12 days': 'P&L · utolsó 12 nap',
+        'Invoices & transactions': 'Számlák és tranzakciók',
+        // ─── Customers panel ───
+        'Every account is a persistent LLM agent. They remember.': 'Minden fiók egy folyamatos LLM-ágens. Emlékeznek.',
+        'Invite customer': 'Ügyfél meghívása',
+        '＋ Invite customer': '＋ Ügyfél meghívása',
+        'All': 'Mind',
+        'Paying': 'Fizető',
+        'Trial': 'Trial',
+        'At risk': 'Kockázatos',
+        'Leads': 'Lead-ek',
+        'Healthy': 'Egészséges',
+        'Watch': 'Figyelni',
+        '⚠ Churn risk': '⚠ Churn-rizikó',
+        // ─── Shift mode ───
+        'Shift Mode': 'Műszak-mód',
+        '▶ Start Shift': '▶ Műszak indítása',
+        'Refund 30%': 'Refund 30%',
+        'Refund 50%': 'Refund 50%',
+        'Refund 100%': 'Refund 100%',
+        'Escalate ($50)': 'Eszkalálás ($50)',
+        'Investigate (free)': 'Vizsgálat (ingyen)',
+        'Close ticket': 'Ticket lezárása',
+        'Send': 'Küldés',
+        'Queue': 'Sor',
+        // ─── Tickets ───
+        'Open': 'Nyitott',
+        'Mine': 'Saját',
+        'Closed': 'Lezárt',
+        'Assign →': 'Hozzárendelés →',
+        'Snooze': 'Halaszt',
+        'Close ✓': 'Lezárás ✓',
+        // ─── Era card ───
+        'Garage Era': 'Garázs-korszak',
+        'One beige tower, your cousin\'s wifi, ambition.': 'Egy bézs torony, az unokatestvéred wifije, ambíció.',
+        'Tech tree →': 'Tech-fa →',
+        // ─── Research ───
+        'Tech tree · Era 1': 'Tech-fa · 1. korszak',
+        'Earn RP from happy customers, postmortems, and outages survived.': 'RP-t szerezhetsz boldog ügyfelektől, postmortemekből, túlélt kiesésekből.',
+        'Switch branch': 'Ág-váltás',
+        'Queue research': 'Kutatás sorba',
+        // ─── Servers page ───
+        'View utilization →': 'Kihasználtság →',
+        'SSH ▸': 'SSH ▸',
+        'Restart': 'Újraindítás',
+        'Upgrade →': 'Fejlesztés →',
+        'In stock': 'Készleten',
+        'Need cash': 'Pénz hiány',
+        'Buy →': 'Vétel →',
+        'Locked': 'Zárolt',
+        'Research →': 'Kutatás →',
+        // ─── Misc ───
+        'P1 · open': 'P1 · nyitott',
+        'P1': 'P1',
+        'P2': 'P2',
+        'P3': 'P3',
+        // ─── Welcome modal (already keyed in i18n.ts; safety net) ───
+        'Welcome to Hyperscaler': 'Üdv a Hyperscaler-ben',
+        'Customers are AI': 'Az ügyfeleid AI-k',
+        'Tickets + Shift Mode': 'Ticketek + Műszak-mód',
+        'Servers + Upgrades': 'Szerverek + Fejlesztések',
+        'Your goal': 'A célod',
+        'Next': 'Tovább',
+        'Back': 'Vissza',
+        "Let's go": 'Indulhat',
+      },
+      de: {
+        'Live event feed': 'Live-Event-Feed',
+        'Open tickets': 'Offene Tickets',
+        'Customer mood': 'Kundenstimmung',
+        'Quick actions': 'Schnellaktionen',
+        'Weekly goals': 'Wochenziele',
+        'Era progress': 'Ära-Fortschritt',
+        'Rack inventory': 'Rack-Inventar',
+        'Hardware catalog': 'Hardware-Katalog',
+        'Servers': 'Server',
+        'Customers': 'Kunden',
+        'Tickets': 'Tickets',
+        'Finance': 'Finanzen',
+        'Research': 'Forschung',
+        'Marketplace': 'Marktplatz',
+        'Leaderboard': 'Bestenliste',
+        'Settings': 'Einstellungen',
+        'Dashboard': 'Dashboard',
+        'Cash on hand': 'Verfügbares Geld',
+        'Burn rate': 'Verbrennungsrate',
+        'Runway': 'Laufzeit',
+        'Buy server': 'Server kaufen',
+        'Start support shift': 'Schicht starten',
+        'Start a shift': 'Schicht starten',
+        '▶ Start Shift': '▶ Schicht starten',
+        'Close ticket': 'Ticket schließen',
+        'Send': 'Senden',
+        'Queue': 'Warteschlange',
+        'Open': 'Offen',
+        'Closed': 'Geschlossen',
+        'Mine': 'Meine',
+        'No activity yet': 'Noch keine Aktivität',
+        'Marketplace v0.8 — coming soon': 'Marktplatz v0.8 — bald verfügbar',
+        'Next': 'Weiter',
+        'Back': 'Zurück',
+        "Let's go": 'Los geht\'s',
+      },
+    };
+
+    function walkText(node, dict) {
+      if (node.nodeType === 3) {
+        const raw = node.nodeValue;
+        if (!raw) return;
+        const trimmed = raw.trim();
+        if (!trimmed) return;
+        if (dict[trimmed]) {
+          node.nodeValue = raw.replace(trimmed, dict[trimmed]);
+        }
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      const el = node;
+      const tag = el.tagName;
+      if (tag === 'SCRIPT' || tag === 'STYLE') return;
+      if (el.hasAttribute && el.hasAttribute('data-i18n')) return;
+      if (tag === 'OPTION') {
+        const t = (el.textContent || '').trim();
+        if (dict[t]) el.textContent = dict[t];
+      }
+      for (let i = 0; i < el.childNodes.length; i++) walkText(el.childNodes[i], dict);
+    }
+
+    function applyStatic() {
+      if (locale === 'en') return;
+      const dict = STATIC[locale];
+      if (!dict) return;
+      walkText(document.body, dict);
+    }
+
+    // Run attrs first, then static walker (so any data-i18n-resolved keys
+    // are already in place and the walker skips them).
+    applyI18nAttrs();
+    applyStatic();
   })();
 </script>
