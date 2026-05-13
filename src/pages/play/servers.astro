@@ -90,6 +90,102 @@ const pageHtml = "\n<div class=\"app\">\n\n  <!-- Sidebar -->\n  <aside>\n    <a
         if (h1.firstChild) h1.firstChild.textContent = 'Servers ';
         if (count) count.textContent = s.servers.length + ' owned';
       }
+
+      // Replace mock hardware catalog with real buyableData (XSS-safe DOM build).
+      const catList = document.querySelector('.cat-list');
+      if (catList) {
+        catList.replaceChildren();
+        if (!s.buyable || s.buyable.length === 0) {
+          const empty = document.createElement('div');
+          empty.style.cssText = 'padding:20px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12px;';
+          empty.textContent = 'No servers available at your current era.';
+          catList.appendChild(empty);
+        } else {
+          for (const item of s.buyable) {
+            const card = document.createElement('div');
+            card.className = 'cat-item' + (item.affordable ? ' affordable' : '');
+            const row1 = document.createElement('div');
+            row1.className = 'row1';
+            const name = document.createElement('span');
+            name.className = 'name';
+            name.textContent = item.name;
+            const tag = document.createElement('span');
+            tag.className = 'tag' + (item.affordable ? '' : ' lock');
+            tag.textContent = item.affordable ? 'In stock' : 'Need cash';
+            row1.append(name, tag);
+            const specs = document.createElement('div');
+            specs.className = 'specs-mini';
+            const cap = document.createElement('span');
+            cap.textContent = item.capacity + ' slots';
+            const mon = document.createElement('span');
+            mon.textContent = '$' + item.monthly + '/mo';
+            const fl = document.createElement('span');
+            fl.textContent = item.flavor || '';
+            specs.append(cap, mon, fl);
+            const row2 = document.createElement('div');
+            row2.className = 'row2';
+            const price = document.createElement('span');
+            price.className = 'price' + (item.affordable ? '' : ' lock');
+            price.textContent = '$' + item.cost;
+            const buy = document.createElement('button');
+            buy.className = 'buy';
+            buy.textContent = item.affordable ? 'Buy →' : 'Locked';
+            if (item.affordable) {
+              buy.dataset.buyServer = item.type;
+            } else {
+              buy.disabled = true;
+            }
+            row2.append(price, buy);
+            card.append(row1, specs, row2);
+            catList.appendChild(card);
+          }
+        }
+      }
+
+      // Upgrade section (appended below catalog) — real upgradesData.
+      if (s.upgrades && s.upgrades.length > 0) {
+        const catPanel = document.querySelector('.cat-panel');
+        if (catPanel) {
+          const sec = document.createElement('div');
+          sec.style.cssText = 'border-top:1px solid var(--line);padding:12px 14px;';
+          const hd = document.createElement('div');
+          hd.style.cssText = 'font-family:var(--mono);font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;';
+          hd.textContent = 'Upgrades · ' + s.ownedUpgradeCount + '/' + s.totalUpgradeCount + ' owned';
+          sec.appendChild(hd);
+          for (const u of s.upgrades) {
+            const card = document.createElement('div');
+            card.className = 'cat-item' + (u.affordable ? ' affordable' : '');
+            const row1 = document.createElement('div');
+            row1.className = 'row1';
+            const nm = document.createElement('span');
+            nm.className = 'name';
+            nm.textContent = u.name;
+            row1.appendChild(nm);
+            const eff = document.createElement('div');
+            eff.className = 'specs-mini';
+            const e1 = document.createElement('span');
+            e1.textContent = u.effect || '';
+            eff.appendChild(e1);
+            const row2 = document.createElement('div');
+            row2.className = 'row2';
+            const pr = document.createElement('span');
+            pr.className = 'price' + (u.affordable ? '' : ' lock');
+            pr.textContent = '$' + u.cost;
+            const bt = document.createElement('button');
+            bt.className = 'buy';
+            bt.textContent = u.affordable ? 'Research →' : 'Need cash';
+            if (u.affordable) {
+              bt.dataset.buyUpgrade = u.id;
+            } else {
+              bt.disabled = true;
+            }
+            row2.append(pr, bt);
+            card.append(row1, eff, row2);
+            sec.appendChild(card);
+          }
+          catPanel.appendChild(sec);
+        }
+      }
     } catch (e) { console.error('hydrate', e); }
 
     // Buy-server + buy-upgrade handlers (preserved from old page).
