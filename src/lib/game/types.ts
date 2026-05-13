@@ -40,7 +40,10 @@ export type EventType =
   | 'dmca'
   | 'cooling_failure'
   | 'security_breach'
-  | 'era_unlock';
+  | 'era_unlock'
+  | 'compliance_audit'
+  | 'competitor_buyout'
+  | 'staff_drama';
 
 export type EventOutcome = 'positive' | 'neutral' | 'negative';
 

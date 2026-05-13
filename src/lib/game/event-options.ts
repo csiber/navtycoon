@@ -273,6 +273,146 @@ export const EVENT_DEFINITIONS: Record<EventType, EventDefinition> = {
     ],
   },
 
+  compliance_audit: {
+    event_type: 'compliance_audit',
+    title: '📋 SOC 2 audit request',
+    narrative:
+      'A prospective enterprise customer asks: "Do you have SOC 2 Type II?" This is the deal that could change the year. Or kill the quarter.',
+    options: [
+      {
+        id: 'hire_auditor',
+        label: 'Hire a Big 4 auditor ($1,200)',
+        description: 'Expensive but real. 6 weeks of paperwork. Unlocks enterprise tier.',
+        apply: () => ({
+          outcome: 'positive',
+          cash_delta_cents: -120000,
+          satisfaction_delta_global: 2,
+          reputation_delta: 8,
+          message: 'You passed. The customer signed a $4k/mo contract. Word is spreading.',
+        }),
+      },
+      {
+        id: 'diy_evidence',
+        label: 'DIY evidence pack ($200)',
+        description: 'Cheap, time-consuming, may or may not satisfy the customer.',
+        apply: () => ({
+          outcome: 'neutral',
+          cash_delta_cents: -20000,
+          satisfaction_delta_global: 0,
+          reputation_delta: 2,
+          message: 'Customer said "good enough for now". You bought a smaller deal.',
+        }),
+      },
+      {
+        id: 'decline_audit',
+        label: "Tell them you don't do SOC 2",
+        description: 'Free. Customer walks. Other prospects may follow.',
+        apply: () => ({
+          outcome: 'negative',
+          cash_delta_cents: 0,
+          satisfaction_delta_global: 0,
+          reputation_delta: -3,
+          message: 'They tweeted about it. Two more prospects ghosted the same week.',
+        }),
+      },
+    ],
+  },
+
+  competitor_buyout: {
+    event_type: 'competitor_buyout',
+    title: '💼 Acquisition offer on the table',
+    narrative:
+      'BigCloudCo wants to acquire you. Lowball but real money. Your customers would migrate. Your founder-mode would end.',
+    options: [
+      {
+        id: 'take_the_money',
+        label: 'Sell for $25,000',
+        description: 'Wallet bump. Game continues. Reputation drops (you sold out).',
+        apply: () => ({
+          outcome: 'positive',
+          cash_delta_cents: 2500000,
+          satisfaction_delta_global: -8,
+          reputation_delta: -10,
+          message: 'You sold. Cash in the bank. Devon unsubscribed in protest.',
+        }),
+      },
+      {
+        id: 'counter_offer',
+        label: 'Counter at $80k',
+        description: 'Coin flip — they might pay, or might walk.',
+        apply: () => {
+          const won = Math.random() < 0.4;
+          return {
+            outcome: won ? ('positive' as const) : ('negative' as const),
+            cash_delta_cents: won ? 8000000 : 0,
+            satisfaction_delta_global: 0,
+            reputation_delta: won ? -5 : 3,
+            message: won
+              ? 'They paid $80k. Holy crap. The runway is real now.'
+              : 'They walked. Indie cred intact, but the deal is dead.',
+          };
+        },
+      },
+      {
+        id: 'reject',
+        label: 'Decline politely',
+        description: 'Indie founder vibes. Customers love it.',
+        apply: () => ({
+          outcome: 'positive',
+          cash_delta_cents: 0,
+          satisfaction_delta_global: 4,
+          reputation_delta: 6,
+          message: 'Word got out. Three Twitter threads, all positive. Trial signups +18% this week.',
+        }),
+      },
+    ],
+  },
+
+  staff_drama: {
+    event_type: 'staff_drama',
+    title: '🎭 Staff drama — your SRE is threatening to quit',
+    narrative:
+      "Lin is pacing the slack DMs. Three on-call pages this week. She wants a raise OR Fridays off OR she's walking.",
+    options: [
+      {
+        id: 'give_raise',
+        label: 'Give the raise (-$800)',
+        description: 'She stays. Cash drains. Other staff hear about it.',
+        apply: () => ({
+          outcome: 'neutral',
+          cash_delta_cents: -80000,
+          satisfaction_delta_global: 1,
+          reputation_delta: 1,
+          message: 'Lin stays. Devon noticed and asked about a raise too.',
+        }),
+      },
+      {
+        id: 'fridays_off',
+        label: 'Fridays off (free)',
+        description: 'No extra cost, but Friday on-call is now you.',
+        apply: () => ({
+          outcome: 'positive',
+          cash_delta_cents: 0,
+          satisfaction_delta_global: 0,
+          reputation_delta: 2,
+          message: 'Lin is grateful. You handle Friday pages personally. R.I.P. your weekends.',
+        }),
+      },
+      {
+        id: 'let_her_walk',
+        label: 'Wish her luck',
+        description: "You're back to solo ops. New hires take ~4 weeks to ramp.",
+        apply: () => ({
+          outcome: 'negative',
+          cash_delta_cents: 0,
+          satisfaction_delta_global: -10,
+          reputation_delta: -4,
+          message: 'Lin left. Two P1s within 48h. Customer-mood took a hit.',
+        }),
+      },
+    ],
+  },
+
   security_breach: {
     event_type: 'security_breach',
     title: '🔓 Suspected security breach',

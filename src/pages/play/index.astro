@@ -469,6 +469,48 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
     setTimeout(function () { document.body.classList.remove('preload'); }, 30);
   });
 </script>
+{awayStats && awayStats.era_unlocked_to && (
+  <div id="era-unlock-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:grid;place-items:center;backdrop-filter:blur(4px);">
+    <div style="background:linear-gradient(135deg,rgba(245,158,11,.18),rgba(99,102,241,.12)),var(--panel);border:1px solid rgba(245,158,11,.3);border-radius:16px;padding:32px 32px 28px;max-width:480px;margin:20px;box-shadow:0 24px 64px -16px rgba(245,158,11,.4);text-align:center;">
+      <div style="font-size:56px;margin-bottom:8px;">🎉</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--amber);text-transform:uppercase;letter-spacing:.12em;font-weight:700;">Era unlocked</div>
+      <h2 style="font-family:var(--display);font-size:28px;font-weight:700;margin:8px 0 6px;background:linear-gradient(135deg,var(--text),var(--amber));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;">
+        Era {awayStats.era_unlocked_to}
+        {awayStats.era_unlocked_to === 2 ? ' · Colocation' : awayStats.era_unlocked_to === 3 ? ' · VPS Boom' : awayStats.era_unlocked_to === 4 ? ' · Dedicated' : ''}
+      </h2>
+      <p style="color:var(--muted);font-size:14px;line-height:1.5;margin:14px 0 18px;">
+        {awayStats.era_unlocked_to === 2 ? "Time to graduate from the garage. Rack servers, real customers — and the staff that comes with them." : awayStats.era_unlocked_to === 3 ? 'VPS slicing is in. Acquisition rate doubles. So do the things that can go wrong.' : awayStats.era_unlocked_to === 4 ? 'Dedicated boxes per customer. Edge POPs on the horizon. You made it.' : 'New servers, new customers, new ways to fail.'}
+      </p>
+      <div style="background:rgba(7,9,15,.4);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:18px;text-align:left;font-size:13px;color:var(--muted);">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Now available</div>
+        {awayStats.era_unlocked_to === 2 && <>
+          <div>· 1U Rack Server in the catalog ($900)</div>
+          <div>· VPS Node ($2,200) — 250 customer capacity</div>
+          <div>· Era-2 upgrades in the research tree</div>
+          <div>· Acquisition rate × 1.5</div>
+        </>}
+        {awayStats.era_unlocked_to === 3 && <>
+          <div>· Cloud Region servers (Phase 2)</div>
+          <div>· Era-3 upgrades</div>
+          <div>· Acquisition rate × 2</div>
+          <div>· Higher-tier business customers</div>
+        </>}
+        {awayStats.era_unlocked_to === 4 && <>
+          <div>· Edge POPs (Phase 2)</div>
+          <div>· Era-4 upgrades</div>
+          <div>· Acquisition rate × 3</div>
+          <div>· Enterprise contracts incoming</div>
+        </>}
+      </div>
+      <button id="era-unlock-dismiss" style="padding:12px 28px;background:linear-gradient(135deg,var(--indigo),#4f46e5);color:#fff;border:0;border-radius:10px;font-weight:600;cursor:pointer;font-size:14px;">Let's grow 🚀</button>
+    </div>
+  </div>
+  <script is:inline>
+    document.getElementById('era-unlock-dismiss')?.addEventListener('click', () => {
+      document.getElementById('era-unlock-modal')?.remove();
+    });
+  </script>
+)}
 {needsOnboarding && (
   <div id="onboarding-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:grid;place-items:center;backdrop-filter:blur(4px);">
     <div style="background:var(--panel);border:1px solid var(--line-2);border-radius:16px;padding:32px;max-width:520px;margin:20px;box-shadow:0 24px 64px -16px rgba(99,102,241,.4);">

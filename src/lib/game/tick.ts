@@ -46,7 +46,10 @@ const PRO_CHURN_MULTIPLIER = 0.5;
 const WELCOME_BOOST_DAYS = 7;
 const WELCOME_BOOST_MULTIPLIER = 2;
 
-const EVENT_TYPES: ReadonlyArray<EventType> = [
+// Era-gated event pools. Era 1 players see core events; Era 2+ unlocks
+// compliance_audit + staff_drama (mid-game flavor); Era 3+ unlocks
+// competitor_buyout (late-game stakes). Higher eras get the union.
+const EVENT_POOL_BASE: ReadonlyArray<EventType> = [
   'ddos_attempt',
   'viral_blog',
   'electricity_spike',
@@ -56,6 +59,14 @@ const EVENT_TYPES: ReadonlyArray<EventType> = [
   'cooling_failure',
   'security_breach',
 ];
+const EVENT_POOL_ERA2: ReadonlyArray<EventType> = ['compliance_audit', 'staff_drama'];
+const EVENT_POOL_ERA3: ReadonlyArray<EventType> = ['competitor_buyout'];
+
+function eventPoolForEra(era: number): ReadonlyArray<EventType> {
+  if (era >= 3) return [...EVENT_POOL_BASE, ...EVENT_POOL_ERA2, ...EVENT_POOL_ERA3];
+  if (era >= 2) return [...EVENT_POOL_BASE, ...EVENT_POOL_ERA2];
+  return EVENT_POOL_BASE;
+}
 
 export interface TickResult {
   player_id: string;
@@ -281,9 +292,10 @@ export async function tickPlayer(
     }
   }
 
-  // 7. Random event spawn
+  // 7. Random event spawn — pool depends on player's current era.
   if (Math.random() < RANDOM_EVENT_PROB_PER_TICK) {
-    const type = EVENT_TYPES[Math.floor(Math.random() * EVENT_TYPES.length)];
+    const pool = eventPoolForEra(player.current_era);
+    const type = pool[Math.floor(Math.random() * pool.length)];
     await db.prepare(
       'INSERT INTO events (player_id, event_type, spawned_at) VALUES (?, ?, ?)',
     ).bind(player.user_id, type, now).run();
