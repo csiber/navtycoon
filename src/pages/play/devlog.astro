@@ -263,6 +263,14 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       const rx = patch.querySelector('.reactions');
       if (rx) rx.style.display = 'none';
     }
+
+    // Day-counter
+    const dayEl = document.querySelector('.clock .day');
+    if (dayEl) {
+      const small = dayEl.querySelector('small');
+      dayEl.textContent = 'Day ' + s.day;
+      if (small) { small.textContent = ' / 365'; dayEl.appendChild(small); }
+    }
   } catch (e) { console.error('hydrate', e); }
 </script>
 <div id="achievements-wrap" style="max-width: 1100px; margin: 24px auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;">

@@ -265,6 +265,14 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
         setTimeout(function () { shareBtn.textContent = orig; }, 2200);
       });
     }
+
+    // Day-counter
+    const dayEl = document.querySelector('.clock .day');
+    if (dayEl) {
+      const small = dayEl.querySelector('small');
+      dayEl.textContent = 'Day ' + s.day;
+      if (small) { small.textContent = ' / 365'; dayEl.appendChild(small); }
+    }
   } catch (e) { console.error('hydrate', e); }
 </script>
 <script is:inline>

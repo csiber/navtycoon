@@ -118,6 +118,36 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
         }
       });
     }
+
+    // Day-counter
+    const dayEl = document.querySelector('.clock .day');
+    if (dayEl) {
+      const small = dayEl.querySelector('small');
+      dayEl.textContent = 'Day ' + s.day;
+      if (small) { small.textContent = ' / 365'; dayEl.appendChild(small); }
+    }
+
+    // The body of /play/marketplace (listings, leads-pipeline, forum-posts)
+    // is 100% hardcoded mock referencing Karen/Devon/Mira and listings the
+    // player has never created. Replace the .layout block with a single
+    // "Marketplace v0.8" placeholder until real listings + leads ship.
+    const layout = document.querySelector('.layout');
+    if (layout) {
+      layout.replaceChildren();
+      const card = document.createElement('div');
+      card.style.cssText = 'grid-column: span 12; padding: 60px 24px; text-align: center; background: var(--panel); border: 1px dashed var(--line-2); border-radius: 14px;';
+      const icon = document.createElement('div');
+      icon.style.cssText = 'font-size: 36px; opacity: 0.5; margin-bottom: 12px;';
+      icon.textContent = '◈';
+      const title = document.createElement('h3');
+      title.style.cssText = 'margin: 0; font-family: var(--display); font-size: 18px; font-weight: 600;';
+      title.textContent = 'Marketplace v0.8 — coming soon';
+      const sub = document.createElement('p');
+      sub.style.cssText = 'margin: 8px auto 0; max-width: 540px; color: var(--muted); font-size: 13px;';
+      sub.textContent = 'Listings, lead-pipeline, and public-forum reactions ship in v0.8. For now the storefront pulls customers via the cron-tick + shift loop.';
+      card.append(icon, title, sub);
+      layout.appendChild(card);
+    }
   } catch (e) { console.error('hydrate', e); }
 </script>
 <script is:inline>
