@@ -17,12 +17,13 @@
 //  - Per-player-szigetelés: minden write WHERE player_id = ?
 
 import type { D1Database } from '@cloudflare/workers-types/experimental';
-import type { Player, PersonaArchetype, EventType, PlanTier } from './types';
+import type { Player, PersonaArchetype, EventType, PlanTier, EraId } from './types';
 import { getPlaceholderTicketForPersona, spawnCustomer } from './customer-spawn';
 import { generateAiTicket } from '../ai/ticket-generator';
 import { storeTicketMemory, type VectorizeBinding } from '../ai/vectorize';
 import { tryConsumeLlmCall } from './llm-cap';
 import type { WorkersAIBinding } from '../ai/workers-ai';
+import { maybeAdvanceEra } from './era-progress';
 
 const TICK_MINUTES = 5;
 const CHURN_HOURS = 48;
@@ -66,6 +67,7 @@ export interface TickResult {
   events_spawned: number;
   customers_acquired: number;
   marketing_spent_cents: number;
+  era_advanced_to: EraId | null;
 }
 
 export interface TickEnv {
@@ -288,6 +290,21 @@ export async function tickPlayer(
     eventsSpawned++;
   }
 
+  // 8. Era-progression: auto-advance if requirements met. Re-read player to
+  //    use post-tick MRR (acquisition + churn may have changed it).
+  let eraAdvancedTo: EraId | null = null;
+  try {
+    const fresh = await db.prepare('SELECT * FROM players WHERE user_id = ?')
+      .bind(player.user_id).first<Player>();
+    if (fresh) {
+      eraAdvancedTo = await maybeAdvanceEra(db, fresh, now);
+    }
+  } catch (e) {
+    // Non-fatal — era advancement failure shouldn't break the tick.
+    // eslint-disable-next-line no-console
+    console.error('maybeAdvanceEra failed', e);
+  }
+
   // Mark this tick — both cron and lazy-tick paths converge here, so the
   // dashboard's "last tick X min ago" and the lazy-tick 5-min throttle stay
   // consistent regardless of which path fired.
@@ -305,6 +322,7 @@ export async function tickPlayer(
     events_spawned: eventsSpawned,
     customers_acquired: customersAcquired,
     marketing_spent_cents: marketingSpent,
+    era_advanced_to: eraAdvancedTo,
   };
 }
 

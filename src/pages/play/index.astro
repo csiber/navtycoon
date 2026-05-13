@@ -56,7 +56,7 @@ const showShiftCta = openTickets > 0 && totalShiftsToday < shiftCap;
 const lastActive = (player as { last_active_at?: number }).last_active_at ?? 0;
 const awaySec = Math.floor(Date.now() / 1000) - lastActive;
 const showAwaySummary = awaySec >= 3600 && lastActive > 0;
-let awayStats: null | { new_tickets: number; new_events: number; new_customers: number; cash_change_cents: number; churned: number; hours: number } = null;
+let awayStats: null | { new_tickets: number; new_events: number; new_customers: number; cash_change_cents: number; churned: number; hours: number; era_unlocked_to: number | null } = null;
 if (showAwaySummary) {
   const since = lastActive;
   const new_tickets = (await db.prepare(
@@ -71,8 +71,19 @@ if (showAwaySummary) {
   const churned = (await db.prepare(
     'SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 0 AND churn_risk = 100',
   ).bind(user.id).first<{ n: number }>())?.n ?? 0;
+  // Era unlock since last visit?
+  const eraEventRow = await db.prepare(
+    "SELECT data_json FROM events WHERE player_id = ? AND event_type = 'era_unlock' AND spawned_at >= ? ORDER BY spawned_at DESC LIMIT 1",
+  ).bind(user.id, since).first<{ data_json: string | null }>();
+  let era_unlocked_to: number | null = null;
+  if (eraEventRow?.data_json) {
+    try {
+      const d = JSON.parse(eraEventRow.data_json);
+      era_unlocked_to = typeof d.to_era === 'number' ? d.to_era : null;
+    } catch { /* ignore */ }
+  }
   awayStats = {
-    new_tickets, new_events, new_customers, churned,
+    new_tickets, new_events, new_customers, churned, era_unlocked_to,
     cash_change_cents: 0, // retroaktív cash-delta csak transaction-log alapján — még nincs
     hours: Math.floor(awaySec / 3600),
   };
@@ -177,7 +188,7 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
     <div>
       <div style="font-family:var(--display);font-weight:700;font-size:14px;margin-bottom:4px;">Welcome back ({awayStats.hours}h away)</div>
       <div style="font-size:12px;color:var(--muted);">
-        {awayStats.new_customers > 0 ? `+${awayStats.new_customers} customers · ` : ''}{awayStats.new_tickets} new tickets · {awayStats.new_events} new events{awayStats.churned > 0 ? ` · ${awayStats.churned} churned` : ''}
+        {awayStats.new_customers > 0 ? `+${awayStats.new_customers} customers · ` : ''}{awayStats.new_tickets} new tickets · {awayStats.new_events} new events{awayStats.churned > 0 ? ` · ${awayStats.churned} churned` : ''}{awayStats.era_unlocked_to ? ` · 🎉 unlocked Era ${awayStats.era_unlocked_to}` : ''}
       </div>
     </div>
     <button id="away-close" style="background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:18px;padding:0;">×</button>

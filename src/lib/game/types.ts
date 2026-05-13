@@ -39,7 +39,8 @@ export type EventType =
   | 'intern_incident'
   | 'dmca'
   | 'cooling_failure'
-  | 'security_breach';
+  | 'security_breach'
+  | 'era_unlock';
 
 export type EventOutcome = 'positive' | 'neutral' | 'negative';
 
