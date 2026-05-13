@@ -215,6 +215,21 @@ const pageHtml = "\n<div class=\"app\">\n\n  <!-- Sidebar -->\n  <aside>\n    <a
     });
   </script>
 <script is:inline>
+  // Idle rack-LED activity: subtly flip random LEDs to amber every ~1.9s
+  // so the rack feels alive even on an idle dashboard.
+  (function () {
+    const leds = document.querySelectorAll('.u-row .leds i');
+    if (leds.length === 0) return;
+    setInterval(() => {
+      const idx = Math.floor(Math.random() * leds.length);
+      const led = leds[idx];
+      if (!led.dataset.orig) led.dataset.orig = led.className;
+      led.className = 'a';
+      setTimeout(() => { led.className = led.dataset.orig; }, 320);
+    }, 1900);
+  })();
+</script>
+<script is:inline>
   // Hide mock-data flash: remove preload-class once hydrators have run.
   window.addEventListener('load', function () {
     setTimeout(function () { document.body.classList.remove('preload'); }, 30);

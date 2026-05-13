@@ -103,6 +103,23 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
           row.className = 'cust-row' + (i === 0 ? ' selected' : '');
           const av = document.createElement('div');
           av.className = 'av av-' + initial;
+          // Use the generated portrait per persona_archetype as background;
+          // letter remains as accessible fallback if the image is missing.
+          const PORTRAITS = {
+            karen: '/img/persona-karen.webp',
+            newbie: '/img/persona-loyalist.webp',
+            pro: '/img/persona-pro.webp',
+            cheapskate: '/img/persona-cheapskate.webp',
+            ghost: '/img/persona-ghost.webp',
+            loyalist: '/img/persona-loyalist.webp',
+            drama: '/img/persona-drama.webp',
+            crypto: '/img/persona-crypto.webp',
+          };
+          const portrait = PORTRAITS[c.persona] || '/img/persona-anon.webp';
+          av.style.backgroundImage = 'url(' + portrait + ')';
+          av.style.backgroundSize = 'cover';
+          av.style.backgroundPosition = 'center';
+          av.style.color = 'transparent';
           av.textContent = initial;
           const mid = document.createElement('div');
           const mname = document.createElement('div');
