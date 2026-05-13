@@ -229,10 +229,12 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       ph.textContent = 'Detailed P&L lands when day-by-day cash history is recorded. See KPIs above + invoices below.';
       pnl.appendChild(ph);
     }
-    // Right column: 2nd + 3rd panel (scenario + burn breakdown) — keep burn,
-    // hide scenario since its numbers are simulated mock with Karen references.
-    const rightPanels = document.querySelectorAll('.layout > div:nth-child(2) > section.panel');
-    if (rightPanels[0]) rightPanels[0].style.display = 'none';
+    // Hide the "What-if simulator" / scenario-planner panel — its inputs
+    // include hardcoded references like "Karen leaves at 81%". Locate it
+    // by its h3 text so the selector survives layout rewrites.
+    const scenPanel = Array.from(document.querySelectorAll('section.panel'))
+      .find((p) => /What-if simulator/.test(p.querySelector('h3')?.textContent || ''));
+    if (scenPanel) scenPanel.style.display = 'none';
   } catch (e) { console.error('hydrate', e); }
 </script>
 <script is:inline>
