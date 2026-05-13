@@ -422,7 +422,9 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     // Side-nav sub-section selector is decorative — remove.
     document.querySelectorAll('.set-nav, .save-bar').forEach((el) => el.remove());
     // Profile-head "Share /rep page" + "Edit avatar" buttons aren't wired.
-    document.querySelectorAll('.prof-actions .btn').forEach((b) => b.remove());
+    // They live in .profile-head > .actions (not .prof-actions).
+    document.querySelectorAll('.profile-head .actions').forEach((el) => el.remove());
+    document.querySelectorAll('.prof-actions').forEach((el) => el.remove());
     // Crumbs sub "Profile, gameplay, AI, audio, data" — mock list.
     const crumbSub = document.querySelector('.crumbs span:last-child');
     if (crumbSub && /Profile, gameplay/.test(crumbSub.textContent || '')) crumbSub.remove();
