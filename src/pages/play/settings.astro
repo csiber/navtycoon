@@ -196,6 +196,227 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
         if (small) small.textContent = 'Last opened Day ' + s.day;
       }
     });
+
+    // ─── Locale-aware text translation for the static settings copy ───
+    // The template ships in English; sidebar nav is already hooked into
+    // I18nDashboard via data-i18n attrs, but the body copy is fixed strings.
+    // We post-translate them client-side from a small dictionary keyed by
+    // the English source text, so the page reads HU/DE end-to-end.
+    function getLang() {
+      try {
+        const url = new URL(window.location.href);
+        const q = url.searchParams.get('lang');
+        if (q && ['en','hu','de'].includes(q)) return q;
+        const saved = localStorage.getItem('hs_lang');
+        if (saved && ['en','hu','de'].includes(saved)) return saved;
+      } catch { /* sandboxed */ }
+      const nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
+      return ['en','hu','de'].includes(nav) ? nav : 'en';
+    }
+    const lang = getLang();
+    if (lang !== 'en') {
+      const HU = {
+        // Page-head + buttons
+        'Settings': 'Beállítások',
+        'Auto-saved 2s ago': 'Auto-mentve 2 mp.',
+        'Tune your save, your face, your AI advisor, and your pager.': 'Hangold a mentésed, az arcod, az AI-tanácsadód és a pager-edet.',
+        'Reset to defaults': 'Alapértékre',
+        'Export save (.json)': 'Mentés exportálása (.json)',
+        // Set-nav
+        'Profile': 'Profil',
+        'Gameplay': 'Játékmenet',
+        'AI advisor': 'AI tanácsadó',
+        'Notifications': 'Értesítések',
+        'Audio': 'Hang',
+        'Display & UI': 'Megjelenés',
+        'Controls': 'Irányítás',
+        'Multiplayer': 'Többjátékos',
+        'Save & data': 'Mentés és adatok',
+        'Danger zone': 'Veszélyzóna',
+        // Section heads (h2 + sub)
+        'How you show up on leaderboards and other players\' reputation pages.': 'Hogyan jelensz meg a ranglistán és más játékosok reputációs oldalain.',
+        'Tune difficulty, pacing, and how forgiving the sim is.': 'Hangold a nehézséget, tempót és a szimuláció toleranciáját.',
+        '"Lin-1" reads your sim and surfaces what\'s about to break. Configure how loud she gets.': '"Lin-1" olvassa a szimuládat és előre jelzi, mi fog elromlani. Hangold a hangosságát.',
+        'Notifications & pager': 'Értesítések és pager',
+        'When and how the game interrupts you. Yes, this is the famous "pager" panel.': 'Mikor és hogyan szakítson meg a játék. Igen, ez a híres "pager" panel.',
+        'Audio & UI': 'Hang és UI',
+        'Permanent. Cannot be undone. Read twice.': 'Végleges. Nem visszavonható. Olvasd el kétszer.',
+        // Field labels (first text-node)
+        'Display name': 'Megjelenítendő név',
+        'Company name': 'Cég neve',
+        'Public reputation page': 'Nyilvános reputáció-oldal',
+        'Show on global leaderboard': 'Megjelenés a globális ranglistán',
+        'Difficulty': 'Nehézség',
+        'Game speed multiplier': 'Játék-sebesség szorzó',
+        'Auto-pause on P1 ticket': 'Auto-szünet P1 ticketnél',
+        'Show tutorial hints': 'Súgó-popup megjelenítése',
+        'Permadeath mode': 'Permadeath mód',
+        'Advisor model': 'Tanácsadó modell',
+        'Suggestion frequency': 'Javaslat-gyakoriság',
+        'Auto-action threshold': 'Auto-művelet küszöb',
+        'Personality': 'Személyiség',
+        'In-game pager — P1 tickets': 'Játékon belüli pager — P1 ticketek',
+        'Desktop notifications': 'Asztali értesítések',
+        '"Quiet hours"': '"Csendes órák"',
+        'Quiet hours window': 'Csendes órák időszaka',
+        'Email digest': 'E-mail összefoglaló',
+        'Master volume': 'Fő hangerő',
+        'Pager / alert sounds': 'Pager / riasztás hangerő',
+        'Ambient datacenter hum': 'Adatközpont háttérhang',
+        'UI theme': 'UI téma',
+        'Accent color': 'Kiemelő szín',
+        'UI density': 'UI sűrűség',
+        'Reduce motion': 'Mozgás csökkentése',
+        'Cloud sync': 'Felhő-szinkron',
+        'Auto-save interval': 'Auto-mentési időköz',
+        'Anonymous gameplay telemetry': 'Anonim gameplay-telemetria',
+        'Reset current save': 'Aktuális mentés törlése',
+        'Forfeit season': 'Szezon feladása',
+        'Delete account': 'Fiók törlése',
+        // Field smalls
+        'Shown on leaderboards and in customer tickets.': 'Megjelenik a ranglistán és az ügyféltickeken.',
+        'Your in-game brand. Customers see this on invoices.': 'Játékon belüli márka. Az ügyfelek a számlákon látják.',
+        'Lets others link to your stats. Disable to stay anonymous.': 'Mások hivatkozhatnak a statjaidra. Kapcsold ki, ha névtelen akarsz maradni.',
+        'Your rank and score still update — just hidden from the public ladder.': 'A rangod és pontszámod tovább frissül — csak a nyilvános ranglistáról rejtve.',
+        'Adjusts customer churn rates, P1 spawn frequency, and starting cash.': 'Befolyásolja az ügyfél-churn-arányokat, P1 spawn-gyakoriságot és a kezdő készpénzt.',
+        '1 in-game day = N seconds of real time. The pause button still works.': '1 játékbeli nap = N valós másodperc. A szünet gomb tovább működik.',
+        'Stop the sim when a fire starts so you can read before you panic.': 'Állítsa meg a szimulációt egy P1-nél, hogy elolvashasd, mielőtt pánikolnál.',
+        'Era 1 only. New mechanics get a popup the first time they appear.': 'Csak az 1. korszak. Új mechanikák első megjelenésekor popup.',
+        'If you go bankrupt, the save is sealed. No rewinds. Leaderboard flair.': 'Csőd esetén a mentés lezárul. Nincs visszacsévélés. Ranglista-jutalom.',
+        'Controls quality of suggestions. Premium runs your own API key — slower but smarter.': 'A javaslatok minősége. A premium a saját API-kulcsodat használja — lassabb, de okosabb.',
+        'How often Lin-1 pops up with proactive advice.': 'Milyen gyakran ugrik fel Lin-1 proaktív tanáccsal.',
+        'If confidence is above this, Lin acts without asking (e.g. auto-refund a $19 ticket).': 'Ha a magabiztosság e fölött van, Lin kérdés nélkül cselekszik (pl. auto-refund $19).',
+        'How Lin-1 talks to you. Affects copy in advisor banner.': 'Hogyan beszél hozzád Lin-1. A tanácsadó-banner szövegét érinti.',
+        'Sound + screen flash when a P1 fires.': 'Hang + képernyő-villanás P1-nél.',
+        'Push notifications when you alt-tab away from the game.': 'Push-értesítések, ha alt-tab-eltél a játékból.',
+        'Pages defer to a daily summary. Honored by P1+. Configure schedule below.': 'A pager napi összefoglalóvá tér át. P1+-nál tiszteletben tartva.',
+        'Real clock time. Game still runs; you just sleep.': 'Valós óraidő. A játék fut; te alszol.',
+        'Daily summary of overnight events.': 'Napi összefoglaló az éjszakai eseményekről.',
+        'The 3 AM noise. Tunable.': 'A hajnali 3-as zaj. Beállítható.',
+        'Fans, HVAC, distant beeping.': 'Ventilátorok, HVAC, távoli sípolás.',
+        'Dark "rack room" is canon.': 'A sötét "rack room" a kánon.',
+        'Cozy = more whitespace. Compact = more data per screen.': 'Kényelmes = több helyköz. Kompakt = több adat / képernyő.',
+        'Disables clock ticking animations and event-feed slide-ins.': 'Letiltja az óra-ketyegést és a feed-animációkat.',
+        '3 saves synced across devices. Conflict resolution by last-write.': '3 mentés szinkron eszközök közt. Konfliktus = utolsó-író nyer.',
+        'Real-time minutes between snapshots.': 'Valós percek a snapshot-ok közt.',
+        'Helps us tune difficulty. No content, no chat.': 'Segít hangolni a nehézséget. Nincs tartalom, nincs chat.',
+        'Wipes your current run. Keeps your profile, leaderboard history, badges.': 'Törli az aktuális futtatást. Megmarad a profil, ranglista, kitűzők.',
+        'Removes you from the current season ladder. You can rejoin next season.': 'Eltávolít a jelenlegi szezon-ranglistáról. A következő szezonban újra csatlakozhatsz.',
+        'Removes profile, saves, friends, achievements, /rep page. Permanent.': 'Törli a profilt, mentéseket, barátokat, kitűzőket, /rep oldalt. Végleges.',
+        // Buttons
+        'Share /rep page': '/rep oldal megosztása',
+        'Edit avatar': 'Avatar szerkesztése',
+        'Reset save': 'Mentés törlése',
+        'Forfeit': 'Feladás',
+        'Discard': 'Elvet',
+        'Manage saves →': 'Mentések kezelése →',
+        // Difficulty seg + scen-toggle
+        'Casual': 'Kezdő',
+        'Standard': 'Normál',
+        'Hard': 'Nehéz',
+        'Karen mode': 'Karen mód',
+        'Off': 'Ki',
+        'Low': 'Alacsony',
+        'Med': 'Közép',
+        'High': 'Magas',
+        'Dry': 'Száraz',
+        'Direct': 'Direkt',
+        'Warm': 'Meleg',
+        'Snarky': 'Csípős',
+        'Dark': 'Sötét',
+        'Amber CRT': 'Borostyán CRT',
+        'High contrast': 'Magas kontraszt',
+        'Cozy': 'Kényelmes',
+        'Normal': 'Normál',
+        'Compact': 'Kompakt',
+        // Save bar
+        'All changes saved · 2s ago': 'Minden mentve · 2 mp.',
+        'Apply & resume sim': 'Alkalmaz & szimuláció folyt.',
+        // Top action
+        'Edit profile': 'Profil szerkesztése',
+      };
+      const DE = {
+        'Settings': 'Einstellungen',
+        'Auto-saved 2s ago': 'Auto-gespeichert vor 2s',
+        'Reset to defaults': 'Auf Standard zurücksetzen',
+        'Export save (.json)': 'Spielstand exportieren (.json)',
+        'Profile': 'Profil',
+        'Gameplay': 'Spielablauf',
+        'AI advisor': 'KI-Berater',
+        'Notifications': 'Benachrichtigungen',
+        'Audio': 'Audio',
+        'Display & UI': 'Anzeige & UI',
+        'Controls': 'Steuerung',
+        'Multiplayer': 'Mehrspieler',
+        'Save & data': 'Speichern & Daten',
+        'Danger zone': 'Gefahrenzone',
+        'Notifications & pager': 'Benachrichtigungen & Pager',
+        'Audio & UI': 'Audio & UI',
+        'Display name': 'Anzeigename',
+        'Company name': 'Firmenname',
+        'Difficulty': 'Schwierigkeit',
+        'Advisor model': 'Berater-Modell',
+        'Suggestion frequency': 'Vorschlagshäufigkeit',
+        'Personality': 'Persönlichkeit',
+        'Master volume': 'Hauptlautstärke',
+        'UI theme': 'UI-Thema',
+        'Accent color': 'Akzentfarbe',
+        'UI density': 'UI-Dichte',
+        'Reduce motion': 'Bewegung reduzieren',
+        'Cloud sync': 'Cloud-Sync',
+        'Reset current save': 'Aktuellen Spielstand zurücksetzen',
+        'Forfeit season': 'Saison aufgeben',
+        'Delete account': 'Konto löschen',
+        'Casual': 'Locker',
+        'Standard': 'Standard',
+        'Hard': 'Schwer',
+        'Off': 'Aus',
+        'Low': 'Niedrig',
+        'Med': 'Mittel',
+        'High': 'Hoch',
+        'Dark': 'Dunkel',
+        'Cozy': 'Gemütlich',
+        'Normal': 'Normal',
+        'Compact': 'Kompakt',
+        'Reset save': 'Spielstand löschen',
+        'Forfeit': 'Aufgeben',
+        'Discard': 'Verwerfen',
+        'Edit profile': 'Profil bearbeiten',
+      };
+      const TR = lang === 'hu' ? HU : DE;
+
+      // Walk every TEXT node and replace exact-match-text with TR[text].
+      // Skip text inside <script>/<style> and inside any element that already
+      // has a data-i18n attribute (those are handled by I18nDashboard).
+      function walkAndTranslate(node) {
+        if (node.nodeType === 3) {
+          const raw = node.nodeValue;
+          if (!raw) return;
+          const trimmed = raw.trim();
+          if (!trimmed) return;
+          if (TR[trimmed]) {
+            node.nodeValue = raw.replace(trimmed, TR[trimmed]);
+          }
+          return;
+        }
+        if (node.nodeType !== 1) return;
+        const tag = node.tagName;
+        if (tag === 'SCRIPT' || tag === 'STYLE') return;
+        if (node.hasAttribute && node.hasAttribute('data-i18n')) return;
+        // input/textarea values
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'OPTION') {
+          const v = node.value || node.textContent;
+          if (v && TR[v.trim()]) {
+            if (tag === 'OPTION') node.textContent = TR[v.trim()];
+            else node.value = TR[v.trim()];
+          }
+        }
+        for (let i = 0; i < node.childNodes.length; i++) {
+          walkAndTranslate(node.childNodes[i]);
+        }
+      }
+      walkAndTranslate(document.body);
+    }
   } catch (e) { console.error('hydrate', e); }
 </script>
 <div id="settings-edit-wrap" style="max-width: 600px; margin: 24px auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;">
