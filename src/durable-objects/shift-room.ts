@@ -233,24 +233,56 @@ export class ShiftRoomDO {
     await this.env.DB.prepare('UPDATE customers SET satisfaction = ? WHERE id = ?')
       .bind(c.current_satisfaction, c.customer_id).run();
     if (resolvesTicket) {
+      const nowSec = Math.floor(Date.now() / 1000);
       await this.env.DB.prepare(`
         UPDATE tickets SET status = 'resolved', resolved_at = ?, satisfaction_delta = ?
         WHERE id = ?
-      `).bind(Math.floor(Date.now() / 1000), c.satisfaction_delta_total, c.ticket_id).run();
+      `).bind(nowSec, c.satisfaction_delta_total, c.ticket_id).run();
+
+      // Event-feed: ticket_resolved row so the dashboard "Live event feed"
+      // panel reflects shift-mode wins instead of staying empty until the
+      // next cron-tick fires.
+      const data = JSON.stringify({
+        customer_name: c.customer_name,
+        archetype: c.archetype,
+        satisfaction_delta: c.satisfaction_delta_total,
+        refund_cents: c.refund_given_cents,
+        outcome: c.satisfaction_delta_total >= 0 ? 'positive' : 'negative',
+      });
+      await this.env.DB.prepare(
+        'INSERT INTO events (player_id, event_type, data_json, spawned_at, resolved_at) ' +
+        "VALUES (?, 'ticket_resolved', ?, ?, ?)",
+      ).bind(this.shift.player_id, data, nowSec, nowSec).run();
     }
   }
 
   async persistShiftHistory() {
     if (!this.shift) return;
     const s = this.summary();
+    const nowSec = Math.floor(Date.now() / 1000);
     await this.env.DB.prepare(`
       INSERT INTO shift_history (player_id, started_at, ended_at, tickets_handled, satisfaction_total, refunds_given_cents, outcome)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      this.shift.player_id, this.shift.started_at, Math.floor(Date.now() / 1000),
+      this.shift.player_id, this.shift.started_at, nowSec,
       this.shift.tickets_handled, s.satisfaction_total, s.refunds_cents,
       this.shift.status === 'completed' ? 'completed' : this.shift.status,
     ).run();
+
+    // Event-feed: shift_end summary so the dashboard "Live event feed"
+    // panel surfaces the post-shift recap (tickets handled / total sat /
+    // refund total / rep delta — the latter filled in below).
+    const shiftEndData = JSON.stringify({
+      resolved: this.shift.tickets_handled,
+      total: this.shift.queue.length,
+      satisfaction_total: s.satisfaction_total,
+      refunds_cents: s.refunds_cents,
+      outcome: this.shift.status,
+    });
+    await this.env.DB.prepare(
+      'INSERT INTO events (player_id, event_type, data_json, spawned_at, resolved_at) ' +
+      "VALUES (?, 'shift_end', ?, ?, ?)",
+    ).bind(this.shift.player_id, shiftEndData, nowSec, nowSec).run();
 
     // Reputation award based on shift outcome — active-play rep gain.
     // Without this, players stalled at rep=50 (default) and couldn't hit
