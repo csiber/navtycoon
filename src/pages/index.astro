@@ -170,45 +170,60 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
     })();
   </script>
 
-  <!-- ─── Ambient music toggle (bottom-right) ─── -->
+  <!-- ─── Ambient music toggle (bottom-right) · Suno-generated custom track ─── -->
   <div id="music-toggle" style="position:fixed;bottom:18px;right:18px;z-index:80;font-family:var(--mono);font-size:12px;">
-    <button id="music-btn" title="Ambient music" style="background:rgba(7,9,15,.85);backdrop-filter:blur(8px);border:1px solid var(--line-2);border-radius:999px;padding:10px 14px;color:var(--muted);cursor:pointer;font-family:inherit;font-size:inherit;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px -8px rgba(0,0,0,.5);">
+    <button id="music-btn" title="Ambient music · custom track" style="background:rgba(7,9,15,.85);backdrop-filter:blur(8px);border:1px solid var(--line-2);border-radius:999px;padding:10px 14px;color:var(--muted);cursor:pointer;font-family:inherit;font-size:inherit;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px -8px rgba(0,0,0,.5);transition:color .15s, transform .15s;">
       <span id="music-icon">🎵</span><span id="music-label">ambient</span>
+      <span id="music-eq" style="display:none;align-items:flex-end;gap:2px;margin-left:4px;">
+        <i style="display:block;width:2px;height:8px;background:currentColor;border-radius:1px;animation:hsEq 0.9s ease-in-out infinite;"></i>
+        <i style="display:block;width:2px;height:12px;background:currentColor;border-radius:1px;animation:hsEq 0.7s ease-in-out infinite .1s;"></i>
+        <i style="display:block;width:2px;height:6px;background:currentColor;border-radius:1px;animation:hsEq 1.1s ease-in-out infinite .2s;"></i>
+        <i style="display:block;width:2px;height:10px;background:currentColor;border-radius:1px;animation:hsEq 0.8s ease-in-out infinite .15s;"></i>
+      </span>
     </button>
-    <div id="music-panel" style="display:none;margin-top:8px;background:rgba(7,9,15,.92);backdrop-filter:blur(12px);border:1px solid var(--line-2);border-radius:12px;padding:10px;width:280px;box-shadow:0 12px 32px -10px rgba(0,0,0,.6);">
-      <iframe id="music-iframe" width="260" height="58" frameborder="0"
-        style="border-radius:8px;border:0;"
-        allow="autoplay; encrypted-media"></iframe>
-      <div style="margin-top:6px;font-size:10px;color:var(--dim);text-align:center;">YouTube Lofi Girl · 24/7</div>
-    </div>
+    <audio id="music-audio" src="/audio/ambient.mp3" loop preload="none"></audio>
   </div>
+  <style is:inline>
+    @keyframes hsEq {
+      0%, 100% { transform: scaleY(0.4); }
+      50% { transform: scaleY(1); }
+    }
+  </style>
   <script is:inline>
     (function () {
       const btn = document.getElementById('music-btn');
-      const panel = document.getElementById('music-panel');
-      const iframe = document.getElementById('music-iframe');
+      const audio = document.getElementById('music-audio');
       const icon = document.getElementById('music-icon');
       const label = document.getElementById('music-label');
-      if (!btn || !panel || !iframe) return;
-      // Default channel — Lofi Girl's lofi hip hop radio livestream
-      const VID = 'jfKfPfyJRdk';
-      let playing = false;
-      btn.addEventListener('click', () => {
-        playing = !playing;
-        if (playing) {
-          iframe.src = `https://www.youtube-nocookie.com/embed/${VID}?autoplay=1&loop=1&playlist=${VID}`;
-          panel.style.display = 'block';
+      const eq = document.getElementById('music-eq');
+      if (!btn || !audio) return;
+      audio.volume = 0.45;
+      function setPlaying(on) {
+        if (on) {
+          audio.play().catch(() => { /* user-gesture required, ignored */ });
           icon.textContent = '🔊';
           label.textContent = 'playing';
+          if (eq) eq.style.display = 'inline-flex';
           btn.style.color = 'var(--mint)';
+          try { localStorage.setItem('hs_music', '1'); } catch {}
         } else {
-          iframe.src = '';
-          panel.style.display = 'none';
+          audio.pause();
           icon.textContent = '🎵';
           label.textContent = 'ambient';
+          if (eq) eq.style.display = 'none';
           btn.style.color = 'var(--muted)';
+          try { localStorage.setItem('hs_music', '0'); } catch {}
         }
-      });
+      }
+      btn.addEventListener('click', () => setPlaying(audio.paused));
+      // Restore preference (but autoplay still requires the click — browsers block silent auto)
+      try {
+        if (localStorage.getItem('hs_music') === '1') {
+          // Audio remains paused until user clicks; we just hint via the icon
+          btn.style.borderColor = 'var(--indigo)';
+          btn.title = 'Ambient music · click to resume';
+        }
+      } catch {}
     })();
   </script>
 

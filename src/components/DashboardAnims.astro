@@ -1,0 +1,152 @@
+---
+// Shared dashboard animation layer. Inject into any /play/*.astro page
+// to add subtle motion to KPI tiles, hover-glow on nav-items + buttons,
+// toast slide-in, page-load fade-in, and breathing on LIVE indicators.
+// Honors prefers-reduced-motion.
+---
+<style is:global>
+  /* ── Page-load fade-in for main content ── */
+  @keyframes hsFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  main > .content,
+  main > header.topbar { animation: hsFadeIn .35s ease-out both; }
+  main > .content { animation-delay: .05s; }
+
+  /* ── Topbar stat tiles: subtle highlight transition + breathing on hover ── */
+  .topbar-stats .tstat {
+    transition: background-color .25s ease, transform .15s ease;
+    position: relative;
+  }
+  .topbar-stats .tstat:hover {
+    transform: translateY(-1px);
+    background-color: rgba(99,102,241,.06);
+    border-radius: 8px;
+  }
+  .topbar-stats .tstat .v {
+    transition: color .25s ease;
+  }
+  @keyframes hsKpiPulse {
+    0%   { color: var(--text); }
+    20%  { color: var(--mint); }
+    100% { color: var(--text); }
+  }
+  .topbar-stats .tstat .v.hs-just-changed {
+    animation: hsKpiPulse 1.6s ease-out;
+  }
+
+  /* ── Nav-item hover-glow ── */
+  .nav-item {
+    transition: background-color .15s ease, color .15s ease, padding-left .15s ease;
+    position: relative;
+  }
+  .nav-item:hover:not(.active):not(.locked) {
+    background-color: rgba(99,102,241,.08);
+    color: var(--text);
+    padding-left: 14px;
+  }
+  .nav-item.active {
+    position: relative;
+  }
+  .nav-item.active::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: 3px; height: 60%;
+    background: linear-gradient(180deg, var(--indigo-2), var(--indigo));
+    border-radius: 0 2px 2px 0;
+    box-shadow: 0 0 8px rgba(99,102,241,.5);
+  }
+
+  /* ── LIVE indicator dot pulse (the `.live` class used in some panels) ── */
+  @keyframes hsLivePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,.6); }
+    50%      { box-shadow: 0 0 0 6px rgba(52,211,153,0); }
+  }
+  .live i, .ph-right .live i {
+    background: var(--mint);
+    border-radius: 50%;
+    width: 7px;
+    height: 7px;
+    display: inline-block;
+    animation: hsLivePulse 2s infinite;
+    margin-right: 6px;
+    vertical-align: 1px;
+  }
+
+  /* ── Panel hover-lift (subtle) ── */
+  section.panel, .panel {
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  section.panel:hover, .panel:hover {
+    border-color: var(--line-2);
+    box-shadow: 0 8px 24px -12px rgba(0,0,0,.4);
+  }
+
+  /* ── Toast / floating widget slide-in ── */
+  @keyframes hsSlideIn {
+    from { opacity: 0; transform: translateX(20px) scale(0.95); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
+  }
+  #achievement-toasts > *,
+  #shift-cta,
+  #away-summary,
+  #era-progress {
+    animation: hsSlideIn .35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes hsModalIn {
+    from { opacity: 0; transform: scale(0.92); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  #era-unlock-modal > div,
+  #onboarding-modal > div {
+    animation: hsModalIn .45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* ── Buttons: gentle press-feedback ── */
+  .btn, .btn-primary, .btn-ghost, button.primary {
+    transition: transform .1s ease, background-color .15s ease, border-color .15s ease;
+  }
+  .btn:active, .btn-primary:active, .btn-ghost:active, button.primary:active {
+    transform: translateY(1px);
+  }
+
+  /* ── Reduce motion preference ── */
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after { animation: none !important; transition: none !important; }
+  }
+</style>
+<script is:inline>
+  // Counter-tween for topbar KPI values. When the page renders fresh values
+  // (cash, MRR, rep), tween from a small offset to the current value to
+  // create the "number rolling" effect on every page-load.
+  (function () {
+    const tiles = document.querySelectorAll('.topbar-stats .tstat .v');
+    tiles.forEach((tile) => {
+      const firstChild = tile.firstChild;
+      if (!firstChild || firstChild.nodeType !== 3) return;
+      const txt = String(firstChild.textContent || '').trim();
+      const match = txt.match(/^(\$?)(-?[0-9,.]+)(.*)$/);
+      if (!match) return;
+      const prefix = match[1] || '';
+      const finalNum = parseFloat(match[2].replace(/,/g, ''));
+      const suffix = match[3] || '';
+      if (!isFinite(finalNum) || finalNum === 0) return;
+      const start = Math.max(0, Math.floor(finalNum * 0.6));
+      const dur = 700;
+      const t0 = performance.now();
+      function step(now) {
+        const t = Math.min(1, (now - t0) / dur);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const cur = start + (finalNum - start) * eased;
+        const formatted = Math.round(cur).toLocaleString();
+        firstChild.textContent = prefix + formatted + suffix;
+        if (t < 1) requestAnimationFrame(step);
+        else firstChild.textContent = prefix + finalNum.toLocaleString() + suffix;
+      }
+      requestAnimationFrame(step);
+    });
+  })();
+</script>

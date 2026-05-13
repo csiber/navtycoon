@@ -4,6 +4,7 @@
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer } from '../../lib/game/db';
 import I18nDashboard from '../../components/I18nDashboard.astro';
+import DashboardAnims from '../../components/DashboardAnims.astro';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -203,5 +204,6 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
   });
 </script>
 <I18nDashboard />
+<DashboardAnims />
 </body>
 </html>

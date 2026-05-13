@@ -106,6 +106,7 @@ const needsOnboarding = !(player as { onboarding_completed_at?: number | null })
 // Skip if already at max era.
 import { nextEraTarget } from '../../lib/game/era-progress';
 import I18nDashboard from '../../components/I18nDashboard.astro';
+import DashboardAnims from '../../components/DashboardAnims.astro';
 const nextEra = nextEraTarget(player.current_era);
 let eraProgress: null | {
   target_era: number;
@@ -594,5 +595,6 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
   </script>
 )}
 <I18nDashboard />
+<DashboardAnims />
 </body>
 </html>

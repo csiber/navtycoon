@@ -3,6 +3,7 @@
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer } from '../../lib/game/db';
 import I18nDashboard from '../../components/I18nDashboard.astro';
+import DashboardAnims from '../../components/DashboardAnims.astro';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -89,15 +90,21 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       if (txt && txt.nodeType === 3) txt.textContent = s.displayName + ' · log out';
     }
 
-    // Pagehead count → show Pro status + "coming soon" placeholder
+    // Pagehead: real run stats instead of Plan-4 placeholder
     const phCount = document.querySelector('.pagehead .count');
     if (phCount) {
-      phCount.textContent = s.isPro
-        ? ('Pro active' + (s.proUntil ? ' until ' + s.proUntil + ' (' + s.proDaysLeft + 'd)' : ''))
-        : 'Free tier · Pro listings coming in Plan 4';
+      const dayLabel = 'Day ' + s.day;
+      const proPart = s.isPro
+        ? (' · Pro' + (s.proUntil ? ' until ' + s.proUntil : ''))
+        : '';
+      phCount.textContent = s.company + ' · ' + dayLabel + ' · $' + s.mrrUsd + ' MRR' + proPart;
     }
     const phSub = document.querySelector('.pagehead .sub');
-    if (phSub) phSub.textContent = 'Stripe integration ships in Plan 4. Listings below are static previews.';
+    if (phSub) {
+      phSub.textContent = s.isPro
+        ? 'Your run is live. Storefront-style listings + Stripe payments roll out in v0.8.'
+        : 'Your storefront preview. Upgrade to Pro for boosted ranking + payment integration.';
+    }
 
     // Compare bar — replace with player's MRR/cash
     const compareBar = document.querySelector('.compare-bar');
@@ -120,5 +127,6 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
   });
 </script>
 <I18nDashboard />
+<DashboardAnims />
 </body>
 </html>

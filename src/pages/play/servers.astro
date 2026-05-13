@@ -5,6 +5,7 @@ import { getPlayer, listServers, listUpgrades } from '../../lib/game/db';
 import { SERVER_SPECS, affordableServerTypes } from '../../lib/game/server-types';
 import { availableUpgrades, UPGRADE_SPECS } from '../../lib/game/upgrade-tree';
 import I18nDashboard from '../../components/I18nDashboard.astro';
+import DashboardAnims from '../../components/DashboardAnims.astro';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -220,5 +221,6 @@ const pageHtml = "\n<div class=\"app\">\n\n  <!-- Sidebar -->\n  <aside>\n    <a
   });
 </script>
 <I18nDashboard />
+<DashboardAnims />
 </body>
 </html>
