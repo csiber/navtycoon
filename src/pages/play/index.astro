@@ -102,6 +102,39 @@ const initials = companyName.split(/\s+/).map((w: string) => w[0] ?? '').join(''
 // First-time-player onboarding: ha az onboarding_completed_at NULL → mutasd a welcome modal-t.
 const needsOnboarding = !(player as { onboarding_completed_at?: number | null }).onboarding_completed_at;
 
+// Era-progress widget: show how close player is to the next era unlock.
+// Skip if already at max era.
+import { nextEraTarget } from '../../lib/game/era-progress';
+const nextEra = nextEraTarget(player.current_era);
+let eraProgress: null | {
+  target_era: number;
+  target_display: string;
+  reqs: Array<{ label: string; current: number; needed: number; pct: number; done: boolean }>;
+  met_count: number;
+  total: number;
+} = null;
+if (nextEra) {
+  const daysAlive = Math.floor((Date.now() / 1000 - player.founded_at) / 86400);
+  const reqs = [
+    { label: 'MRR', current: Math.floor(player.mrr_usd_cents / 100), needed: Math.floor(nextEra.min_mrr_cents / 100) },
+    { label: 'Servers', current: serverCount, needed: nextEra.min_servers },
+    { label: 'Days alive', current: daysAlive, needed: nextEra.min_days_alive },
+    { label: 'Reputation', current: player.reputation, needed: nextEra.min_reputation },
+  ];
+  const progressed = reqs.map((r) => ({
+    ...r,
+    pct: Math.min(100, Math.round((r.current / Math.max(1, r.needed)) * 100)),
+    done: r.current >= r.needed,
+  }));
+  eraProgress = {
+    target_era: nextEra.era,
+    target_display: nextEra.display,
+    reqs: progressed,
+    met_count: progressed.filter((r) => r.done).length,
+    total: progressed.length,
+  };
+}
+
 // Admin-gate: '+admin' subaddress vagy hardcoded owner. Csak admin látja a
 // force-tick widget-et (dev-tooling, amikor cron nem fut).
 const isAdmin = user.email.includes('+admin') || user.email === 'csiberius@gmail.com';
@@ -198,6 +231,35 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
       document.getElementById('away-summary')?.remove();
     });
     setTimeout(() => document.getElementById('away-summary')?.remove(), 10000);
+  </script>
+)}
+{eraProgress && (
+  <div id="era-progress" style="position:fixed;bottom:20px;left:20px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;z-index:88;box-shadow:0 8px 24px -8px rgba(0,0,0,.5);max-width:280px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <span style="font-size:18px;">🎯</span>
+      <div style="flex:1;">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;">Next era</div>
+        <div style="font-family:var(--display);font-weight:700;font-size:14px;">Era {eraProgress.target_era} · {eraProgress.target_display}</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--mint);font-weight:700;">{eraProgress.met_count}/{eraProgress.total}</div>
+      <button id="era-prog-close" style="background:transparent;border:0;color:var(--dim);cursor:pointer;font-size:14px;padding:0;line-height:1;">×</button>
+    </div>
+    {eraProgress.reqs.map((r) => (
+      <div style="margin-bottom:6px;">
+        <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;margin-bottom:2px;">
+          <span style={`color: ${r.done ? 'var(--mint)' : 'var(--muted)'};`}>{r.done ? '✓' : '·'} {r.label}</span>
+          <span style="color:var(--dim);">{r.current}/{r.needed}</span>
+        </div>
+        <div style="height:3px;background:var(--line);border-radius:2px;overflow:hidden;">
+          <div style={`width: ${r.pct}%; height: 100%; background: ${r.done ? 'var(--mint)' : 'linear-gradient(90deg, var(--indigo), var(--amber))'};`}></div>
+        </div>
+      </div>
+    ))}
+  </div>
+  <script is:inline>
+    document.getElementById('era-prog-close')?.addEventListener('click', () => {
+      document.getElementById('era-progress')?.remove();
+    });
   </script>
 )}
 {isAdmin && (
