@@ -82,5 +82,9 @@ const ready = open.length > 0 && cap_remaining >= 5;
     </div>
   </div>
 
-  <script type="module" src="/src/scripts/shift/shift-app.ts"></script>
+  <script>
+    // Vite/Astro bundles this import into a hashed asset at build time —
+    // unlike `<script src="/src/scripts/...">` which 404s in production.
+    import '../../scripts/shift/shift-app';
+  </script>
 </Base>
