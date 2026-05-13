@@ -188,6 +188,14 @@ const pageHtml = "\n<div class=\"app\">\n\n  <!-- Sidebar -->\n  <aside>\n    <a
           catPanel.appendChild(sec);
         }
       }
+
+      // Day-counter
+      const dayEl = document.querySelector('.clock .day');
+      if (dayEl) {
+        const small = dayEl.querySelector('small');
+        dayEl.textContent = 'Day ' + s.day;
+        if (small) { small.textContent = ' / 365'; dayEl.appendChild(small); }
+      }
     } catch (e) { console.error('hydrate', e); }
 
     // Buy-server + buy-upgrade handlers (preserved from old page).
