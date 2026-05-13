@@ -195,6 +195,44 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     // Invoice header count
     const invHead = document.querySelector('.panel.full .ph .ph-sub');
     if (invHead) invHead.textContent = '// ' + s.transactions.length + ' recent tickets';
+
+    // Day-counter
+    const dayEl = document.querySelector('.clock .day');
+    if (dayEl) {
+      const small = dayEl.querySelector('small');
+      dayEl.textContent = 'Day ' + s.day;
+      if (small) { small.textContent = ' / 365'; dayEl.appendChild(small); }
+    }
+
+    // Chart: replace "DAY 12 · NOW" annotation with real day, and drop the
+    // "Karen P1 #042" mock crisis-marker (the chart shape itself stays as
+    // a visual until we have real cash-history).
+    const svg = document.querySelector('.chart-wrap svg');
+    if (svg) {
+      const texts = svg.querySelectorAll('text');
+      texts.forEach((tx) => {
+        const t = tx.textContent || '';
+        if (/DAY \d+ · NOW/.test(t)) tx.textContent = 'DAY ' + s.day + ' · NOW';
+        if (/^\$[0-9,]+$/.test(t)) tx.textContent = '$' + s.cashUsd;
+        if (/Karen P1/.test(t)) tx.remove();
+      });
+    }
+
+    // Hide P&L + scenario-planner + burn-breakdown panels — those are
+    // hardcoded mock data we don't have a real source for yet. Keep KPI
+    // cards (real), cashflow-chart (visual placeholder), invoice list (real).
+    const pnl = document.querySelector('.pnl-table');
+    if (pnl) {
+      pnl.replaceChildren();
+      const ph = document.createElement('div');
+      ph.style.cssText = 'padding:40px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:11px;';
+      ph.textContent = 'Detailed P&L lands when day-by-day cash history is recorded. See KPIs above + invoices below.';
+      pnl.appendChild(ph);
+    }
+    // Right column: 2nd + 3rd panel (scenario + burn breakdown) — keep burn,
+    // hide scenario since its numbers are simulated mock with Karen references.
+    const rightPanels = document.querySelectorAll('.layout > div:nth-child(2) > section.panel');
+    if (rightPanels[0]) rightPanels[0].style.display = 'none';
   } catch (e) { console.error('hydrate', e); }
 </script>
 <script is:inline>

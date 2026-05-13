@@ -84,6 +84,122 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       if (ts[0] && ts[0].firstChild) ts[0].firstChild.textContent = '$' + s.cashUsd;
       if (ts[1] && ts[1].firstChild) ts[1].firstChild.textContent = '$' + s.mrrUsd;
       if (ts[2] && ts[2].firstChild) ts[2].firstChild.textContent = String(s.rep);
+
+      // Day-counter
+      const dayEl = document.querySelector('.clock .day');
+      if (dayEl) {
+        const small = dayEl.querySelector('small');
+        dayEl.textContent = 'Day ' + s.day;
+        if (small) { small.textContent = ' / 365'; dayEl.appendChild(small); }
+      }
+
+      // Hide the "You're on call. Shift active." banner — only valid mid-shift,
+      // which we don't track from here. (Real shift UI lives on /play/shift.)
+      const shiftBanner = document.querySelector('.shift-banner');
+      if (shiftBanner) shiftBanner.style.display = 'none';
+
+      // Inbox tabs: live counts
+      const tabs = document.querySelectorAll('.inbox-tabs button');
+      if (tabs[0]) { const n = tabs[0].querySelector('.n'); if (n) n.textContent = String(s.tickets.length); }
+      if (tabs[1]) { const n = tabs[1].querySelector('.n'); if (n) n.textContent = String(s.tickets.length); }
+      // Inbox list
+      const inboxPanel = document.querySelector('.layout > .panel:first-child');
+      if (inboxPanel) {
+        inboxPanel.querySelectorAll('.ticket-row').forEach((r) => r.remove());
+        if (s.tickets.length === 0) {
+          const empty = document.createElement('div');
+          empty.style.cssText = 'padding:30px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12px;';
+          empty.textContent = 'Inbox zero — go to /play/shift on the next tick to triage incoming.';
+          inboxPanel.appendChild(empty);
+        } else {
+          s.tickets.forEach((t, i) => {
+            const row = document.createElement('div');
+            row.className = 'ticket-row' + (i === 0 ? ' selected' : '');
+            const initial = (t.customer[0] || '?').toUpperCase();
+            const av = document.createElement('div');
+            av.className = 'av av-' + initial;
+            av.textContent = initial;
+            const info = document.createElement('div');
+            const row1 = document.createElement('div'); row1.className = 'row1';
+            const name = document.createElement('span'); name.className = 'name'; name.textContent = t.customer;
+            const prio = document.createElement('span'); prio.className = 'prio p2'; prio.textContent = 'P2';
+            const age = document.createElement('span'); age.className = 'age'; age.textContent = t.age + ' ago';
+            row1.append(name, prio, age);
+            const subj = document.createElement('div'); subj.className = 'subj';
+            const id = document.createElement('b'); id.textContent = '#' + t.id + ' · ';
+            subj.append(id, document.createTextNode(t.summary));
+            const meta = document.createElement('div'); meta.className = 'meta';
+            const persona = document.createElement('span'); persona.textContent = t.persona + ' persona';
+            meta.appendChild(persona);
+            info.append(row1, subj, meta);
+            row.append(av, info);
+            inboxPanel.appendChild(row);
+          });
+        }
+      }
+
+      // Detail panel: render first ticket
+      const first = s.tickets[0];
+      const crumb = document.querySelector('.crumbs span:last-child');
+      if (first && crumb) crumb.textContent = '#' + first.id + ' — ' + first.customer;
+      else if (crumb) crumb.textContent = 'inbox';
+
+      const detailPanel = document.querySelectorAll('.layout > .panel')[1];
+      if (detailPanel) {
+        detailPanel.replaceChildren();
+        if (!first) {
+          const empty = document.createElement('div');
+          empty.style.cssText = 'padding:40px;text-align:center;color:var(--dim);';
+          empty.textContent = '✓ All caught up. Wait for the next cron-tick to spawn new tickets, or start a shift.';
+          detailPanel.appendChild(empty);
+        } else {
+          const head = document.createElement('div'); head.className = 'tk-head';
+          const h2 = document.createElement('h2'); h2.textContent = first.summary + ' ';
+          const idSpan = document.createElement('span'); idSpan.className = 'id'; idSpan.textContent = '#' + first.id;
+          h2.appendChild(idSpan);
+          const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = '⚡ open';
+          head.append(h2, pill);
+          detailPanel.appendChild(head);
+
+          const subRow = document.createElement('div'); subRow.className = 'tk-sub';
+          const fromSp = document.createElement('span');
+          fromSp.append(document.createTextNode('From '));
+          const fromB = document.createElement('b'); fromB.textContent = first.customer;
+          fromSp.appendChild(fromB);
+          const personaSp = document.createElement('span'); personaSp.textContent = 'Persona: ' + first.persona;
+          const ageSp = document.createElement('span'); ageSp.textContent = 'Age: ' + first.age;
+          subRow.append(fromSp, personaSp, ageSp);
+          detailPanel.appendChild(subRow);
+
+          const thread = document.createElement('div'); thread.className = 'thread';
+          const tm = document.createElement('div'); tm.className = 'tmsg';
+          const tmAv = document.createElement('div'); tmAv.className = 'av av-' + (first.customer[0] || '?').toUpperCase();
+          tmAv.textContent = (first.customer[0] || '?').toUpperCase();
+          const tmRight = document.createElement('div');
+          const tmHead = document.createElement('div'); tmHead.className = 'head';
+          const who = document.createElement('span'); who.className = 'who'; who.textContent = first.customer;
+          const ts2 = document.createElement('span'); ts2.className = 'ts'; ts2.textContent = first.age + ' ago';
+          tmHead.append(who, ts2);
+          const body = document.createElement('div'); body.className = 'body';
+          const para = document.createElement('p'); para.textContent = first.body || first.summary;
+          body.appendChild(para);
+          tmRight.append(tmHead, body);
+          tm.append(tmAv, tmRight);
+          thread.appendChild(tm);
+          detailPanel.appendChild(thread);
+
+          const composer = document.createElement('div'); composer.className = 'composer';
+          const note = document.createElement('div');
+          note.style.cssText = 'padding:12px;color:var(--dim);font-family:var(--mono);font-size:11px;text-align:center;border:1px dashed var(--line-2);border-radius:8px;';
+          note.textContent = 'To reply with a live LLM, start a shift at /play/shift.';
+          composer.appendChild(note);
+          detailPanel.appendChild(composer);
+        }
+      }
+
+      // Hide right context aside (mock customer / runbook / impact / related)
+      const ctxAside = document.querySelectorAll('.layout > .panel')[2];
+      if (ctxAside) ctxAside.style.display = 'none';
     } catch (e) { console.error('hydrate', e); }
   </script>
 <script is:inline>
