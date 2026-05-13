@@ -229,12 +229,23 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       ph.textContent = 'Detailed P&L lands when day-by-day cash history is recorded. See KPIs above + invoices below.';
       pnl.appendChild(ph);
     }
-    // Hide the "What-if simulator" / scenario-planner panel — its inputs
-    // include hardcoded references like "Karen leaves at 81%". Locate it
-    // by its h3 text so the selector survives layout rewrites.
-    const scenPanel = Array.from(document.querySelectorAll('section.panel'))
-      .find((p) => /What-if simulator/.test(p.querySelector('h3')?.textContent || ''));
-    if (scenPanel) scenPanel.style.display = 'none';
+    // ─── DROP all mock panels that aren't wired to a real backend ─────
+    // What-if simulator + Where the money goes burn-list + Cashflow chart
+    // are all hardcoded SVG / static data. Top-right Take loan + Adjust
+    // pricing buttons aren't wired either.
+    document.querySelectorAll('section.panel').forEach((p) => {
+      const h3 = (p.querySelector('h3')?.textContent || '').trim();
+      // Keep only: KPI grid (top, doesn't have .panel — left intact),
+      // P&L table (already replaced with placeholder), Invoices panel.
+      if (/What-if simulator|Mi-történne|Where the money goes|Hová megy|Cashflow|Pénzforgalom/.test(h3)) {
+        p.remove();
+      }
+    });
+    // Top-right "Take loan" + "Adjust pricing" buttons — mock.
+    document.querySelectorAll('.pagehead .h-right .btn').forEach((b) => {
+      const t = (b.textContent || '').trim();
+      if (/Take loan|kölcsön|Adjust pricing|Ár-szabályozás/i.test(t)) b.remove();
+    });
 
     // Scrub Karen / Cousin-Tibi flavour from burn-list <small> sublabels.
     document.querySelectorAll('.burn-list .row .lbl small').forEach((el) => {

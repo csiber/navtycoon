@@ -217,6 +217,15 @@ const pageHtml = "\n<div class=\"app\">\n\n  <!-- Sidebar -->\n  <aside>\n    <a
       // "22 empty bays / Karen finds a competitor" mock empty-bay note
       const emptyBay = document.querySelector('.empty-bay');
       if (emptyBay) emptyBay.remove();
+
+      // ─── DROP mock buttons ──────────────────────────────────────────
+      // Detail-head action buttons (SSH / Restart / Upgrade) — none wired.
+      document.querySelectorAll('.detail-actions .btn').forEach((b) => b.remove());
+      // Pagehead "View utilization →" + the "＋ Buy server" duplicate
+      // (the real buy-button lives in the catalog list).
+      document.querySelectorAll('.pagehead .h-right .btn').forEach((b) => b.remove());
+      // Rack tabs: "RACK-01 · BUD" stays as a label, but the "＋ Lease
+      // rack" tab is locked / not wired — keep the lock-icon to hint.
     } catch (e) { console.error('hydrate', e); }
 
     // Buy-server + buy-upgrade handlers (preserved from old page).

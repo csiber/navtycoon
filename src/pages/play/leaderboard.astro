@@ -270,6 +270,23 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       if (nm) nm.textContent = Math.max(0, s.myRank - 1) + ' players above you';
     }
 
+    // ─── DROP all mock panels that aren't wired to a real backend ─────
+    // Season-card (countdown + Bare Metal Summer mock), Badges & achievements
+    // (mock + we already pop achievements via /api/game/achievements toast),
+    // Friends online (no friends-system) — all removed.
+    document.querySelectorAll('.season-card').forEach((el) => el.remove());
+    document.querySelectorAll('section.panel').forEach((p) => {
+      const h3 = (p.querySelector('h3')?.textContent || '').trim();
+      if (/Badges|Kitűzők|Friends online|Barátok online/i.test(h3)) p.remove();
+    });
+    // "View season prizes →" button (no season-system).
+    document.querySelectorAll('.pagehead .h-right .btn').forEach((b) => {
+      const t = (b.textContent || '').trim();
+      if (/View season prizes|Szezon-jutalmak/i.test(t)) b.remove();
+    });
+    // Mock "Updated 1m ago · refresh in 04:12" timestamp in lb-tabs.
+    document.querySelectorAll('.lb-tabs .right').forEach((el) => el.remove());
+
     // "Share my run" button → copies https://hyperscaler.promnet.hu/u/<my-id> to clipboard.
     const shareBtn = document.querySelector('.pagehead .h-right .btn');
     if (shareBtn && !shareBtn.classList.contains('primary')) {

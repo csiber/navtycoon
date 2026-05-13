@@ -684,12 +684,20 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
         if (nextEraProg) nextEraProg.style.width = pctMet + '%';
       }
 
-      // ─── Hide mock-only panels: advisor banner + weekly goals ──────────
-      // (no real Lin-1 advisor wired up yet, weekly-goals not tracked yet)
+      // ─── DROP mock-only panels (no real backend yet) ──────────────────
+      // Advisor banner (no Lin-1 advisor logic), Weekly goals (no goal-track),
+      // and Cash-flow mini-chart panel ("// projection dashed" mock SVG +
+      // mock $1,020 projection numbers).
       const advisor = document.querySelector('.advisor');
-      if (advisor) advisor.style.display = 'none';
+      if (advisor) advisor.remove();
       const goals = document.querySelector('.goals-panel');
-      if (goals) goals.style.display = 'none';
+      if (goals) goals.remove();
+      const financePanel = document.querySelector('.finance-panel');
+      if (financePanel) financePanel.remove();
+      // Topbar bell-counter is mock ("data-count=4"); strip the badge until
+      // we wire it to unresolved-events count.
+      const bell = document.querySelector('.bell');
+      if (bell) bell.removeAttribute('data-count');
 
       // ─── Quick action links → real routes ──────────────────────────────
       const quickBuy = document.querySelector('.quick.buy');

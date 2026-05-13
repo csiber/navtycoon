@@ -417,6 +417,82 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       }
       walkAndTranslate(document.body);
     }
+
+    // ─── DROP all mock UI that isn't wired to a real backend ──────────
+    // Side-nav sub-section selector is decorative — remove.
+    document.querySelectorAll('.set-nav, .save-bar').forEach((el) => el.remove());
+    // Top "Reset to defaults" + "Export save (.json)" buttons are mock.
+    document.querySelectorAll('.pagehead .h-right .btn').forEach((b) => b.remove());
+    // "Auto-saved 2s ago" counter + the page-sub line are mock.
+    const phCount = document.querySelector('.pagehead h1 .count');
+    if (phCount) phCount.remove();
+    const phSub = document.querySelector('.pagehead .sub');
+    if (phSub) phSub.remove();
+
+    // Hide every .sec whose h2 isn't Profile / Danger zone. The other 7
+    // sections are pure mock (toggles, sliders, segments aren't bound).
+    document.querySelectorAll('.sec').forEach((sec) => {
+      const h2 = sec.querySelector('.sec-head h2');
+      const t = (h2 && h2.textContent || '').trim();
+      // The h2 contains an icon prefix like "◉ Profile" or "▶ Játékmenet";
+      // match the trailing word.
+      const keep = /(Profile|Profil|Danger zone|Veszélyzóna|Gefahrenzone)/i.test(t);
+      if (!keep) sec.remove();
+    });
+
+    // Inside the kept Profile section: drop the 4 mock fields (Display
+    // name input, Company name input, Public reputation toggle, Show on
+    // global leaderboard toggle) — the lower #settings-edit-wrap form is
+    // the real editor. Keep the .profile-head (read-only stats).
+    document.querySelectorAll('.sec .field').forEach((f) => {
+      const lbl = f.querySelector('.label');
+      const firstText = (lbl && lbl.firstChild && lbl.firstChild.textContent || '').trim();
+      const keepLabels = [
+        // Danger-zone live actions:
+        'Reset current save', 'Aktuális mentés törlése', 'Aktuelle Spielstand zurücksetzen',
+        'Delete account', 'Fiók törlése', 'Konto löschen',
+      ];
+      if (!keepLabels.some((k) => firstText.startsWith(k))) f.remove();
+    });
+
+    // Wire the "Reset save" button to a real confirm + POST.
+    document.querySelectorAll('.sec.danger .field button').forEach((btn) => {
+      const txt = (btn.textContent || '').trim();
+      if (/Reset save|Mentés törlése/.test(txt)) {
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          if (!confirm('Biztosan törlöd az aktuális mentést? Nem visszavonható.')) return;
+          btn.disabled = true;
+          btn.textContent = '⏳…';
+          try {
+            const r = await fetch('/api/game/reset', { method: 'POST' });
+            if (!r.ok) throw new Error(await r.text());
+            location.href = '/play';
+          } catch (err) {
+            alert('Sikertelen: ' + (err && err.message ? err.message : 'ismeretlen'));
+            btn.disabled = false;
+            btn.textContent = txt;
+          }
+        });
+      }
+      if (/Delete account|Fiók törlése/.test(txt)) {
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          if (!confirm('Biztosan törlöd a fiókodat? Nem visszavonható.')) return;
+          btn.disabled = true;
+          btn.textContent = '⏳…';
+          try {
+            const r = await fetch('/api/auth/delete', { method: 'POST' });
+            if (!r.ok) throw new Error(await r.text());
+            location.href = '/';
+          } catch (err) {
+            alert('Sikertelen: ' + (err && err.message ? err.message : 'ismeretlen'));
+            btn.disabled = false;
+            btn.textContent = txt;
+          }
+        });
+      }
+    });
   } catch (e) { console.error('hydrate', e); }
 </script>
 <div id="settings-edit-wrap" style="max-width: 600px; margin: 24px auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;">

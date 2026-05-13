@@ -227,6 +227,14 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
         dayEl.textContent = 'Day ' + s.day;
         if (small) { small.textContent = ' / 365'; dayEl.appendChild(small); }
       }
+
+      // ─── DROP mock buttons ──────────────────────────────────────────
+      // Profile-head action buttons (Refund $19 / Offer discount /
+      // Reply to ticket #042) are hardcoded per-ticket-ID actions; not
+      // wired to current customer state.
+      document.querySelectorAll('.prof-actions .btn').forEach((b) => b.remove());
+      // Pagehead "Export CSV" + "Invite customer" — not implemented.
+      document.querySelectorAll('.pagehead .h-right .btn').forEach((b) => b.remove());
     } catch (e) { console.error('hydrate', e); }
   </script>
 <script is:inline>
