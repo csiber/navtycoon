@@ -169,6 +169,143 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
       } catch { /* silent */ }
     })();
   </script>
+
+  <!-- ─── Ambient music toggle (bottom-right) ─── -->
+  <div id="music-toggle" style="position:fixed;bottom:18px;right:18px;z-index:80;font-family:var(--mono);font-size:12px;">
+    <button id="music-btn" title="Ambient music" style="background:rgba(7,9,15,.85);backdrop-filter:blur(8px);border:1px solid var(--line-2);border-radius:999px;padding:10px 14px;color:var(--muted);cursor:pointer;font-family:inherit;font-size:inherit;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px -8px rgba(0,0,0,.5);">
+      <span id="music-icon">🎵</span><span id="music-label">ambient</span>
+    </button>
+    <div id="music-panel" style="display:none;margin-top:8px;background:rgba(7,9,15,.92);backdrop-filter:blur(12px);border:1px solid var(--line-2);border-radius:12px;padding:10px;width:280px;box-shadow:0 12px 32px -10px rgba(0,0,0,.6);">
+      <iframe id="music-iframe" width="260" height="58" frameborder="0"
+        style="border-radius:8px;border:0;"
+        allow="autoplay; encrypted-media"></iframe>
+      <div style="margin-top:6px;font-size:10px;color:var(--dim);text-align:center;">YouTube Lofi Girl · 24/7</div>
+    </div>
+  </div>
+  <script is:inline>
+    (function () {
+      const btn = document.getElementById('music-btn');
+      const panel = document.getElementById('music-panel');
+      const iframe = document.getElementById('music-iframe');
+      const icon = document.getElementById('music-icon');
+      const label = document.getElementById('music-label');
+      if (!btn || !panel || !iframe) return;
+      // Default channel — Lofi Girl's lofi hip hop radio livestream
+      const VID = 'jfKfPfyJRdk';
+      let playing = false;
+      btn.addEventListener('click', () => {
+        playing = !playing;
+        if (playing) {
+          iframe.src = `https://www.youtube-nocookie.com/embed/${VID}?autoplay=1&loop=1&playlist=${VID}`;
+          panel.style.display = 'block';
+          icon.textContent = '🔊';
+          label.textContent = 'playing';
+          btn.style.color = 'var(--mint)';
+        } else {
+          iframe.src = '';
+          panel.style.display = 'none';
+          icon.textContent = '🎵';
+          label.textContent = 'ambient';
+          btn.style.color = 'var(--muted)';
+        }
+      });
+    })();
+  </script>
+
+  <!-- ─── Confetti library (canvas-confetti, MIT) ─── -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <!-- ─── Idle pulse on era + feature images ─── -->
+  <style is:global>
+    @keyframes hsBreathe {
+      0%, 100% { transform: scale(1); filter: brightness(1); }
+      50% { transform: scale(1.03); filter: brightness(1.1); }
+    }
+    .era .era-img, .feature .feat-img {
+      animation: hsBreathe 6s ease-in-out infinite;
+      will-change: transform, filter;
+    }
+    .era:nth-child(1) .era-img { animation-delay: 0s; }
+    .era:nth-child(2) .era-img { animation-delay: -1s; }
+    .era:nth-child(3) .era-img { animation-delay: -2s; }
+    .era:nth-child(4) .era-img { animation-delay: -3s; }
+    .era:nth-child(5) .era-img { animation-delay: -4s; }
+    .era:nth-child(6) .era-img { animation-delay: -5s; }
+    .feature:nth-child(1) .feat-img { animation-delay: 0s; }
+    .feature:nth-child(2) .feat-img { animation-delay: -1.5s; }
+    .feature:nth-child(3) .feat-img { animation-delay: -3s; }
+    .feature:nth-child(4) .feat-img { animation-delay: -1s; }
+    .feature:nth-child(5) .feat-img { animation-delay: -2.5s; }
+    .feature:nth-child(6) .feat-img { animation-delay: -4s; }
+    @media (prefers-reduced-motion: reduce) {
+      .era .era-img, .feature .feat-img { animation: none; }
+    }
+  </style>
+
+  <!-- ─── Persona-zoom modal trigger ─── -->
+  <div id="persona-zoom" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:1000;align-items:center;justify-content:center;padding:20px;">
+    <div id="persona-zoom-card" style="background:var(--panel);border:1px solid var(--line-2);border-radius:16px;padding:28px;max-width:480px;text-align:center;box-shadow:0 24px 64px -16px rgba(0,0,0,.7);">
+      <div id="pz-img" style="width:200px;height:200px;border-radius:24px;margin:0 auto 18px;background-size:cover;background-position:center;box-shadow:0 12px 32px -8px rgba(0,0,0,.6);"></div>
+      <h3 id="pz-name" style="font-family:var(--display);font-size:24px;margin:0 0 4px;"></h3>
+      <div id="pz-role" style="font-family:var(--mono);font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px;"></div>
+      <p id="pz-quote" style="font-size:15px;color:var(--muted);line-height:1.6;margin:0 0 18px;font-style:italic;"></p>
+      <button id="pz-close" style="padding:10px 24px;background:var(--text);color:var(--bg);border:0;border-radius:8px;font-weight:600;cursor:pointer;">Close</button>
+    </div>
+  </div>
+  <script is:inline>
+    (function () {
+      const modal = document.getElementById('persona-zoom');
+      const pzImg = document.getElementById('pz-img');
+      const pzName = document.getElementById('pz-name');
+      const pzRole = document.getElementById('pz-role');
+      const pzQuote = document.getElementById('pz-quote');
+      const pzClose = document.getElementById('pz-close');
+      if (!modal) return;
+      document.querySelectorAll('.persona').forEach((p) => {
+        p.style.cursor = 'pointer';
+        p.addEventListener('click', () => {
+          const av = p.querySelector('.avatar');
+          const name = p.querySelector('.persona-name');
+          const role = p.querySelector('.persona-role');
+          const quote = p.querySelector('.persona-quote');
+          if (!av || !name || !role || !quote) return;
+          pzImg.style.backgroundImage = av.style.backgroundImage || '';
+          pzImg.style.backgroundColor = getComputedStyle(av).backgroundColor;
+          pzName.textContent = name.textContent || '';
+          pzRole.textContent = role.textContent || '';
+          pzQuote.textContent = quote.textContent || '';
+          modal.style.display = 'flex';
+        });
+      });
+      pzClose?.addEventListener('click', () => { modal.style.display = 'none'; });
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.style.display = 'none';
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') modal.style.display = 'none';
+      });
+    })();
+  </script>
+
+  <!-- ─── Confetti burst when user clicks 'Start playing free' ─── -->
+  <script is:inline>
+    (function () {
+      window.addEventListener('load', () => {
+        if (typeof confetti !== 'function') return;
+        document.querySelectorAll('.btn-primary').forEach((b) => {
+          b.addEventListener('click', () => {
+            confetti({
+              particleCount: 80,
+              spread: 70,
+              origin: { y: 0.7 },
+              colors: ['#6366f1', '#818cf8', '#f59e0b', '#34d399'],
+            });
+          });
+        });
+      });
+    })();
+  </script>
+
 <script is:inline>
   // Hide mock-data flash: remove preload-class once hydrators have run.
   window.addEventListener('load', function () {
