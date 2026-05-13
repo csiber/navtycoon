@@ -196,6 +196,27 @@ const pageHtml = "\n<div class=\"app\">\n\n  <!-- Sidebar -->\n  <aside>\n    <a
         dayEl.textContent = 'Day ' + s.day;
         if (small) { small.textContent = ' / 365'; dayEl.appendChild(small); }
       }
+
+      // Crumb "RACK-01 / U21" — real first server slot, or strip.
+      const lastCrumb = document.querySelector('.crumbs span:last-child');
+      if (lastCrumb) {
+        if (s.servers && s.servers.length > 0) lastCrumb.textContent = 'RACK-01 / U22';
+        else lastCrumb.textContent = 'empty rack';
+      }
+
+      // Hide the "Workloads hosted" + "Recent incidents" detail-sections —
+      // they reference Karen / nutricoach / pixelbrew customers + Day 12
+      // incidents that the player never created. We don't have a real
+      // workload-to-server mapping table yet, so collapse them entirely.
+      document.querySelectorAll('.detail-section').forEach((sec) => {
+        const h4 = sec.querySelector('h4');
+        const t = h4?.textContent || '';
+        if (/Workloads hosted|Recent incidents/.test(t)) sec.remove();
+      });
+
+      // "22 empty bays / Karen finds a competitor" mock empty-bay note
+      const emptyBay = document.querySelector('.empty-bay');
+      if (emptyBay) emptyBay.remove();
     } catch (e) { console.error('hydrate', e); }
 
     // Buy-server + buy-upgrade handlers (preserved from old page).
