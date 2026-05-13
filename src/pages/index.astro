@@ -327,5 +327,315 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
     setTimeout(function () { document.body.classList.remove('preload'); }, 30);
   });
 </script>
+
+<!-- ─── Cinematic scroll: GSAP + ScrollTrigger + Lenis ─── -->
+<!-- GSAP is free for everyone since 2024 (Webflow acquisition). -->
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
+<style is:global>
+  /* Year-ticker overlay (used in timeline horizontal scroll) */
+  #year-ticker {
+    position: fixed;
+    top: 50%;
+    right: 6%;
+    transform: translateY(-50%);
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(64px, 14vw, 220px);
+    line-height: 0.85;
+    color: rgba(255,255,255,0.04);
+    pointer-events: none;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity .25s ease;
+    letter-spacing: -0.04em;
+    user-select: none;
+    mix-blend-mode: screen;
+  }
+  /* Background spotlight that follows the mouse on hero */
+  #mouse-spotlight {
+    position: fixed;
+    pointer-events: none;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(99,102,241,.18), rgba(99,102,241,0) 70%);
+    transform: translate(-50%, -50%);
+    z-index: 1;
+    transition: opacity .4s ease;
+    opacity: 0;
+    will-change: transform;
+  }
+  /* Pre-animation visibility hints (avoid flash before GSAP boots) */
+  html.cinematic-ready .hero-title > span,
+  html.cinematic-ready .persona,
+  html.cinematic-ready .era,
+  html.cinematic-ready .feature,
+  html.cinematic-ready .post,
+  html.cinematic-ready .shot {
+    will-change: transform, opacity, filter;
+  }
+  /* Pinned-section glow when timeline is in focus */
+  .timeline-pinned-active {
+    position: relative;
+  }
+  .timeline-pinned-active::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(800px 400px at 50% 50%, rgba(99,102,241,.10), transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  /* Reduce-motion bail-out */
+  @media (prefers-reduced-motion: reduce) {
+    #year-ticker, #mouse-spotlight { display: none; }
+  }
+</style>
+<div id="year-ticker">2002</div>
+<div id="mouse-spotlight"></div>
+<script is:inline>
+  (function () {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) return;
+    if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
+
+    document.documentElement.classList.add('cinematic-ready');
+    gsap.registerPlugin(ScrollTrigger);
+
+    // ─── 1. Lenis smooth scroll (drives ScrollTrigger) ───
+    let lenis = null;
+    if (typeof Lenis === 'function') {
+      lenis = new Lenis({
+        duration: 1.15,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        smoothWheel: true,
+        smoothTouch: false,
+      });
+      lenis.on('scroll', ScrollTrigger.update);
+      gsap.ticker.add((time) => lenis.raf(time * 1000));
+      gsap.ticker.lagSmoothing(0);
+    }
+
+    // ─── 2. Mouse spotlight follows pointer ───
+    const spot = document.getElementById('mouse-spotlight');
+    if (spot) {
+      window.addEventListener('mousemove', (e) => {
+        spot.style.opacity = '1';
+        spot.style.left = e.clientX + 'px';
+        spot.style.top = e.clientY + 'px';
+      }, { passive: true });
+      window.addEventListener('mouseleave', () => { spot.style.opacity = '0'; });
+    }
+
+    // ─── 3. Hero entrance: title cascade + dashboard tilt + rack boot ───
+    const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+    heroTl
+      .from('.hero-title > span', { y: 40, opacity: 0, duration: 1, stagger: 0.15 })
+      .from('.hero-sub', { y: 25, opacity: 0, duration: 0.8 }, '-=0.6')
+      .from('.cta-row > *', { y: 20, opacity: 0, duration: 0.6, stagger: 0.1 }, '-=0.5')
+      .from('.meta-row > span', { y: 15, opacity: 0, duration: 0.5, stagger: 0.08 }, '-=0.4')
+      .from('.game-card', { x: 80, opacity: 0, duration: 1, ease: 'power4.out' }, 0.2)
+      .from('.float-widget, .float-widget-2', { scale: 0.8, opacity: 0, duration: 0.6, stagger: 0.2 }, '-=0.7')
+      .from('.rack-stack .u', { x: 30, opacity: 0, duration: 0.4, stagger: 0.05, ease: 'power2.out' }, '-=0.8')
+      .from('.ticket', { x: -20, opacity: 0, duration: 0.5, stagger: 0.1 }, '-=0.6');
+
+    // Game-card scroll-tilt: as user scrolls down within hero, the card
+    // tilts forward and parallaxes up.
+    gsap.to('.game-card', {
+      yPercent: -8,
+      rotateX: 6,
+      rotateY: -3,
+      scrollTrigger: {
+        trigger: '.hero',
+        start: 'top top',
+        end: 'bottom top',
+        scrub: 1.2,
+      },
+    });
+    // Hero text parallax-down (slower than scroll)
+    gsap.to('.hero-grid > div:first-child', {
+      yPercent: 25,
+      opacity: 0.5,
+      scrollTrigger: {
+        trigger: '.hero',
+        start: 'top top',
+        end: 'bottom top',
+        scrub: 1,
+      },
+    });
+
+    // ─── 4. Persona cards: alternating slide-in + blur clear ───
+    gsap.utils.toArray('.persona').forEach((card, i) => {
+      gsap.from(card, {
+        x: i % 2 === 0 ? -120 : 120,
+        opacity: 0,
+        filter: 'blur(8px)',
+        duration: 1.0,
+        ease: 'power3.out',
+        scrollTrigger: {
+          trigger: card,
+          start: 'top 85%',
+          toggleActions: 'play none none reverse',
+        },
+      });
+    });
+
+    // ─── 5. Timeline: horizontal-scroll pin with year-ticker ───
+    const timelineSection = document.getElementById('timeline');
+    const timelineGrid = document.querySelector('.timeline-grid');
+    const yearTicker = document.getElementById('year-ticker');
+    const yearLabels = ['2002', '2006', '2012', '2018', '2024', '2026'];
+
+    if (timelineSection && timelineGrid && window.innerWidth > 720) {
+      // Make the grid wide enough for horizontal scroll
+      const eraCount = timelineGrid.querySelectorAll('.era').length;
+      const gridWidth = timelineGrid.scrollWidth;
+      const viewportWidth = window.innerWidth;
+      const scrollDist = Math.max(0, gridWidth - viewportWidth * 0.85);
+
+      if (scrollDist > 40) {
+        timelineGrid.style.willChange = 'transform';
+        const xTween = gsap.to(timelineGrid, {
+          x: -scrollDist,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: timelineSection,
+            start: 'top top+=60',
+            end: () => '+=' + (scrollDist + 200),
+            scrub: 1,
+            pin: true,
+            anticipatePin: 1,
+            onEnter: () => { if (yearTicker) yearTicker.style.opacity = '1'; },
+            onLeave: () => { if (yearTicker) yearTicker.style.opacity = '0'; },
+            onEnterBack: () => { if (yearTicker) yearTicker.style.opacity = '1'; },
+            onLeaveBack: () => { if (yearTicker) yearTicker.style.opacity = '0'; },
+            onUpdate: (st) => {
+              if (!yearTicker) return;
+              const idx = Math.min(yearLabels.length - 1, Math.floor(st.progress * yearLabels.length));
+              yearTicker.textContent = yearLabels[idx];
+            },
+          },
+        });
+        // Scale the centered era card up
+        gsap.utils.toArray('.era').forEach((era) => {
+          gsap.fromTo(era, { scale: 0.92 }, {
+            scale: 1.06,
+            ease: 'power1.inOut',
+            scrollTrigger: {
+              trigger: era,
+              containerAnimation: xTween,
+              start: 'left 75%',
+              end: 'right 25%',
+              scrub: true,
+            },
+          });
+        });
+      }
+    } else if (timelineGrid) {
+      // Mobile / small viewport: simple stagger reveal
+      gsap.utils.toArray('.era').forEach((era, i) => {
+        gsap.from(era, {
+          y: 30,
+          opacity: 0,
+          duration: 0.7,
+          ease: 'power2.out',
+          scrollTrigger: { trigger: era, start: 'top 85%', toggleActions: 'play none none reverse' },
+        });
+      });
+    }
+
+    // ─── 6. Game preview: tab-cycle as user scrolls past ───
+    const tabs = document.querySelectorAll('.preview-wide .pw-bar .tab');
+    if (tabs.length > 0) {
+      ScrollTrigger.create({
+        trigger: '#game',
+        start: 'top 50%',
+        end: 'bottom 50%',
+        onUpdate: (st) => {
+          const idx = Math.min(tabs.length - 1, Math.floor(st.progress * tabs.length));
+          tabs.forEach((t, i) => t.classList.toggle('on', i === idx));
+        },
+      });
+      // Chip-floats: stagger pop-in
+      gsap.utils.toArray('.chip-float').forEach((chip, i) => {
+        gsap.from(chip, {
+          scale: 0,
+          opacity: 0,
+          duration: 0.5,
+          delay: i * 0.15,
+          ease: 'back.out(1.7)',
+          scrollTrigger: { trigger: '.preview-wide', start: 'top 70%', toggleActions: 'play none none reverse' },
+        });
+      });
+      // Shots: bottom-up reveal
+      gsap.utils.toArray('.shot').forEach((shot, i) => {
+        gsap.from(shot, {
+          y: 50,
+          opacity: 0,
+          duration: 0.8,
+          delay: i * 0.1,
+          ease: 'power3.out',
+          scrollTrigger: { trigger: shot, start: 'top 85%', toggleActions: 'play none none reverse' },
+        });
+      });
+    }
+
+    // ─── 7. Features: 3D rotate-in stagger ───
+    gsap.utils.toArray('.feature').forEach((feat, i) => {
+      gsap.from(feat, {
+        y: 60,
+        opacity: 0,
+        rotateY: i % 2 === 0 ? -15 : 15,
+        filter: 'blur(6px)',
+        duration: 0.9,
+        delay: (i % 3) * 0.12,
+        ease: 'power3.out',
+        scrollTrigger: { trigger: feat, start: 'top 80%', toggleActions: 'play none none reverse' },
+      });
+    });
+
+    // ─── 8. Community: forum-cards drift in ───
+    gsap.utils.toArray('.post').forEach((post, i) => {
+      gsap.from(post, {
+        y: 40,
+        opacity: 0,
+        duration: 0.7,
+        delay: i * 0.1,
+        ease: 'power2.out',
+        scrollTrigger: { trigger: post, start: 'top 85%', toggleActions: 'play none none reverse' },
+      });
+    });
+
+    // ─── 9. CTA final: title cascade + side-card stagger ───
+    gsap.from('.cta-final h2 > span', {
+      y: 50,
+      opacity: 0,
+      duration: 1,
+      stagger: 0.18,
+      ease: 'power3.out',
+      scrollTrigger: { trigger: '.cta-final', start: 'top 75%' },
+    });
+    gsap.from('.cta-side .row', {
+      x: 40,
+      opacity: 0,
+      duration: 0.6,
+      stagger: 0.1,
+      ease: 'power2.out',
+      scrollTrigger: { trigger: '.cta-side', start: 'top 80%' },
+    });
+
+    // ─── 10. Background radial-glow parallax (very subtle) ───
+    gsap.to('body', {
+      backgroundPosition: '50% 100%',
+      ease: 'none',
+      scrollTrigger: { trigger: 'body', start: 'top top', end: 'bottom bottom', scrub: 2 },
+    });
+
+    // Refresh ScrollTrigger after fonts/images load (heights can shift)
+    window.addEventListener('load', () => {
+      setTimeout(() => ScrollTrigger.refresh(), 200);
+    });
+  })();
+</script>
 </body>
 </html>
