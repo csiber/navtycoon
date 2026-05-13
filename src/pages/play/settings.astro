@@ -180,6 +180,22 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       dayEl.textContent = 'Day ' + s.day;
       if (small) { small.textContent = ' / 365'; dayEl.appendChild(small); }
     }
+
+    // Strip mock "Day 12 progress" + "Season 3" labels in Danger-zone.
+    document.querySelectorAll('.field .label small').forEach((sm) => {
+      const t = sm.textContent || '';
+      if (/Wipes Day 12 progress/.test(t)) sm.textContent = 'Wipes your current run. Keeps your profile, leaderboard history, badges.';
+      if (/Removes you from Season 3 ladder/.test(t)) sm.textContent = 'Removes you from the current season ladder. You can rejoin next season.';
+    });
+    // Active save · "SyncNode" → real company
+    document.querySelectorAll('.field .label').forEach((lbl) => {
+      const firstText = (lbl.firstChild && lbl.firstChild.nodeType === 3) ? lbl.firstChild.textContent : '';
+      if (firstText && firstText.indexOf('Active save') === 0) {
+        lbl.firstChild.textContent = 'Active save · "' + s.company + '"';
+        const small = lbl.querySelector('small');
+        if (small) small.textContent = 'Last opened Day ' + s.day;
+      }
+    });
   } catch (e) { console.error('hydrate', e); }
 </script>
 <div id="settings-edit-wrap" style="max-width: 600px; margin: 24px auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;">
