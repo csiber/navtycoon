@@ -6,6 +6,7 @@ import Base from '../../layouts/Base.astro';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer, listTickets } from '../../lib/game/db';
 import { getLlmUsageToday, getDailyCap } from '../../lib/game/llm-cap';
+import I18nDashboard from '../../components/I18nDashboard.astro';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;

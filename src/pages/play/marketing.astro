@@ -3,6 +3,7 @@
 // Server normalize-eli a mix-et (összeg=100%); ha mind 0, balanced default.
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer } from '../../lib/game/db';
+import I18nDashboard from '../../components/I18nDashboard.astro';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -145,25 +146,25 @@ const pageHtml = `
       <div class="bar"><i></i></div>
     </div>
     <div class="nav-section">
-      <div class="nav-head">Operate</div>
-      <a class="nav-item" href="/play"><span class="ico">▣</span> Dashboard</a>
-      <a class="nav-item" href="/play/servers"><span class="ico">▤</span> Servers</a>
-      <a class="nav-item" href="/play/customers"><span class="ico">◉</span> Customers</a>
-      <a class="nav-item" href="/play/tickets"><span class="ico">✉</span> Tickets</a>
-      <a class="nav-item" href="/play/finance"><span class="ico">$</span> Finance</a>
+      <div class="nav-head" data-i18n="dash.nav.operate">Operate</div>
+      <a class="nav-item" href="/play"><span class="ico">▣</span> <span data-i18n=\"dash.nav.dashboard\">Dashboard</span></a>
+      <a class="nav-item" href="/play/servers"><span class="ico">▤</span> <span data-i18n="dash.nav.servers">Servers</span></a>
+      <a class="nav-item" href="/play/customers"><span class="ico">◉</span> <span data-i18n="dash.nav.customers">Customers</span></a>
+      <a class="nav-item" href="/play/tickets"><span class="ico">✉</span> <span data-i18n="dash.nav.tickets">Tickets</span></a>
+      <a class="nav-item" href="/play/finance"><span class="ico">$</span> <span data-i18n=\"dash.nav.finance\">Finance</span></a>
     </div>
     <div class="nav-section">
-      <div class="nav-head">Grow</div>
-      <a class="nav-item" href="/play/pricing"><span class="ico">⌘</span> Pricing</a>
-      <a class="nav-item active" href="/play/marketing"><span class="ico">◐</span> Marketing</a>
-      <a class="nav-item" href="/play/research"><span class="ico">⚙</span> Research</a>
-      <a class="nav-item" href="/play/marketplace"><span class="ico">◈</span> Marketplace</a>
+      <div class="nav-head" data-i18n="dash.nav.grow">Grow</div>
+      <a class="nav-item" href="/play/pricing"><span class="ico">⌘</span> <span data-i18n=\"dash.nav.pricing\">Pricing</span></a>
+      <a class="nav-item active" href="/play/marketing"><span class="ico">◐</span> <span data-i18n=\"dash.nav.marketing\">Marketing</span></a>
+      <a class="nav-item" href="/play/research"><span class="ico">⚙</span> <span data-i18n="dash.nav.research">Research</span></a>
+      <a class="nav-item" href="/play/marketplace"><span class="ico">◈</span> <span data-i18n=\"dash.nav.marketplace\">Marketplace</span></a>
     </div>
     <div class="nav-section">
-      <div class="nav-head">Meta</div>
-      <a class="nav-item" href="/play/leaderboard"><span class="ico">⌖</span> Leaderboard</a>
-      <a class="nav-item" href="/play/devlog"><span class="ico">▶</span> Devlog</a>
-      <a class="nav-item" href="/play/settings"><span class="ico">⚒</span> Settings</a>
+      <div class="nav-head" data-i18n="dash.nav.meta">Meta</div>
+      <a class="nav-item" href="/play/leaderboard"><span class="ico">⌖</span> <span data-i18n=\"dash.nav.leaderboard\">Leaderboard</span></a>
+      <a class="nav-item" href="/play/devlog"><span class="ico">▶</span> <span data-i18n=\"dash.nav.devlog\">Devlog</span></a>
+      <a class="nav-item" href="/play/settings"><span class="ico">⚒</span> <span data-i18n=\"dash.nav.settings\">Settings</span></a>
     </div>
     <div class="side-foot"><div>v0.7.2 · build 18,402</div><a href="#">⌨ Shortcuts ⌘K</a><div class="me"><span class="ava">P</span>promnet · log out</div></div>
   </aside>
@@ -173,9 +174,9 @@ const pageHtml = `
       <div class="crumbs"><span>Grow</span><span class="sep">›</span><b>Marketing</b><span class="sep">›</span><span>3-channel mix</span></div>
       <div class="clock"><div class="day">Day 12<small> / 365</small></div><div class="time">03:42 AM</div><div class="ctrls"><button>‖</button><button class="on">▶</button><button>▶▶</button></div></div>
       <div class="topbar-stats">
-        <div class="tstat"><span class="k">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
-        <div class="tstat"><span class="k">MRR</span><span class="v">$15<small>+$0</small></span></div>
-        <div class="tstat"><span class="k">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
+        <div class="tstat"><span class="k" data-i18n="dash.topbar.cash">Cash</span><span class="v">$390<small>+$45/d</small></span></div>
+        <div class="tstat"><span class="k" data-i18n="dash.topbar.mrr">MRR</span><span class="v">$15<small>+$0</small></span></div>
+        <div class="tstat"><span class="k" data-i18n="dash.topbar.rep">Rep</span><span class="v">50<small class="dn">−2</small></span></div>
       </div>
       <div class="topbar-actions"><button class="bell" data-count="4">🔔</button></div>
     </header>
@@ -428,5 +429,6 @@ const pageHtml = `
     setTimeout(function () { document.body.classList.remove('preload'); }, 30);
   });
 </script>
+<I18nDashboard />
 </body>
 </html>
