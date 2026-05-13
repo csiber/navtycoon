@@ -34,7 +34,7 @@ type WsOutbound =
   | { type: 'state'; state: ShiftState }
   | { type: 'reply'; ticket_id: number; text: string; satisfaction_delta: number; new_satisfaction: number }
   | { type: 'action_result'; ticket_id: number; result: { satisfaction_delta: number; cash_delta_cents: number; resolves_ticket: boolean; message: string } }
-  | { type: 'shift_end'; summary: { tickets_handled: number; satisfaction_total: number; refunds_cents: number }; newly_unlocked: string[] }
+  | { type: 'shift_end'; summary: { tickets_handled: number; satisfaction_total: number; refunds_cents: number; rep_delta: number }; newly_unlocked: string[] }
   | { type: 'error'; error: string };
 
 export class ShiftRoomDO {
@@ -44,6 +44,8 @@ export class ShiftRoomDO {
   ws: WebSocket | null = null;
   // Achievement-IDs unlocked during persistShiftHistory(), surfaced in shift_end.
   private pendingAchievementUnlocks: string[] = [];
+  // Reputation delta applied at shift-end (signed). Surfaced in shift_end.
+  private lastShiftRepDelta: number = 0;
 
   constructor(state: DurableObjectState, env: DurableEnv) {
     this.state = state;
@@ -250,6 +252,27 @@ export class ShiftRoomDO {
       this.shift.status === 'completed' ? 'completed' : this.shift.status,
     ).run();
 
+    // Reputation award based on shift outcome — active-play rep gain.
+    // Without this, players stalled at rep=50 (default) and couldn't hit
+    // Era 2's 60-rep gate without grinding the slow event-resolution path.
+    // Per-ticket avg satisfaction-delta maps to:
+    //   ≥ 20 → +3 · ≥ 10 → +2 · ≥ 0 → +1 · ≥ -10 → 0 · < -10 → -2
+    if (this.shift.tickets_handled > 0) {
+      const avgSat = s.satisfaction_total / this.shift.tickets_handled;
+      let repDelta = 0;
+      if (avgSat >= 20) repDelta = 3;
+      else if (avgSat >= 10) repDelta = 2;
+      else if (avgSat >= 0) repDelta = 1;
+      else if (avgSat >= -10) repDelta = 0;
+      else repDelta = -2;
+      this.lastShiftRepDelta = repDelta;
+      if (repDelta !== 0) {
+        await this.env.DB.prepare(
+          'UPDATE players SET reputation = MAX(0, MIN(100, reputation + ?)) WHERE user_id = ?',
+        ).bind(repDelta, this.shift.player_id).run();
+      }
+    }
+
     // Achievement-check: shift_count épp változott, így a first_shift / shift_marathon
     // most unlock-olódhat. Non-fatal: bármilyen hibát elnyel, a shift-end normálisan fut tovább.
     try {
@@ -270,11 +293,12 @@ export class ShiftRoomDO {
   }
 
   summary() {
-    if (!this.shift) return { tickets_handled: 0, satisfaction_total: 0, refunds_cents: 0 };
+    if (!this.shift) return { tickets_handled: 0, satisfaction_total: 0, refunds_cents: 0, rep_delta: 0 };
     return {
       tickets_handled: this.shift.tickets_handled,
       satisfaction_total: this.shift.queue.reduce((s, c) => s + c.satisfaction_delta_total, 0),
       refunds_cents: this.shift.queue.reduce((s, c) => s + c.refund_given_cents, 0),
+      rep_delta: this.lastShiftRepDelta,
     };
   }
 

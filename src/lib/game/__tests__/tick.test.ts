@@ -270,6 +270,60 @@ describe('tickPlayer', () => {
     }
   });
 
+  it('passive rep drift: ≥3 customers with avg satisfaction ≥70 can nudge rep up', async () => {
+    const db2 = await createTestDb();
+    await createPlayer(db2, { user_id: 'u-rep', company_name: 'R', city: null });
+    const now = 1715000000;
+    for (let i = 0; i < 4; i++) {
+      await db2.prepare(
+        'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) ' +
+        "VALUES (?, 'C" + i + "', 'loyalist', 'hobby', ?, 85)",
+      ).bind('u-rep', now).run();
+    }
+    await db2.prepare(
+      'UPDATE players SET marketing_seo_pct = 0, marketing_ppc_pct = 0, marketing_referral_pct = 0, reputation = 50 WHERE user_id = ?',
+    ).bind('u-rep').run();
+
+    const origRandom = Math.random;
+    Math.random = () => 0.005; // below 0.02 threshold → always nudges
+    try {
+      const player = await getPlayer(db2, 'u-rep');
+      if (!player) throw new Error('player gone');
+      await tickPlayer(db2, player, now);
+      const after = await getPlayer(db2, 'u-rep');
+      expect(after?.reputation).toBe(51);
+    } finally {
+      Math.random = origRandom;
+    }
+  });
+
+  it('passive rep drift: <30 avg satisfaction nudges down', async () => {
+    const db2 = await createTestDb();
+    await createPlayer(db2, { user_id: 'u-bad', company_name: 'B', city: null });
+    const now = 1715000000;
+    for (let i = 0; i < 4; i++) {
+      await db2.prepare(
+        'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) ' +
+        "VALUES (?, 'C" + i + "', 'karen', 'hobby', ?, 15)",
+      ).bind('u-bad', now).run();
+    }
+    await db2.prepare(
+      'UPDATE players SET marketing_seo_pct = 0, marketing_ppc_pct = 0, marketing_referral_pct = 0, reputation = 50 WHERE user_id = ?',
+    ).bind('u-bad').run();
+
+    const origRandom = Math.random;
+    Math.random = () => 0.005;
+    try {
+      const player = await getPlayer(db2, 'u-bad');
+      if (!player) throw new Error('player gone');
+      await tickPlayer(db2, player, now);
+      const after = await getPlayer(db2, 'u-bad');
+      expect(after?.reputation).toBe(49);
+    } finally {
+      Math.random = origRandom;
+    }
+  });
+
   it('Pro player: lower churn-roll vs free', async () => {
     // With Math.random forced to 0.2: free (churnProb=0.30) churns,
     // Pro (churnProb=0.15) does NOT churn.

@@ -96,12 +96,16 @@ function showShiftEnd(
     tickets_handled: number;
     satisfaction_total: number;
     refunds_cents: number;
+    rep_delta?: number;
   },
   newlyUnlocked?: string[],
 ) {
   $('shift-end').classList.remove('hidden');
+  const repPart = summary.rep_delta && summary.rep_delta !== 0
+    ? ` · Reputation: ${summary.rep_delta > 0 ? '+' : ''}${summary.rep_delta}`
+    : '';
   $('end-summary').textContent =
-    `Tickets handled: ${summary.tickets_handled} · Total satisfaction: ${summary.satisfaction_total >= 0 ? '+' : ''}${summary.satisfaction_total} · Refunds: $${(summary.refunds_cents / 100).toFixed(2)}`;
+    `Tickets handled: ${summary.tickets_handled} · Total satisfaction: ${summary.satisfaction_total >= 0 ? '+' : ''}${summary.satisfaction_total} · Refunds: $${(summary.refunds_cents / 100).toFixed(2)}${repPart}`;
   if (newlyUnlocked && newlyUnlocked.length > 0) {
     const ach = document.createElement('p');
     ach.style.cssText = 'margin-top:12px;color:var(--mint,#34d399);font-weight:600;';

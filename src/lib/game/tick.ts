@@ -290,6 +290,35 @@ export async function tickPlayer(
     eventsSpawned++;
   }
 
+  // 7.5. Passive reputation drift: average customer satisfaction nudges rep.
+  //      Without this, players with no active events can't grow rep at all,
+  //      blocking Era progression. Slow rate: ±1 rep per ~50 ticks (~4h) at extremes.
+  //      Only fires when ≥3 active customers exist (otherwise too noisy).
+  {
+    const repRow = await db.prepare(
+      'SELECT AVG(satisfaction) AS avg_sat, COUNT(*) AS n FROM customers ' +
+      'WHERE player_id = ? AND is_active = 1',
+    ).bind(player.user_id).first<{ avg_sat: number; n: number }>();
+    const avgSat = repRow?.avg_sat ?? 50;
+    const custN = repRow?.n ?? 0;
+    if (custN >= 3) {
+      // Map avg satisfaction (0-100) to a rep-nudge probability per tick:
+      //   ≥70 → 2% chance of +1 rep
+      //   <30 → 2% chance of -1 rep
+      // Otherwise no change. Bounded: rep stays in [0, 100].
+      const roll = Math.random();
+      if (avgSat >= 70 && roll < 0.02) {
+        await db.prepare(
+          'UPDATE players SET reputation = MIN(100, reputation + 1) WHERE user_id = ?',
+        ).bind(player.user_id).run();
+      } else if (avgSat < 30 && roll < 0.02) {
+        await db.prepare(
+          'UPDATE players SET reputation = MAX(0, reputation - 1) WHERE user_id = ?',
+        ).bind(player.user_id).run();
+      }
+    }
+  }
+
   // 8. Era-progression: auto-advance if requirements met. Re-read player to
   //    use post-tick MRR (acquisition + churn may have changed it).
   let eraAdvancedTo: EraId | null = null;
