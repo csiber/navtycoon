@@ -490,11 +490,23 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
     const yearLabels = ['2002', '2006', '2012', '2018', '2024', '2026'];
 
     if (timelineSection && timelineGrid && window.innerWidth > 720) {
-      // Make the grid wide enough for horizontal scroll
-      const eraCount = timelineGrid.querySelectorAll('.era').length;
+      // Force the grid to lay out as a horizontal track wide enough to scroll.
+      // The default CSS is grid auto-fit which collapses to viewport width.
+      const eras = timelineGrid.querySelectorAll('.era');
+      const ERA_W = 320;
+      const ERA_GAP = 28;
+      timelineGrid.style.display = 'flex';
+      timelineGrid.style.flexWrap = 'nowrap';
+      timelineGrid.style.gap = ERA_GAP + 'px';
+      timelineGrid.style.width = 'max-content';
+      timelineGrid.style.padding = '0 8vw';
+      eras.forEach((el) => {
+        el.style.flex = '0 0 ' + ERA_W + 'px';
+        el.style.width = ERA_W + 'px';
+      });
       const gridWidth = timelineGrid.scrollWidth;
       const viewportWidth = window.innerWidth;
-      const scrollDist = Math.max(0, gridWidth - viewportWidth * 0.85);
+      const scrollDist = Math.max(0, gridWidth - viewportWidth);
 
       if (scrollDist > 40) {
         timelineGrid.style.willChange = 'transform';
