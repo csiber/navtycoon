@@ -1,0 +1,35 @@
+---
+// Shared dashboard i18n bootstrap. Drop this into ANY /play/*.astro
+// page (anywhere in the body) to enable HU/DE locale-switching for
+// elements with `data-i18n="key"` attributes. Reads `localStorage.hs_lang`
+// (persisted by the landing's lang switcher) or ?lang=… query.
+import { TRANSLATIONS } from '../lib/i18n';
+---
+<script is:inline define:vars={{ DASH_TRANSLATIONS: TRANSLATIONS }}>
+  (function () {
+    const SUPPORTED = ['en', 'hu', 'de'];
+    function resolveLocale() {
+      try {
+        const url = new URL(window.location.href);
+        const q = url.searchParams.get('lang');
+        if (q && SUPPORTED.includes(q)) return q;
+        const saved = localStorage.getItem('hs_lang');
+        if (saved && SUPPORTED.includes(saved)) return saved;
+      } catch { /* sandboxed */ }
+      const nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
+      if (SUPPORTED.includes(nav)) return nav;
+      return 'en';
+    }
+    function applyI18n(locale) {
+      const dict = DASH_TRANSLATIONS[locale] || DASH_TRANSLATIONS.en;
+      document.querySelectorAll('[data-i18n]').forEach((el) => {
+        const key = el.getAttribute('data-i18n');
+        if (!key) return;
+        const val = dict[key] || DASH_TRANSLATIONS.en[key];
+        if (typeof val === 'string') el.textContent = val;
+      });
+      document.documentElement.setAttribute('lang', locale);
+    }
+    applyI18n(resolveLocale());
+  })();
+</script>
