@@ -146,6 +146,79 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
           list.appendChild(row);
         });
       }
+
+      // ─── Profile-panel: render the first customer's real data ─────────
+      // The page ships with a fixed Karen-Holloway HTML mock; replace it
+      // with whichever customer is currently selected (first by default).
+      // Hide the chat / timeline / persona-memory blocks entirely — those
+      // are storytelling-mock for now (no live LLM context yet).
+      const first = s.customers[0];
+      const crumbs = document.querySelector('.crumbs span:last-child');
+      if (first && crumbs) crumbs.textContent = first.name;
+
+      if (first) {
+        const profHead = document.querySelector('.prof-head');
+        if (profHead) {
+          const initial = (first.name[0] || '?').toUpperCase();
+          const av = profHead.querySelector('.av');
+          if (av) {
+            av.textContent = initial;
+            av.className = 'av av-' + initial;
+          }
+          const h2 = profHead.querySelector('h2');
+          if (h2) {
+            // h2 contains: text node "Karen Holloway " + <span class="pill">...</span>
+            const pill = h2.querySelector('.pill');
+            h2.textContent = first.name + ' ';
+            if (pill) {
+              pill.textContent = first.satisfaction < 30 ? '⚠ Churn risk' : first.satisfaction < 60 ? 'Watch' : 'Healthy';
+              h2.appendChild(pill);
+            }
+          }
+          const org = profHead.querySelector('.org');
+          if (org) {
+            org.replaceChildren();
+            org.appendChild(document.createTextNode(first.plan + ' plan · LLM persona: '));
+            const b = document.createElement('b');
+            b.textContent = first.persona;
+            org.appendChild(b);
+          }
+        }
+        // Stats-row: MRR / LTV / Mood / Churn / Tickets
+        const stats = document.querySelectorAll('.stats-row .pstat');
+        if (stats.length >= 5) {
+          // 0 MRR
+          const planPriceCents = { hobby: 500, starter: 1900, standard: 2900, pro: 9900, enterprise: 49900 };
+          const mrrCents = planPriceCents[first.plan] || 0;
+          stats[0].querySelector('.v').textContent = '$' + (mrrCents/100).toFixed(0);
+          stats[0].querySelector('.meta').textContent = 'Plan: ' + first.plan;
+          // 1 LTV
+          stats[1].querySelector('.v').textContent = '$' + first.ltv.toFixed(0);
+          stats[1].querySelector('.v').className = 'v' + (first.ltv >= 50 ? ' good' : ' warn');
+          stats[1].querySelector('.meta').textContent = 'Lifetime revenue';
+          // 2 Mood
+          const moodDelta = first.satisfaction - 50;
+          stats[2].querySelector('.v').textContent = (moodDelta > 0 ? '+' : '') + moodDelta;
+          stats[2].querySelector('.v').className = 'v' + (moodDelta >= 20 ? ' good' : moodDelta < -10 ? ' bad' : ' warn');
+          stats[2].querySelector('.meta').textContent = 'Satisfaction ' + first.satisfaction + '/100';
+          // 3 Churn risk — derive crude from satisfaction
+          const churn = Math.max(0, Math.min(100, 100 - first.satisfaction));
+          stats[3].querySelector('.v').textContent = churn + '%';
+          stats[3].querySelector('.v').className = 'v' + (churn >= 60 ? ' bad' : churn >= 30 ? ' warn' : ' good');
+          stats[3].querySelector('.meta').textContent = first.satisfaction < 30 ? 'Forum risk' : 'Stable';
+          // 4 Tickets — not yet wired to per-customer ticket count
+          stats[4].querySelector('.v').textContent = '—';
+          stats[4].querySelector('.meta').textContent = 'See Tickets';
+        }
+        // Hide chat / timeline / persona-memory mock columns
+        document.querySelectorAll('.twocol .col').forEach((col) => {
+          col.replaceChildren();
+          const note = document.createElement('div');
+          note.style.cssText = 'padding:18px;color:var(--dim);font-family:var(--mono);font-size:11px;text-align:center;';
+          note.textContent = 'Per-customer chat history + persona-memory comes online after first cron-tick LLM run.';
+          col.appendChild(note);
+        });
+      }
     } catch (e) { console.error('hydrate', e); }
   </script>
 <script is:inline>

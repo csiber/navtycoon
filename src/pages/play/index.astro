@@ -594,7 +594,12 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
             const t = ev.type;
             const d = ev.data || {};
             if (t === 'ticket_spawned') return 'New ticket from ' + (d.customer_name || 'a customer') + (d.summary ? ': "' + d.summary + '"' : '.');
-            if (t === 'ticket_resolved') return 'Ticket resolved — ' + (d.outcome || 'closed') + '.';
+            if (t === 'ticket_resolved') {
+              const who = d.customer_name || 'a customer';
+              const sat = typeof d.satisfaction_delta === 'number' ? (d.satisfaction_delta >= 0 ? ' (+' + d.satisfaction_delta + ' sat)' : ' (' + d.satisfaction_delta + ' sat)') : '';
+              const refund = (d.refund_cents && d.refund_cents > 0) ? ' · $' + (d.refund_cents/100).toFixed(2) + ' refunded' : '';
+              return 'Ticket for ' + who + ' resolved' + sat + refund + '.';
+            }
             if (t === 'customer_acquired') return 'New customer: ' + (d.customer_name || 'unknown') + ' joined on the ' + (d.plan_tier || 'hobby') + ' plan.';
             if (t === 'customer_churned') return (d.customer_name || 'A customer') + ' churned. ' + (d.reason || '');
             if (t === 'era_unlock') return '🎉 Unlocked Era ' + (d.to_era || '?') + (d.display ? ' (' + d.display + ')' : '') + '.';
