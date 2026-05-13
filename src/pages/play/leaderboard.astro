@@ -214,7 +214,33 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     });
 
     // Replace "me" row (the bottom one) with my real data.
-    const meRow = document.querySelector('.lb-row.me');
+    // Note: the hydrator above may have added .me class to a top-N row when
+    // the player is in the top 5 (data.me=true). In that case, the bottom
+    // template me-row ("promnet — YOU @syncnode") is now a duplicate mock
+    // and we hide it.
+    const meRows = document.querySelectorAll('.lb-row.me');
+    if (meRows.length > 1) {
+      // The first hit is our newly-flagged top-N row; later ones are the
+      // template mock. Hide all but the first.
+      for (let i = 1; i < meRows.length; i++) meRows[i].style.display = 'none';
+    }
+    const meRow = meRows[0];
+    // Also hide any leftover lb-row siblings of the template me-row that
+    // weren't reached by the dataRows hydrator (zola.minor, hostmuncher,
+    // lex_buckets — they sit after the separator row and after the mock
+    // me-row, beyond the indices the loop above covers).
+    const templateMockNames = ['zola.minor', 'hostmuncher', 'lex_buckets', 'tia_ops', 'wirefraud', 'nilsson_co', 'koolaid', 'bingbong', 'marcia.exe', 'paulwall', 'Fern Akiyama', 'grimsdotter'];
+    document.querySelectorAll('.lb-row').forEach((row) => {
+      const nm = row.querySelector('.who .name')?.textContent?.trim() || '';
+      if (templateMockNames.some((m) => nm.includes(m))) row.style.display = 'none';
+    });
+    document.querySelectorAll('.podium .pod .name').forEach((nm) => {
+      const t = nm.textContent?.trim() || '';
+      if (templateMockNames.some((m) => t.includes(m))) {
+        const pod = nm.closest('.pod');
+        if (pod) pod.style.display = 'none';
+      }
+    });
     if (meRow) {
       const rk = meRow.querySelector('.rk');
       if (rk && rk.firstChild && rk.firstChild.nodeType === 3) rk.firstChild.textContent = String(s.myRank) + ' ';
@@ -224,7 +250,7 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       const who = meRow.querySelector('.who');
       if (who) {
         const nm = who.querySelector('.name'); if (nm) nm.textContent = s.company + ' — YOU';
-        const org = who.querySelector('.org'); if (org) org.textContent = '@' + s.displayName;
+        const org = who.querySelector('.org'); if (org) org.textContent = '@' + s.company.toLowerCase().replace(/\s+/g, '');
       }
       const vs = meRow.querySelectorAll('.v');
       if (vs[0]) {

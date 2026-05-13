@@ -235,6 +235,15 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     const scenPanel = Array.from(document.querySelectorAll('section.panel'))
       .find((p) => /What-if simulator/.test(p.querySelector('h3')?.textContent || ''));
     if (scenPanel) scenPanel.style.display = 'none';
+
+    // Scrub Karen / Cousin-Tibi flavour from burn-list <small> sublabels.
+    document.querySelectorAll('.burn-list .row .lbl small').forEach((el) => {
+      const t = el.textContent || '';
+      if (/Karen|Cousin Tibi/i.test(t)) {
+        // Replace with a generic note; we don't track per-category history yet.
+        el.textContent = 'monthly';
+      }
+    });
   } catch (e) { console.error('hydrate', e); }
 </script>
 <script is:inline>
