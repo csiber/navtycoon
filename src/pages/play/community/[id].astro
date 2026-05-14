@@ -1,0 +1,125 @@
+---
+// /play/community/[id] — single forum thread with replies
+import Base from '../../../layouts/Base.astro';
+import { getCurrentUser, getDB } from '../../../lib/auth';
+import { getThread, listReplies } from '../../../lib/forum/db';
+
+const user = await getCurrentUser(Astro);
+if (!user) return Astro.redirect('/login?next=/play/community');
+const db = getDB(Astro);
+const idParam = Astro.params.id ?? '';
+const id = parseInt(idParam, 10);
+if (!id) return Astro.redirect('/play/community');
+
+const thread = db ? await getThread(db, id) : null;
+if (!thread) return Astro.redirect('/play/community');
+const replies = db ? await listReplies(db, id) : [];
+
+function timeAgo(ts: number): string {
+  const sec = Math.floor(Date.now() / 1000) - ts;
+  if (sec < 60) return 'most';
+  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}ó`;
+  return `${Math.floor(sec / 86400)}n`;
+}
+function avatarChar(name: string | null): string {
+  return (name?.trim()[0] ?? '?').toUpperCase();
+}
+---
+<Base title={thread.title}>
+  <div class="max-w-3xl mx-auto">
+    <a href="/play/community" class="text-sm text-nt-text-dim hover:text-nt-text transition">← Vissza a fórumra</a>
+
+    <article class="mt-4 p-5 bg-nt-bg-2 border border-nt-border rounded-lg">
+      <div class="flex items-start gap-3">
+        <div class={`w-12 h-12 rounded-full flex-shrink-0 grid place-items-center font-bold ${thread.is_npc ? 'bg-nt-bg' : 'bg-nt-accent text-white'}`}>
+          {avatarChar(thread.author_name)}
+        </div>
+        <div class="flex-1">
+          <div class="flex items-baseline gap-2 text-xs text-nt-text-dim">
+            <span class="font-semibold text-nt-text">{thread.author_name ?? 'unknown'}</span>
+            {thread.author_city && <span>· {thread.author_city}</span>}
+            {thread.is_npc === 1 && thread.npc_archetype && (
+              <span class="px-1.5 py-0.5 bg-nt-bg rounded text-[10px] uppercase tracking-wide">{thread.npc_archetype.replace(/_/g, ' ')}</span>
+            )}
+            <span class="ml-auto">{timeAgo(thread.created_at)}</span>
+          </div>
+          <h1 class="text-2xl font-bold mt-1">{thread.title}</h1>
+        </div>
+      </div>
+      <p class="mt-4 text-nt-text whitespace-pre-wrap leading-relaxed">{thread.body}</p>
+    </article>
+
+    <h2 class="mt-8 mb-3 text-sm uppercase tracking-wide text-nt-text-dim">
+      {replies.length} {replies.length === 1 ? 'válasz' : 'válasz'}
+    </h2>
+
+    <div class="space-y-3">
+      {replies.map((r) => (
+        <article class="p-4 bg-nt-bg-2 border border-nt-border rounded-lg">
+          <div class="flex items-start gap-3">
+            <div class={`w-9 h-9 rounded-full flex-shrink-0 grid place-items-center text-sm font-bold ${r.is_npc ? 'bg-nt-bg' : 'bg-nt-accent text-white'}`}>
+              {avatarChar(r.author_name)}
+            </div>
+            <div class="flex-1">
+              <div class="flex items-baseline gap-2 text-xs text-nt-text-dim mb-1">
+                <span class="font-semibold text-nt-text">{r.author_name ?? 'unknown'}</span>
+                {r.is_npc === 1 && r.npc_archetype && (
+                  <span class="px-1.5 py-0.5 bg-nt-bg rounded text-[10px] uppercase tracking-wide">{r.npc_archetype.replace(/_/g, ' ')}</span>
+                )}
+                <span class="ml-auto">{timeAgo(r.created_at)}</span>
+              </div>
+              <p class="text-nt-text whitespace-pre-wrap leading-relaxed">{r.body}</p>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+
+    {thread.is_locked === 1 ? (
+      <p class="mt-6 p-4 bg-nt-bg-2 border border-nt-border rounded-lg text-center text-nt-text-dim text-sm">
+        🔒 Ez a szál lezárva. Új válasz nem küldhető.
+      </p>
+    ) : (
+      <form id="reply-form" class="mt-6 p-4 bg-nt-bg-2 border border-nt-border rounded-lg space-y-3">
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim">Válasz</label>
+        <textarea name="body" required minlength="4" maxlength="8000" rows="4"
+                  placeholder="A te véleményed..."
+                  class="w-full px-3 py-2 bg-nt-bg border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition resize-y"></textarea>
+        <div class="flex items-center gap-2">
+          <button type="submit" class="px-4 py-2 bg-nt-accent rounded font-semibold text-sm hover:opacity-90 transition">
+            Válasz küldése
+          </button>
+          <p id="reply-status" class="text-sm ml-auto" aria-live="polite"></p>
+        </div>
+      </form>
+    )}
+  </div>
+
+  <script define:vars={{ threadId: id }}>
+    document.getElementById('reply-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const fd = new FormData(form);
+      const status = document.getElementById('reply-status');
+      if (status) {
+        status.textContent = 'Küldés...';
+        status.className = 'text-sm text-nt-text-dim ml-auto';
+      }
+      const r = await fetch(`/api/forum/threads/${threadId}/reply`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ body: fd.get('body') }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        if (status) {
+          status.textContent = 'Hiba: ' + (j.error ?? 'ismeretlen');
+          status.className = 'text-sm text-red-400 ml-auto';
+        }
+        return;
+      }
+      location.reload();
+    });
+  </script>
+</Base>

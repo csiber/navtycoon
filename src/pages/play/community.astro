@@ -1,0 +1,139 @@
+---
+// /play/community — forum thread list (newest-first, pinned on top).
+// Async player-to-player + NPC. Auth required.
+import Base from '../../layouts/Base.astro';
+import { getCurrentUser, getDB } from '../../lib/auth';
+import { listThreads } from '../../lib/forum/db';
+
+const user = await getCurrentUser(Astro);
+if (!user) return Astro.redirect('/login?next=/play/community');
+const db = getDB(Astro);
+const threads = db ? await listThreads(db, 50, 0) : [];
+
+function timeAgo(ts: number): string {
+  const sec = Math.floor(Date.now() / 1000) - ts;
+  if (sec < 60) return 'most';
+  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}ó`;
+  return `${Math.floor(sec / 86400)}n`;
+}
+
+function avatarChar(name: string | null): string {
+  return (name?.trim()[0] ?? '?').toUpperCase();
+}
+---
+<Base title="Community">
+  <div class="max-w-4xl mx-auto">
+    <div class="flex items-baseline justify-between mb-2">
+      <div>
+        <h1 class="text-3xl font-bold">/r/hyperscaler</h1>
+        <p class="text-nt-text-dim text-sm mt-1">
+          Aszinkron közösség. NPC-k és valódi alapítók. {threads.length} szál.
+        </p>
+      </div>
+      <button id="new-thread-btn"
+              class="px-4 py-2 bg-nt-accent rounded font-semibold text-sm hover:opacity-90 transition">
+        + Új poszt
+      </button>
+    </div>
+
+    {/* New-thread form, hidden by default */}
+    <form id="new-thread-form" class="hidden mt-4 mb-6 p-4 bg-nt-bg-2 border border-nt-border rounded-lg space-y-3">
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Cím</label>
+        <input type="text" name="title" required minlength="4" maxlength="140"
+               placeholder="pl. mit csináljak a Karen-tickettel"
+               class="w-full px-3 py-2 bg-nt-bg border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Tartalom</label>
+        <textarea name="body" required minlength="4" maxlength="8000" rows="6"
+                  placeholder="Mondj el, mit látsz a fórum-társaiddal megbeszélni való..."
+                  class="w-full px-3 py-2 bg-nt-bg border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition resize-y"></textarea>
+      </div>
+      <div class="flex items-center gap-2">
+        <button type="submit" class="px-4 py-2 bg-nt-accent rounded font-semibold text-sm hover:opacity-90 transition">
+          Posztolás
+        </button>
+        <button type="button" id="new-thread-cancel" class="px-4 py-2 text-nt-text-dim hover:text-nt-text text-sm transition">
+          Mégse
+        </button>
+        <p id="new-thread-status" class="text-sm ml-auto" aria-live="polite"></p>
+      </div>
+    </form>
+
+    {threads.length === 0 ? (
+      <p class="mt-12 text-center text-nt-text-dim">Még nincs egyetlen poszt sem. Te legyél az első.</p>
+    ) : (
+      <div class="mt-4 space-y-2">
+        {threads.map((t) => (
+          <a href={`/play/community/${t.id}`} class="block p-4 bg-nt-bg-2 border border-nt-border rounded-lg hover:border-nt-accent transition">
+            <div class="flex items-start gap-3">
+              <div class={`w-10 h-10 rounded-full flex-shrink-0 grid place-items-center text-sm font-bold ${t.is_npc ? 'bg-nt-bg' : 'bg-nt-accent text-white'}`}>
+                {avatarChar(t.author_name)}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-baseline gap-2 text-xs text-nt-text-dim mb-1">
+                  <span class="font-semibold text-nt-text">{t.author_name ?? 'unknown'}</span>
+                  {t.author_city && <span>· {t.author_city}</span>}
+                  {t.is_npc === 1 && t.npc_archetype && (
+                    <span class="px-1.5 py-0.5 bg-nt-bg rounded text-[10px] uppercase tracking-wide">{t.npc_archetype.replace(/_/g, ' ')}</span>
+                  )}
+                  <span class="ml-auto">{timeAgo(t.created_at)}</span>
+                </div>
+                <h3 class="font-semibold mb-1 truncate">{t.title}</h3>
+                <p class="text-sm text-nt-text-dim line-clamp-2">{t.body}</p>
+                <div class="flex gap-3 mt-2 text-xs text-nt-text-dim">
+                  <span>💬 {t.replies_count} válasz</span>
+                  {t.replies_count > 0 && <span>· utolsó: {timeAgo(t.last_reply_at)}</span>}
+                </div>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    )}
+  </div>
+
+  <script>
+    const btn = document.getElementById('new-thread-btn');
+    const form = document.getElementById('new-thread-form') as HTMLFormElement;
+    const cancel = document.getElementById('new-thread-cancel');
+    const status = document.getElementById('new-thread-status');
+
+    btn?.addEventListener('click', () => {
+      form.classList.remove('hidden');
+      btn.classList.add('hidden');
+    });
+    cancel?.addEventListener('click', () => {
+      form.classList.add('hidden');
+      btn?.classList.remove('hidden');
+      form.reset();
+      if (status) status.textContent = '';
+    });
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      if (status) {
+        status.textContent = 'Posztolás...';
+        status.className = 'text-sm text-nt-text-dim ml-auto';
+      }
+      const r = await fetch('/api/forum/threads', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: fd.get('title'), body: fd.get('body') }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({} as { error?: string }));
+        if (status) {
+          status.textContent = 'Hiba: ' + ((j as { error?: string }).error ?? 'ismeretlen');
+          status.className = 'text-sm text-red-400 ml-auto';
+        }
+        return;
+      }
+      const j = await r.json() as { id: number };
+      location.href = `/play/community/${j.id}`;
+    });
+  </script>
+</Base>
