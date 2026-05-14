@@ -421,6 +421,22 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     // ─── DROP all mock UI that isn't wired to a real backend ──────────
     // Side-nav sub-section selector is decorative — remove.
     document.querySelectorAll('.set-nav, .save-bar').forEach((el) => el.remove());
+    // The decorative set-nav was the left grid-cell; collapse the 2-col
+    // grid to 1-col so the remaining Profile + Danger zone don't sit in
+    // a 220px-wide gutter.
+    const layoutEl = document.querySelector('.layout');
+    if (layoutEl) layoutEl.style.gridTemplateColumns = '1fr';
+    // The real Edit-profile + Subscription form is rendered at body level
+    // (sibling of <div class="app">), which makes it visually orphaned at
+    // the page bottom. Move it into the right grid-cell so it sits below
+    // the Profile section like any other content card.
+    const editWrap = document.getElementById('settings-edit-wrap');
+    const rightCol = document.querySelector('.layout > div');
+    if (editWrap && rightCol) {
+      editWrap.style.maxWidth = '';        // remove 600px cap → match column width
+      editWrap.style.margin = '0 0 18px';  // align with .sec spacing
+      rightCol.appendChild(editWrap);
+    }
     // Profile-head "Share /rep page" + "Edit avatar" buttons aren't wired.
     // They live in .profile-head > .actions (not .prof-actions).
     document.querySelectorAll('.profile-head .actions').forEach((el) => el.remove());
