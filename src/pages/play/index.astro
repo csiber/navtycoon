@@ -880,13 +880,34 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
   </div>
   <script is:inline>
     (function () {
-      var SLIDES = [
+      // Locale-aware slide content. Read same key the dashboard uses.
+      var _lang = 'en';
+      try {
+        var _saved = localStorage.getItem('hs_lang');
+        if (_saved === 'hu' || _saved === 'de' || _saved === 'en') _lang = _saved;
+      } catch {}
+      var SLIDES_EN = [
         { emoji: '⚡', title: 'Welcome to Hyperscales', body: "You're running a hosting company in 2002. LAMP servers. cPanel. Customers who don't know what FTP is. Your job: keep them happy, grow MRR, survive incidents." },
         { emoji: '🤖', title: 'Customers are AI', body: 'Every customer is a Llama-powered NPC with memory. They remember your past mistakes. The Karen will email your mom. The Crypto-bro will ask for $TYCOON payments.' },
         { emoji: '🎫', title: 'Tickets + Shift Mode', body: 'Tickets spawn as customers run into issues. In Shift Mode you sit down for 30 minutes and reply in real-time. Refund, escalate, investigate, or close — every choice changes satisfaction.' },
         { emoji: '🖥️', title: 'Servers + Upgrades', body: 'Buy LAMP boxes, then VPS nodes, then dedicated. Each upgrade gives you capacity, security, or customer-satisfaction bonuses. The full tech-tree goes from 2002 to 2026.' },
         { emoji: '🚀', title: 'Your goal', body: "Hit $1M lifetime MRR. Survive HN front-page hugs. Avoid DDoS, DMCA, and that one intern who runs rm -rf /. Good luck — you'll need it." }
       ];
+      var SLIDES_HU = [
+        { emoji: '⚡', title: 'Üdv a Hyperscales-ben', body: '2002-ben egy hosting-céget vezetsz. LAMP-szerverek, cPanel, ügyfelek akik nem tudják mi az FTP. A munkád: tartsd őket boldogan, növeld az MRR-t, élj túl minden incidenst.' },
+        { emoji: '🤖', title: 'Az ügyfelek AI-k', body: 'Minden ügyfél egy Llama-alapú NPC memóriával. Emlékeznek a múltbeli hibáidra. A Karen anyádnak fog emailt írni. A crypto-bro $TYCOON-ban szeretne fizetni.' },
+        { emoji: '🎫', title: 'Ticketek + Műszak-mód', body: 'A ticketek akkor jönnek létre, amikor az ügyfeleknek problémája van. Műszak-módban leülsz 30 percre és valós időben válaszolsz. Refund, escalate, investigate, vagy close — minden választás befolyásolja az elégedettséget.' },
+        { emoji: '🖥️', title: 'Szerverek + Upgrade-ek', body: 'Vegyél LAMP-boxokat, majd VPS-eket, majd dedicated szervereket. Minden upgrade több kapacitást, biztonságot vagy ügyfél-elégedettséget ad. A tech-fa 2002-től 2026-ig megy.' },
+        { emoji: '🚀', title: 'A célod', body: 'Érd el az 1M$ életteli MRR-t. Élj túl a HN-címlap-hugokat. Kerüld el a DDoS-t, DMCA-t és azt az egy gyakornokot aki rm -rf /-et futtat. Sok sikert — szükséged lesz rá.' }
+      ];
+      var SLIDES_DE = [
+        { emoji: '⚡', title: 'Willkommen bei Hyperscales', body: 'Du führst 2002 eine Hosting-Firma. LAMP-Server. cPanel. Kunden, die nicht wissen, was FTP ist. Dein Job: halte sie zufrieden, lass den MRR wachsen, überlebe Incidents.' },
+        { emoji: '🤖', title: 'Kunden sind KI', body: 'Jeder Kunde ist ein Llama-getriebener NPC mit Erinnerung. Sie erinnern sich an deine Fehler. Die Karen wird deiner Mutter mailen. Der Crypto-Bro will in $TYCOON zahlen.' },
+        { emoji: '🎫', title: 'Tickets + Schicht-Modus', body: 'Tickets entstehen, wenn Kunden auf Probleme stoßen. Im Schicht-Modus setzt du dich 30 Minuten hin und antwortest in Echtzeit. Refund, Eskalation, Untersuchung oder Schließen — jede Wahl ändert die Zufriedenheit.' },
+        { emoji: '🖥️', title: 'Server + Upgrades', body: 'Kaufe LAMP-Boxen, dann VPS-Knoten, dann Dedicated. Jedes Upgrade gibt mehr Kapazität, Sicherheit oder Kundenzufriedenheit. Der Tech-Tree geht von 2002 bis 2026.' },
+        { emoji: '🚀', title: 'Dein Ziel', body: 'Erreiche $1M lebenslangen MRR. Überlebe HN-Frontpage-Hugs. Vermeide DDoS, DMCA und den einen Praktikanten, der rm -rf / ausführt. Viel Glück — du wirst es brauchen.' }
+      ];
+      var SLIDES = _lang === 'hu' ? SLIDES_HU : _lang === 'de' ? SLIDES_DE : SLIDES_EN;
       var idx = 0;
       var content = document.getElementById('onboarding-slide-content');
       var dotsContainer = document.getElementById('onboarding-dots');
