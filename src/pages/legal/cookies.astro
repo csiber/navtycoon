@@ -1,0 +1,98 @@
+---
+import LegalLayout from '../../layouts/LegalLayout.astro';
+import { company } from '../../data/company';
+
+const ALTS = { en: '/legal/cookies', hu: '/hu/sutik', de: '/de/cookies' };
+---
+<LegalLayout
+  title="Cookie Policy"
+  description="Which cookies and similar technologies Hyperscales uses, why, and how to opt out."
+  lang="en"
+  alternates={ALTS}
+  updated="2026-05-14"
+>
+  <h1>Cookie Policy</h1>
+  <p class="lead">
+    What we store on your device, what's optional, and how to change your mind later.
+  </p>
+  <div class="lang-row">
+    <span class="active">English</span>
+    <a href="/hu/sutik">Magyar</a>
+    <a href="/de/cookies">Deutsch</a>
+  </div>
+
+  <h2>1. What cookies are</h2>
+  <p>
+    Cookies are small key-value pairs your browser stores for a website. We also use
+    <code>localStorage</code> in places (similar idea, different mechanism). For the
+    purposes of EU cookie law, we treat both the same: essential ones are always on,
+    everything else is opt-in.
+  </p>
+
+  <h2>2. What we use</h2>
+  <h3>Strictly necessary (always on)</h3>
+  <ul>
+    <li>
+      <strong>Session cookie</strong> — keeps you logged in. Without it, the game can't tell
+      who you are. Lifetime: up to 30 days, expires on logout.
+    </li>
+    <li>
+      <strong><code>hs_lang</code></strong> (localStorage) — remembers your language pick (en/hu/de).
+    </li>
+    <li>
+      <strong>CSRF token</strong> — short-lived, prevents form-tampering attacks.
+    </li>
+  </ul>
+
+  <h3>Functional (opt-in)</h3>
+  <ul>
+    <li>
+      <strong><code>hs_music</code></strong> (localStorage) — remembers whether you had the
+      ambient music on. Saved when you click the toggle.
+    </li>
+    <li>
+      <strong><code>hs_pwa_dismissed</code></strong> (localStorage) — hides the "Install app"
+      pill after you dismiss it.
+    </li>
+  </ul>
+
+  <h3>Analytics (opt-in)</h3>
+  <p>
+    Currently <strong>none</strong>. If we ever add product analytics, it will be
+    privacy-respecting, aggregated, and gated behind explicit consent in the banner.
+  </p>
+
+  <h3>Advertising</h3>
+  <p>
+    <strong>None.</strong> We do not run ads, do not use ad pixels, and do not share data
+    with ad networks.
+  </p>
+
+  <h2>3. Changing your choice</h2>
+  <p>
+    You can reset your cookie preferences anytime by clicking
+    <button id="cookie-reset" type="button" style="background:rgba(99,102,241,.12);border:1px solid #262c46;color:#e9ecf5;padding:6px 12px;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;">
+      Reset cookie consent
+    </button>
+    — the consent banner will appear on your next page load.
+  </p>
+  <p>
+    You can also clear cookies and localStorage in your browser settings at any time. Doing so
+    will log you out and reset your preferences.
+  </p>
+
+  <h2>4. Contact</h2>
+  <p>
+    Questions: <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.
+  </p>
+
+  <script is:inline>
+    document.getElementById('cookie-reset')?.addEventListener('click', () => {
+      try {
+        localStorage.removeItem('hs_consent');
+        localStorage.removeItem('hs_consent_v');
+      } catch {}
+      alert('Consent reset. The banner will appear on the next page load.');
+    });
+  </script>
+</LegalLayout>

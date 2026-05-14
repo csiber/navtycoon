@@ -1,0 +1,136 @@
+---
+// Shared layout for legal pages — minimal, fast, themed to match landing.
+// Used by /legal/*, /hu/*, /de/* legal pages.
+interface Props {
+  title: string;
+  description: string;
+  lang: 'en' | 'hu' | 'de';
+  alternates?: Record<'en' | 'hu' | 'de', string>;
+  updated?: string;
+}
+
+const { title, description, lang, alternates, updated } = Astro.props;
+
+const SITE = 'https://hyperscales.app';
+const PATH = Astro.url.pathname;
+---
+<!doctype html>
+<html lang={lang}>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>{title} · Hyperscales</title>
+<meta name="description" content={description} />
+<meta name="theme-color" content="#07090f" />
+<meta name="color-scheme" content="dark" />
+<meta name="robots" content="index,follow" />
+<link rel="canonical" href={`${SITE}${PATH}`} />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+{alternates && Object.entries(alternates).map(([l, href]) => (
+  <link rel="alternate" hreflang={l} href={`${SITE}${href}`} />
+))}
+{alternates?.en && <link rel="alternate" hreflang="x-default" href={`${SITE}${alternates.en}`} />}
+<meta property="og:title" content={`${title} · Hyperscales`} />
+<meta property="og:description" content={description} />
+<meta property="og:type" content="article" />
+<meta property="og:url" content={`${SITE}${PATH}`} />
+<meta property="og:image" content={`${SITE}/og.webp`} />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+<style is:global>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; padding: 0; background: #07090f; color: #e9ecf5; }
+  body {
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(99,102,241,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,102,241,.04) 1px, transparent 1px);
+    background-size: 56px 56px;
+    mask-image: radial-gradient(ellipse at 50% 0%, #000 30%, transparent 75%);
+    pointer-events: none;
+  }
+  a { color: #818cf8; text-decoration: underline; text-underline-offset: 2px; }
+  a:hover { color: #a5b4fc; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+  nav.top {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(14px);
+    background: rgba(7,9,15,.7);
+    border-bottom: 1px solid #1e2338;
+  }
+  .nav-inner { max-width: 1240px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: "Space Grotesk", "Inter", sans-serif; font-weight: 700; font-size: 18px; color: #e9ecf5; text-decoration: none; }
+  .brand-mark { width: 26px; height: 26px; border-radius: 7px; background: linear-gradient(135deg, #6366f1, #f43f5e); }
+  .nav-links { display: flex; gap: 22px; font-size: 13px; color: #8b92ad; }
+  .nav-links a { color: #8b92ad; text-decoration: none; }
+  .nav-links a:hover { color: #e9ecf5; }
+  article {
+    padding: 60px 0 80px;
+  }
+  article h1 { font-family: "Space Grotesk", sans-serif; font-size: clamp(28px, 5vw, 40px); margin: 0 0 8px; color: #e9ecf5; }
+  article .lead { color: #8b92ad; font-size: 15px; margin: 0 0 36px; }
+  article .lang-row { display: flex; gap: 14px; font-size: 13px; margin: 0 0 28px; color: #5d6483; }
+  article .lang-row a { color: #818cf8; }
+  article .lang-row .active { color: #e9ecf5; font-weight: 600; text-decoration: none; }
+  article h2 { font-family: "Space Grotesk", sans-serif; font-size: 22px; margin: 38px 0 12px; color: #c7cad8; }
+  article h3 { font-family: "Space Grotesk", sans-serif; font-size: 16px; margin: 24px 0 8px; color: #c7cad8; }
+  article p, article li { color: #b8bcd0; }
+  article ul, article ol { padding-left: 22px; }
+  article li { margin: 4px 0; }
+  article strong { color: #e9ecf5; }
+  article code { background: #11141f; padding: 1px 6px; border-radius: 4px; font-size: 13px; color: #a5b4fc; }
+  article .meta { margin-top: 48px; padding: 18px 20px; border: 1px solid #1e2338; border-radius: 12px; background: rgba(99,102,241,.04); font-size: 13px; color: #8b92ad; }
+  footer.simple {
+    border-top: 1px solid #1e2338;
+    padding: 28px 0;
+    color: #5d6483;
+    font-size: 13px;
+    text-align: center;
+  }
+  footer.simple a { color: #8b92ad; }
+  @media (max-width: 640px) {
+    .nav-links { gap: 14px; font-size: 12px; }
+    article { padding: 40px 0 60px; }
+  }
+</style>
+</head>
+<body>
+  <nav class="top">
+    <div class="nav-inner">
+      <a href="/" class="brand"><span class="brand-mark"></span>Hyperscales</a>
+      <div class="nav-links">
+        <a href="/">{lang === 'hu' ? 'Főoldal' : lang === 'de' ? 'Startseite' : 'Home'}</a>
+        <a href="/signup">{lang === 'hu' ? 'Beta' : 'Beta'}</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <article>
+      <slot />
+      {updated && (
+        <div class="meta">
+          {lang === 'hu' && <>Utolsó frissítés: <strong>{updated}</strong></>}
+          {lang === 'de' && <>Stand: <strong>{updated}</strong></>}
+          {lang === 'en' && <>Last updated: <strong>{updated}</strong></>}
+        </div>
+      )}
+    </article>
+  </main>
+
+  <footer class="simple">
+    <div class="wrap">
+      © 2026 Hyperscales · <a href="/legal/imprint">Imprint</a> · <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a>
+    </div>
+  </footer>
+</body>
+</html>

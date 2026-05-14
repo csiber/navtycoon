@@ -1,0 +1,134 @@
+---
+import LegalLayout from '../../layouts/LegalLayout.astro';
+import { company } from '../../data/company';
+
+const ALTS = { en: '/legal/privacy', hu: '/hu/adatkezeles', de: '/de/datenschutz' };
+---
+<LegalLayout
+  title="Datenschutzerklärung"
+  description="Wie Hyperscales mit deinen Daten umgeht. DSGVO-konform, verständlich, ohne Dark Patterns."
+  lang="de"
+  alternates={ALTS}
+  updated="2026-05-14"
+>
+  <h1>Datenschutzerklärung</h1>
+  <p class="lead">
+    Kurzfassung: Wir erheben nur, was zum Betrieb nötig ist, speichern auf EU-Infrastruktur
+    und du kannst jederzeit löschen lassen.
+  </p>
+  <div class="lang-row">
+    <a href="/legal/privacy">English</a>
+    <a href="/hu/adatkezeles">Magyar</a>
+    <span class="active">Deutsch</span>
+  </div>
+
+  <h2>1. Verantwortlicher</h2>
+  <p>
+    Verantwortlich ist <strong>{company.name}</strong> (Marke: {company.brand}),
+    {company.address.full}. Steuernummer: <code>{company.taxNumber}</code>.
+    Datenschutz-Kontakt: <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.
+  </p>
+
+  <h2>2. Was wir erheben</h2>
+  <h3>Kontodaten</h3>
+  <ul>
+    <li>E-Mail-Adresse (Login + Transaktions-Mails).</li>
+    <li>Passwort — gespeichert als PBKDF2-SHA-256-Hash, nie im Klartext.</li>
+    <li>Anzeigename und im Spiel gewählter Firmenname.</li>
+    <li>Optional: Stadt (für lokale Spielflavour).</li>
+  </ul>
+
+  <h3>Spieldaten</h3>
+  <ul>
+    <li>Dein Spielstand: Server, Kunden, Tickets, Finanzprotokoll, Achievements.</li>
+    <li>LLM-generierte Inhalte, die deinem Konto zugeordnet sind (NPCs, Dialoge, Tickets).</li>
+    <li>Aggregierte Nutzungssignale (abgeschlossene Schichten, Sessions pro Tag) für Produktanalytik.</li>
+  </ul>
+
+  <h3>Technische Daten</h3>
+  <ul>
+    <li>IP-Adresse (transient, für Rate-Limiting und Missbrauchserkennung).</li>
+    <li>User-Agent und grobe Geräteklasse.</li>
+    <li>Session-Token (Cookie, siehe <a href="/de/cookies">Cookies</a>).</li>
+  </ul>
+
+  <h3>Was wir NICHT erheben</h3>
+  <p>
+    Keine Werbe-Pixel Dritter, kein Google Analytics, kein Facebook-Pixel, keine
+    Cross-Site-Tracker. Wir verkaufen deine Daten nicht und werden es nie tun.
+  </p>
+
+  <h2>3. Warum wir verarbeiten (Rechtsgrundlage)</h2>
+  <ul>
+    <li><strong>Vertragserfüllung (Art. 6 Abs. 1 lit. b DSGVO):</strong> Konto, Spielstand, Session, Support.</li>
+    <li><strong>Berechtigtes Interesse (Art. 6 Abs. 1 lit. f):</strong> Missbrauchserkennung, Rate-Limit, aggregierte Produktanalytik.</li>
+    <li><strong>Einwilligung (Art. 6 Abs. 1 lit. a):</strong> nicht-essentielle Cookies / Analytik — Opt-In via Cookie-Banner.</li>
+    <li><strong>Rechtliche Verpflichtung (Art. 6 Abs. 1 lit. c):</strong> Steuer-/Buchhaltungs­pflichten (nur bei Kauf).</li>
+  </ul>
+
+  <h2>4. Wo wir speichern</h2>
+  <p>
+    Konto-, Spiel- und Session-Daten werden in <strong>Cloudflare D1</strong> (Cloudflare,
+    Inc., 101 Townsend St, San Francisco, CA 94107, USA) gespeichert, wo unterstützt an
+    <strong>EU-Regionen</strong> gebunden. Cloudflare ist Auftragsverarbeiter; das EU-DPA
+    inkl. SCC für etwaige EU↔US-Transfers gilt.
+  </p>
+  <p>
+    Statische Assets und Edge-Anfragen werden ebenfalls aus dem globalen Cloudflare-Netz
+    ausgeliefert — dort werden keine dauerhaften Nutzerdaten gespeichert.
+  </p>
+
+  <h2>5. Dritte (Auftragsverarbeiter)</h2>
+  <ul>
+    <li><strong>Cloudflare</strong> — Hosting, D1-Datenbank, R2-Objekt­speicher, CDN. <a href="https://www.cloudflare.com/cloudflare-customer-dpa/" target="_blank" rel="noopener">DPA</a>.</li>
+    <li><strong>Resend</strong> (Anti-Pattern, Inc.) — Versand transaktionaler E-Mails. <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Datenschutz­erklärung</a>.</li>
+    <li><strong>Stripe</strong> — nur falls / sobald Bezahlpläne starten. In der kostenlosen Beta nicht aktiv.</li>
+    <li><strong>LLM-Anbieter</strong> (OpenAI, Anthropic, Google oder dein eigener Key) — erhalten nur den Prompttext, der für die Generierung von Spielinhalten nötig ist. Keine Rohkonto-Daten.</li>
+  </ul>
+
+  <h2>6. Wie lange wir speichern</h2>
+  <ul>
+    <li>Konto + Spielstand: solange dein Konto aktiv ist.</li>
+    <li>Nach Löschanfrage: innerhalb von 30 Tagen gelöscht, sofern das Recht nicht längeres vorschreibt (z. B. Buchhaltungs­unterlagen, ungarisches Steuerrecht 8 Jahre).</li>
+    <li>Server-Logs: rollierend 30 Tage.</li>
+    <li>Aggregierte Analytik: unbegrenzt, aber anonymisiert (kein Rückbezug zu Personen).</li>
+  </ul>
+
+  <h2>7. Deine Rechte (DSGVO)</h2>
+  <p>Du kannst:</p>
+  <ul>
+    <li><strong>Auskunft</strong> über deine Daten verlangen — wir senden einen JSON-Export.</li>
+    <li><strong>Berichtigung</strong> falscher Daten — die meisten Felder sind in der App änderbar, andere auf Anfrage.</li>
+    <li><strong>Löschung</strong> ("Recht auf Vergessenwerden") — siehe AGB Abschnitt 9 oder per Mail <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.</li>
+    <li><strong>Einschränkung</strong> oder <strong>Widerspruch</strong> gegen Verarbeitung auf Basis berechtigten Interesses.</li>
+    <li><strong>Datenübertragbarkeit</strong> — Export in maschinenlesbarem Format.</li>
+    <li><strong>Einwilligung jederzeit widerrufen</strong> (z. B. Analytik) — Toggle im Cookie-Banner.</li>
+    <li><strong>Beschwerde</strong> bei der zuständigen Aufsichtsbehörde: ungarische NAIH — <a href="https://naih.hu" target="_blank" rel="noopener">naih.hu</a> (1055 Budapest, Falk Miksa u. 9–11.).</li>
+  </ul>
+
+  <h2>8. Cookies &amp; ähnliche Technik</h2>
+  <p>
+    Wir nutzen eine kleine Auswahl Cookies. Details auf der dedizierten
+    <a href="/de/cookies">Cookies-Seite</a>. Nicht-essentielle Cookies sind Opt-In via Banner
+    beim ersten Besuch.
+  </p>
+
+  <h2>9. Kinder</h2>
+  <p>
+    Hyperscales richtet sich nicht an Kinder unter 16. Wir erheben wissentlich keine Daten von
+    Personen unter dem DSGVO-Mindestalter (16 in Ungarn). Falls dir Gegenteiliges auffällt,
+    kontaktiere uns — wir löschen.
+  </p>
+
+  <h2>10. Änderungen</h2>
+  <p>
+    Wir aktualisieren diese Seite bei Änderungen unserer Datenverarbeitung und passen das
+    "Stand"-Datum an. Wesentliche Änderungen werden zusätzlich in der App angekündigt.
+  </p>
+
+  <h2>11. Kontakt</h2>
+  <p>
+    Datenschutz: <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.
+    Missbrauch: <a href={`mailto:${company.abuseEmail}`}>{company.abuseEmail}</a>.
+  </p>
+</LegalLayout>

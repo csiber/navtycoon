@@ -1,0 +1,135 @@
+---
+import LegalLayout from '../../layouts/LegalLayout.astro';
+import { company } from '../../data/company';
+
+const ALTS = { en: '/legal/privacy', hu: '/hu/adatkezeles', de: '/de/datenschutz' };
+---
+<LegalLayout
+  title="Adatkezelési tájékoztató"
+  description="A Hyperscales adatkezelési tájékoztatója — GDPR-hez igazítva, közérthető nyelven."
+  lang="hu"
+  alternates={ALTS}
+  updated="2026-05-14"
+>
+  <h1>Adatkezelési tájékoztató</h1>
+  <p class="lead">
+    Röviden: csak azt gyűjtjük, ami a játék működtetéséhez kell, EU-s infrán tároljuk, és bármikor
+    kérheted a törlését.
+  </p>
+  <div class="lang-row">
+    <a href="/legal/privacy">English</a>
+    <span class="active">Magyar</span>
+    <a href="/de/datenschutz">Deutsch</a>
+  </div>
+
+  <h2>1. Adatkezelő</h2>
+  <p>
+    Az adatkezelő <strong>{company.name}</strong> (márkanév: {company.brand}),
+    {company.address.full}. Adószám: <code>{company.taxNumber}</code>.
+    Adatvédelmi kapcsolat: <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.
+  </p>
+
+  <h2>2. Mit gyűjtünk</h2>
+  <h3>Fiókadatok</h3>
+  <ul>
+    <li>E-mail-cím (belépés + tranzakciós levél).</li>
+    <li>Jelszó — PBKDF2-SHA-256 hash-ként tárolva, soha nem nyíltan.</li>
+    <li>Megjelenített név és játékon belüli cégnév, amit te választasz.</li>
+    <li>Opcionális: város (lokális játékélményhez).</li>
+  </ul>
+
+  <h3>Játékadatok</h3>
+  <ul>
+    <li>A játékon belüli állapotod: szerverek, ügyfelek, ticketek, pénzügyi napló, achievementek.</li>
+    <li>A fiókodhoz kötött LLM-generált tartalom (NPC-k, párbeszédek, ticketek).</li>
+    <li>Aggregált használati jelek (befejezett shiftek, napi session-ök) termékanalitikához.</li>
+  </ul>
+
+  <h3>Technikai adatok</h3>
+  <ul>
+    <li>IP-cím (átmeneti, rate-limithez és abuse-detekcióhoz).</li>
+    <li>User-agent és tág eszközkategória.</li>
+    <li>Session token (cookie — lásd <a href="/hu/sutik">sütik</a>).</li>
+  </ul>
+
+  <h3>Mit NEM gyűjtünk</h3>
+  <p>
+    Nincs harmadik féltől származó hirdetési pixel, nincs Google Analytics, nincs Facebook Pixel,
+    nincs cross-site tracker. Adatot nem adunk el, és soha nem is fogunk.
+  </p>
+
+  <h2>3. Miért kezeljük (jogalap)</h2>
+  <ul>
+    <li><strong>Szerződés teljesítése (GDPR 6. cikk (1) b)):</strong> fiók, játékállapot, session, ügyféltámogatás.</li>
+    <li><strong>Jogos érdek (6. cikk (1) f)):</strong> abuse-detekció, rate-limit, aggregált termékanalitika.</li>
+    <li><strong>Hozzájárulás (6. cikk (1) a)):</strong> nem-essential sütik / analitika — opt-in a cookie banneren.</li>
+    <li><strong>Jogi kötelezettség (6. cikk (1) c)):</strong> adózási / nyilvántartási kötelezettségek (csak ha vásárolsz).</li>
+  </ul>
+
+  <h2>4. Hol tároljuk</h2>
+  <p>
+    A fiók-, játék- és session-adatokat a <strong>Cloudflare D1</strong>-ben tároljuk
+    (Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA), ahol támogatott,
+    <strong>EU-régiókhoz</strong> kötve. A Cloudflare adatfeldolgozónk; az EU-s
+    adatfeldolgozási kiegészítésük (DPA) alkalmazandó, beleértve az SCC-ket bármilyen
+    EU↔US adattovábbításhoz.
+  </p>
+  <p>
+    A statikus eszközök és edge-kérések is a Cloudflare globális hálózatáról kerülnek
+    kiszolgálásra — perzisztens felhasználói adatot ott nem tárolunk.
+  </p>
+
+  <h2>5. Harmadik felek (adatfeldolgozók)</h2>
+  <ul>
+    <li><strong>Cloudflare</strong> — hosting, D1 adatbázis, R2 objektum-tár, CDN. <a href="https://www.cloudflare.com/cloudflare-customer-dpa/" target="_blank" rel="noopener">DPA</a>.</li>
+    <li><strong>Resend</strong> (Anti-Pattern, Inc.) — tranzakciós e-mail-kézbesítés. <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Adatvédelmi nyilatkozat</a>.</li>
+    <li><strong>Stripe</strong> — csak ha/amikor fizetős csomagok indulnak. Az ingyenes béta alatt nem aktív.</li>
+    <li><strong>LLM-szolgáltatók</strong> (OpenAI, Anthropic, Google vagy a saját kulcsod) — csak a játékon belüli tartalom generálásához szükséges prompt-szöveget kapják meg. Nyers fiókadatot nem küldünk.</li>
+  </ul>
+
+  <h2>6. Meddig tároljuk</h2>
+  <ul>
+    <li>Fiók + játékadat: amíg a fiókod aktív.</li>
+    <li>Törlési kérés után: 30 napon belül törölve, kivéve ha a jog hosszabbat ír elő (pl. számviteli iratok, magyar adótörvény szerint 8 év).</li>
+    <li>Szerver-log: gördülő 30 nap.</li>
+    <li>Aggregált analitika: határozatlan ideig, de anonimizálva (nem köthető vissza személyhez).</li>
+  </ul>
+
+  <h2>7. Jogaid (GDPR)</h2>
+  <p>Élhetsz a következő jogokkal:</p>
+  <ul>
+    <li><strong>Hozzáférés</strong> — kérheted adataid másolatát, JSON-exportot küldünk.</li>
+    <li><strong>Helyesbítés</strong> — a legtöbb mező a játékban szerkeszthető, a többit kérésre javítjuk.</li>
+    <li><strong>Törlés</strong> ("elfeledtetéshez való jog") — lásd ÁSZF 9. szakaszát vagy emailben: <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.</li>
+    <li><strong>Korlátozás</strong> vagy <strong>tiltakozás</strong> a jogos érdeken alapuló adatkezelés ellen.</li>
+    <li><strong>Adathordozhatóság</strong> — gépi-olvasható formátumban.</li>
+    <li><strong>Hozzájárulás visszavonása</strong> bármikor (pl. analitika) — a cookie banneren.</li>
+    <li><strong>Panasz</strong> a felügyeleti hatóságnál: <a href="https://naih.hu" target="_blank" rel="noopener">NAIH</a> (1055 Budapest, Falk Miksa u. 9–11.).</li>
+  </ul>
+
+  <h2>8. Sütik &amp; hasonló tech</h2>
+  <p>
+    Egy kis halmaz sütit használunk. Részletek a dedikált <a href="/hu/sutik">süti-oldalon</a>.
+    A nem-essential sütik az első látogatáskor megjelenő hozzájárulási banneren opt-in alapon
+    aktiválódnak.
+  </p>
+
+  <h2>9. Gyermekek</h2>
+  <p>
+    A Hyperscales nem 16 év alatti gyermekeknek készült. Tudatosan nem gyűjtünk adatot a
+    GDPR-szerinti digitális hozzájárulási korhatár (Magyarországon 16 év) alattiaktól.
+    Ha úgy gondolod, mégis tettünk, jelezd, és töröljük.
+  </p>
+
+  <h2>10. Változások</h2>
+  <p>
+    Ha változtatunk az adatkezelésen, frissítjük ezt a lapot és módosítjuk az "Utolsó
+    frissítés" dátumot. A lényeges változásokat a játékban is közöljük.
+  </p>
+
+  <h2>11. Kapcsolat</h2>
+  <p>
+    Adatvédelmi kérdés: <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.
+    Abuse-bejelentés: <a href={`mailto:${company.abuseEmail}`}>{company.abuseEmail}</a>.
+  </p>
+</LegalLayout>

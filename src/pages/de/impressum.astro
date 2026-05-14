@@ -1,0 +1,72 @@
+---
+import LegalLayout from '../../layouts/LegalLayout.astro';
+import { company } from '../../data/company';
+
+const ALTS = { en: '/legal/imprint', hu: '/hu/impresszum', de: '/de/impressum' };
+---
+<LegalLayout
+  title="Impressum"
+  description="Pflichtangaben zum Betreiber von Hyperscales nach ungarischem und EU-Recht."
+  lang="de"
+  alternates={ALTS}
+  updated="2026-05-14"
+>
+  <h1>Impressum</h1>
+  <p class="lead">
+    Pflichtangaben zum Betreiber.
+  </p>
+  <div class="lang-row">
+    <a href="/legal/imprint">English</a>
+    <a href="/hu/impresszum">Magyar</a>
+    <span class="active">Deutsch</span>
+  </div>
+
+  <h2>Anbieter</h2>
+  <ul>
+    <li><strong>Name:</strong> {company.name}</li>
+    <li><strong>Marke:</strong> {company.brand}</li>
+    <li><strong>Adresse:</strong> {company.address.full}</li>
+    <li><strong>Land:</strong> {company.address.country}</li>
+    <li><strong>Steuernummer:</strong> <code>{company.taxNumber}</code></li>
+    <li><strong>Registriernummer:</strong> <code>{company.registryNumber}</code></li>
+    <li><strong>E-Mail:</strong> <a href={`mailto:${company.email}`}>{company.email}</a></li>
+    <li><strong>Telefon:</strong> <a href={`tel:${company.phoneRaw}`}>{company.phone}</a></li>
+  </ul>
+
+  <h2>Hosting-Anbieter</h2>
+  <p>
+    Die Webseite und das Spiel laufen auf der Infrastruktur von <strong>Cloudflare, Inc.</strong>
+    (101 Townsend St, San Francisco, CA 94107, USA — <a href="https://www.cloudflare.com" target="_blank" rel="noopener">cloudflare.com</a>).
+    Wo unterstützt, sind die Daten an EU-Regionen gebunden.
+  </p>
+
+  <h2>Aufsichtsbehörde</h2>
+  <p>
+    Die Tätigkeit als Einzelunternehmer ist bei der ungarischen Nationalen Steuer- und
+    Zollverwaltung (NAV) registriert — <a href="https://nav.gov.hu" target="_blank" rel="noopener">nav.gov.hu</a>.
+    Verbraucherbeschwerden können an die örtlich zuständige Bezirksstelle oder die
+    Schlichtungsstelle (Békéltető Testület) gerichtet werden.
+  </p>
+
+  <h2>Datenschutzbehörde</h2>
+  <p>
+    Ungarische Nationale Behörde für Datenschutz und Informationsfreiheit (NAIH) —
+    <a href="https://naih.hu" target="_blank" rel="noopener">naih.hu</a>,
+    1055 Budapest, Falk Miksa u. 9–11.
+  </p>
+
+  <h2>Haftung</h2>
+  <p>
+    Hyperscales ist ein fiktives Simulationsspiel. NPC-Dialoge, Kundennamen und sonstige
+    Spielinhalte werden von Sprachmodellen erzeugt und stellen keine realen Personen,
+    Unternehmen oder Ereignisse dar. Bezüge zu realen Unternehmen sind zufällig oder im
+    eindeutig fiktiven Kontext verwendet.
+  </p>
+
+  <h2>Produktfamilie</h2>
+  <p>
+    Hyperscales ist Teil des {company.parent}-Ökosystems
+    (<a href={company.parentUrl}>{company.parentUrl}</a>). Cross-Brand Single Sign-On
+    ist verfügbar — gleiches Konto, getrennte Nutzerdaten je Marke.
+  </p>
+</LegalLayout>

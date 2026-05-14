@@ -1,0 +1,85 @@
+---
+import LegalLayout from '../../layouts/LegalLayout.astro';
+import { company } from '../../data/company';
+
+const ALTS = { en: '/legal/cookies', hu: '/hu/sutik', de: '/de/cookies' };
+---
+<LegalLayout
+  title="Cookie-Richtlinie"
+  description="Welche Cookies und ähnliche Technologien Hyperscales verwendet, warum und wie du dich abmeldest."
+  lang="de"
+  alternates={ALTS}
+  updated="2026-05-14"
+>
+  <h1>Cookie-Richtlinie</h1>
+  <p class="lead">
+    Was wir auf deinem Gerät speichern, was optional ist und wie du deine Wahl später änderst.
+  </p>
+  <div class="lang-row">
+    <a href="/legal/cookies">English</a>
+    <a href="/hu/sutik">Magyar</a>
+    <span class="active">Deutsch</span>
+  </div>
+
+  <h2>1. Was Cookies sind</h2>
+  <p>
+    Cookies sind kleine Schlüssel-Wert-Paare, die dein Browser für eine Website speichert.
+    An manchen Stellen nutzen wir <code>localStorage</code> (gleiche Idee, andere
+    Mechanik). Für das EU-Cookie-Recht behandeln wir beides gleich: essenzielle Sachen
+    sind immer an, alles andere ist Opt-In.
+  </p>
+
+  <h2>2. Was wir verwenden</h2>
+  <h3>Unbedingt erforderlich (immer aktiv)</h3>
+  <ul>
+    <li><strong>Session-Cookie</strong> — hält dich eingeloggt. Ohne weiß das Spiel nicht, wer du bist. Laufzeit: bis 30 Tage, beim Logout abgelaufen.</li>
+    <li><strong><code>hs_lang</code></strong> (localStorage) — merkt deine Sprachwahl (en/hu/de).</li>
+    <li><strong>CSRF-Token</strong> — kurzlebig, verhindert Formular-Manipulationen.</li>
+  </ul>
+
+  <h3>Funktional (Opt-In)</h3>
+  <ul>
+    <li><strong><code>hs_music</code></strong> (localStorage) — merkt, ob die Ambient-Musik an war.</li>
+    <li><strong><code>hs_pwa_dismissed</code></strong> (localStorage) — blendet den "App installieren"-Hinweis nach Schließen aus.</li>
+  </ul>
+
+  <h3>Analytik (Opt-In)</h3>
+  <p>
+    Derzeit <strong>keine</strong>. Falls wir Produktanalytik einführen, ist sie
+    datenschutzfreundlich, aggregiert und nur nach expliziter Einwilligung im Banner aktiv.
+  </p>
+
+  <h3>Werbung</h3>
+  <p>
+    <strong>Keine.</strong> Wir schalten keine Anzeigen, nutzen keine Werbe-Pixel und
+    geben keine Daten an Werbenetzwerke weiter.
+  </p>
+
+  <h2>3. Auswahl ändern</h2>
+  <p>
+    Du kannst deine Cookie-Wahl jederzeit zurücksetzen:
+    <button id="cookie-reset" type="button" style="background:rgba(99,102,241,.12);border:1px solid #262c46;color:#e9ecf5;padding:6px 12px;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;">
+      Cookie-Einwilligung zurücksetzen
+    </button>
+    — der Banner erscheint beim nächsten Seitenaufruf erneut.
+  </p>
+  <p>
+    Du kannst Cookies und localStorage auch in deinen Browser-Einstellungen löschen. Das loggt
+    dich aus und setzt deine Präferenzen zurück.
+  </p>
+
+  <h2>4. Kontakt</h2>
+  <p>
+    Fragen: <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.
+  </p>
+
+  <script is:inline>
+    document.getElementById('cookie-reset')?.addEventListener('click', () => {
+      try {
+        localStorage.removeItem('hs_consent');
+        localStorage.removeItem('hs_consent_v');
+      } catch {}
+      alert('Einwilligung zurückgesetzt. Banner erscheint beim nächsten Aufruf.');
+    });
+  </script>
+</LegalLayout>

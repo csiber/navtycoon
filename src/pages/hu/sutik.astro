@@ -1,0 +1,86 @@
+---
+import LegalLayout from '../../layouts/LegalLayout.astro';
+import { company } from '../../data/company';
+
+const ALTS = { en: '/legal/cookies', hu: '/hu/sutik', de: '/de/cookies' };
+---
+<LegalLayout
+  title="Süti tájékoztató"
+  description="Melyik sütit és hasonló technológiát használja a Hyperscales, miért, és hogyan vonhatod vissza a hozzájárulást."
+  lang="hu"
+  alternates={ALTS}
+  updated="2026-05-14"
+>
+  <h1>Süti tájékoztató</h1>
+  <p class="lead">
+    Mit tárolunk a böngésződben, mi opcionális, és hogyan változtathatod meg később.
+  </p>
+  <div class="lang-row">
+    <a href="/legal/cookies">English</a>
+    <span class="active">Magyar</span>
+    <a href="/de/cookies">Deutsch</a>
+  </div>
+
+  <h2>1. Mik a sütik</h2>
+  <p>
+    A sütik kis kulcs-érték párok, amelyeket a böngésződ egy webhely számára tárol. Helyenként
+    <code>localStorage</code>-ot is használunk (hasonló ötlet, más mechanizmus). Az EU-s
+    cookie-jog szempontjából a kettőt azonosan kezeljük: az essential-eket mindig elérjük,
+    minden mást opt-in alapon.
+  </p>
+
+  <h2>2. Mit használunk</h2>
+  <h3>Feltétlenül szükséges (mindig aktív)</h3>
+  <ul>
+    <li><strong>Session-süti</strong> — bejelentkezve tart. Ezzel nem találja a játék, hogy ki vagy. Élettartam: max. 30 nap, kijelentkezéskor lejár.</li>
+    <li><strong><code>hs_lang</code></strong> (localStorage) — megjegyzi a kiválasztott nyelved (en/hu/de).</li>
+    <li><strong>CSRF token</strong> — rövid életű, űrlap-támadásokat akadályoz meg.</li>
+  </ul>
+
+  <h3>Funkcionális (opt-in)</h3>
+  <ul>
+    <li><strong><code>hs_music</code></strong> (localStorage) — megjegyzi, hogy bekapcsoltad-e az ambient zenét.</li>
+    <li><strong><code>hs_pwa_dismissed</code></strong> (localStorage) — elrejti az "Alkalmazás telepítése" pillát, miután bezártad.</li>
+  </ul>
+
+  <h3>Analitika (opt-in)</h3>
+  <p>
+    Jelenleg <strong>nincs</strong>. Ha valaha hozzáadunk termékanalitikát, az
+    adatvédelem-tisztelő, aggregált és a banneren keresztüli kifejezett hozzájáruláshoz
+    kötött lesz.
+  </p>
+
+  <h3>Hirdetés</h3>
+  <p>
+    <strong>Nincs.</strong> Nem futtatunk hirdetést, nem használunk ad-pixelt és nem osztunk
+    meg adatot hirdetési hálózatokkal.
+  </p>
+
+  <h2>3. Hogyan változtathatod</h2>
+  <p>
+    Bármikor visszaállíthatod a cookie-preferenciádat a következő gomb megnyomásával:
+    <button id="cookie-reset" type="button" style="background:rgba(99,102,241,.12);border:1px solid #262c46;color:#e9ecf5;padding:6px 12px;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;">
+      Süti-hozzájárulás visszavonása
+    </button>
+    — a banner a következő oldalbetöltéskor megjelenik.
+  </p>
+  <p>
+    A böngésződ beállításaiban is bármikor törölheted a sütiket és a localStorage-t. Ez ki
+    fog jelentkeztetni és visszaállítja a preferenciáidat.
+  </p>
+
+  <h2>4. Kapcsolat</h2>
+  <p>
+    Kérdés: <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.
+  </p>
+
+  <script is:inline>
+    document.getElementById('cookie-reset')?.addEventListener('click', () => {
+      try {
+        localStorage.removeItem('hs_consent');
+        localStorage.removeItem('hs_consent_v');
+      } catch {}
+      alert('Hozzájárulás visszavonva. A banner a következő oldalbetöltéskor megjelenik.');
+    });
+  </script>
+</LegalLayout>

@@ -1,0 +1,133 @@
+---
+import LegalLayout from '../../layouts/LegalLayout.astro';
+import { company } from '../../data/company';
+
+const ALTS = { en: '/legal/privacy', hu: '/hu/adatkezeles', de: '/de/datenschutz' };
+---
+<LegalLayout
+  title="Privacy Policy"
+  description="How Hyperscales handles your data. GDPR-aligned, plain language, no dark patterns."
+  lang="en"
+  alternates={ALTS}
+  updated="2026-05-14"
+>
+  <h1>Privacy Policy</h1>
+  <p class="lead">
+    Short version: we only collect what we need to run the game, we store it on EU
+    infrastructure, and you can delete it anytime.
+  </p>
+  <div class="lang-row">
+    <span class="active">English</span>
+    <a href="/hu/adatkezeles">Magyar</a>
+    <a href="/de/datenschutz">Deutsch</a>
+  </div>
+
+  <h2>1. Controller</h2>
+  <p>
+    The data controller is <strong>{company.name}</strong> (brand: {company.brand}),
+    {company.address.full}, Hungary. Tax number: <code>{company.taxNumber}</code>.
+    Contact for privacy matters: <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.
+  </p>
+
+  <h2>2. What we collect</h2>
+  <h3>Account data</h3>
+  <ul>
+    <li>Email address (login + transactional mail).</li>
+    <li>Password — stored as a PBKDF2-SHA-256 hash, never in plain text.</li>
+    <li>Display name and company name you choose in-game.</li>
+    <li>Optional: city (used to localise in-game flavour).</li>
+  </ul>
+
+  <h3>Gameplay data</h3>
+  <ul>
+    <li>Your in-game state: servers, customers, tickets, finance log, achievements.</li>
+    <li>LLM-generated content tied to your account (NPCs, dialogue, tickets).</li>
+    <li>Aggregate usage signals (shifts completed, sessions per day) for product analytics.</li>
+  </ul>
+
+  <h3>Technical data</h3>
+  <ul>
+    <li>IP address (transient, for rate-limiting and abuse detection).</li>
+    <li>User-agent string and broad device class.</li>
+    <li>Session token (cookie, see <a href="/legal/cookies">cookies</a>).</li>
+  </ul>
+
+  <h3>What we don't collect</h3>
+  <p>
+    No third-party ad pixels, no Google Analytics, no Facebook Pixel, no cross-site trackers.
+    We do not sell your data and never will.
+  </p>
+
+  <h2>3. Why we process it (legal basis)</h2>
+  <ul>
+    <li><strong>Performance of contract (GDPR Art. 6(1)(b)):</strong> account, gameplay state, session, support.</li>
+    <li><strong>Legitimate interest (Art. 6(1)(f)):</strong> abuse detection, rate-limiting, product analytics in aggregate.</li>
+    <li><strong>Consent (Art. 6(1)(a)):</strong> non-essential cookies / analytics — opt-in via the cookie banner.</li>
+    <li><strong>Legal obligation (Art. 6(1)(c)):</strong> tax / record-keeping (only if you buy something).</li>
+  </ul>
+
+  <h2>4. Where we store data</h2>
+  <p>
+    Account, gameplay and session data are stored in <strong>Cloudflare D1</strong> (Cloudflare,
+    Inc., 101 Townsend St, San Francisco, CA 94107, USA), pinned to <strong>EU regions</strong>
+    where Cloudflare supports it. Cloudflare is a sub-processor; their EU Data Processing
+    Addendum applies, including SCCs for any EU↔US transfers.
+  </p>
+  <p>
+    Static assets and edge requests are also served from Cloudflare's global network — no
+    permanent user data is stored there.
+  </p>
+
+  <h2>5. Third parties (sub-processors)</h2>
+  <ul>
+    <li><strong>Cloudflare</strong> — hosting, D1 database, R2 object storage, CDN. <a href="https://www.cloudflare.com/cloudflare-customer-dpa/" target="_blank" rel="noopener">DPA</a>.</li>
+    <li><strong>Resend</strong> (Anti-Pattern, Inc.) — transactional email delivery. <a href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Privacy policy</a>.</li>
+    <li><strong>Stripe</strong> — only if/when paid plans launch. Not active during free beta.</li>
+    <li><strong>LLM providers</strong> (OpenAI, Anthropic, Google or your own key) — receive only the prompt text needed to generate in-game content. No raw account data is sent.</li>
+  </ul>
+
+  <h2>6. How long we keep it</h2>
+  <ul>
+    <li>Account + gameplay: as long as your account is active.</li>
+    <li>After deletion request: erased within 30 days, except where law requires longer (e.g. billing records, 8 years per Hungarian tax law).</li>
+    <li>Server logs: rolling 30 days.</li>
+    <li>Aggregate analytics: indefinitely, but anonymised (no link back to individuals).</li>
+  </ul>
+
+  <h2>7. Your rights (GDPR)</h2>
+  <p>You can:</p>
+  <ul>
+    <li><strong>Access</strong> a copy of your data — email us, we'll send a JSON export.</li>
+    <li><strong>Rectify</strong> wrong data — most fields are editable in-app, others on request.</li>
+    <li><strong>Erase</strong> ("right to be forgotten") — see Section 9 of the <a href="/legal/terms">Terms</a> or email <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.</li>
+    <li><strong>Restrict</strong> or <strong>object</strong> to processing based on legitimate interest.</li>
+    <li><strong>Portability</strong> — export your data in a machine-readable format.</li>
+    <li><strong>Withdraw consent</strong> at any time (e.g. analytics) — toggle in the cookie banner.</li>
+    <li><strong>Complain</strong> to the Hungarian supervisory authority: <a href="https://naih.hu" target="_blank" rel="noopener">NAIH</a> (1055 Budapest, Falk Miksa u. 9–11.).</li>
+  </ul>
+
+  <h2>8. Cookies &amp; similar tech</h2>
+  <p>
+    We use a small set of cookies. Details on the dedicated <a href="/legal/cookies">cookies page</a>.
+    Non-essential cookies are opt-in via the consent banner shown on your first visit.
+  </p>
+
+  <h2>9. Children</h2>
+  <p>
+    Hyperscales is not aimed at children under 16. We do not knowingly collect data from
+    children below the GDPR digital-consent age (16 in Hungary). If you believe we have, please
+    contact us and we'll delete it.
+  </p>
+
+  <h2>10. Changes</h2>
+  <p>
+    We'll update this page when we change how we handle data and bump the "Last updated" date.
+    Material changes are also announced in-app.
+  </p>
+
+  <h2>11. Contact</h2>
+  <p>
+    Anything privacy-related: <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a>.
+    Abuse reports: <a href={`mailto:${company.abuseEmail}`}>{company.abuseEmail}</a>.
+  </p>
+</LegalLayout>

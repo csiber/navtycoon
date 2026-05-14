@@ -1,0 +1,72 @@
+---
+import LegalLayout from '../../layouts/LegalLayout.astro';
+import { company } from '../../data/company';
+
+const ALTS = { en: '/legal/imprint', hu: '/hu/impresszum', de: '/de/impressum' };
+---
+<LegalLayout
+  title="Impresszum"
+  description="A Hyperscales üzemeltetőjének kötelező cégadatai (magyar és EU-jog szerint)."
+  lang="hu"
+  alternates={ALTS}
+  updated="2026-05-14"
+>
+  <h1>Impresszum</h1>
+  <p class="lead">
+    Kötelező üzemeltetői adatok.
+  </p>
+  <div class="lang-row">
+    <a href="/legal/imprint">English</a>
+    <span class="active">Magyar</span>
+    <a href="/de/impressum">Deutsch</a>
+  </div>
+
+  <h2>Szolgáltató</h2>
+  <ul>
+    <li><strong>Név:</strong> {company.name}</li>
+    <li><strong>Márkanév:</strong> {company.brand}</li>
+    <li><strong>Székhely:</strong> {company.address.full}</li>
+    <li><strong>Ország:</strong> {company.address.country}</li>
+    <li><strong>Adószám:</strong> <code>{company.taxNumber}</code></li>
+    <li><strong>Nyilvántartási szám:</strong> <code>{company.registryNumber}</code></li>
+    <li><strong>E-mail:</strong> <a href={`mailto:${company.email}`}>{company.email}</a></li>
+    <li><strong>Telefon:</strong> <a href={`tel:${company.phoneRaw}`}>{company.phone}</a></li>
+  </ul>
+
+  <h2>Tárhely-szolgáltató</h2>
+  <p>
+    A weboldal és a játék a <strong>Cloudflare, Inc.</strong> infrastruktúráján fut
+    (101 Townsend St, San Francisco, CA 94107, USA — <a href="https://www.cloudflare.com" target="_blank" rel="noopener">cloudflare.com</a>).
+    Ahol támogatott, az adatok EU-régiókhoz vannak rögzítve.
+  </p>
+
+  <h2>Felügyeleti hatóság</h2>
+  <p>
+    Az egyéni vállalkozói tevékenységet a Nemzeti Adó- és Vámhivatal (NAV)
+    nyilvántartja — <a href="https://nav.gov.hu" target="_blank" rel="noopener">nav.gov.hu</a>.
+    Fogyasztóvédelmi panaszokat a területileg illetékes járási hivatalokhoz vagy a
+    Békéltető Testülethez lehet benyújtani.
+  </p>
+
+  <h2>Adatvédelmi hatóság</h2>
+  <p>
+    Nemzeti Adatvédelmi és Információszabadság Hatóság (NAIH) —
+    <a href="https://naih.hu" target="_blank" rel="noopener">naih.hu</a>,
+    1055 Budapest, Falk Miksa u. 9–11.
+  </p>
+
+  <h2>Felelősség</h2>
+  <p>
+    A Hyperscales egy fiktív szimulációs játék. Az NPC-párbeszédek, ügyfél-nevek és egyéb
+    játékon belüli tartalom nyelvi modellek által generált, és nem valós személyeket, cégeket
+    vagy eseményeket jelenít meg. Valós cégekre való hivatkozás véletlenszerű vagy egyértelműen
+    fiktív kontextusban kerül felhasználásra.
+  </p>
+
+  <h2>Termékcsalád</h2>
+  <p>
+    A Hyperscales a {company.parent} ökoszisztéma része
+    (<a href={company.parentUrl}>{company.parentUrl}</a>). Cross-brand egyszeri bejelentkezés
+    elérhető — azonos fiók, márkánként elkülönített felhasználói adat-scope.
+  </p>
+</LegalLayout>

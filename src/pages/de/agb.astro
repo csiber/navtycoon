@@ -1,0 +1,138 @@
+---
+import LegalLayout from '../../layouts/LegalLayout.astro';
+import { company } from '../../data/company';
+
+const ALTS = { en: '/legal/terms', hu: '/hu/aszf', de: '/de/agb' };
+---
+<LegalLayout
+  title="Allgemeine Geschäftsbedingungen"
+  description="Nutzungsbedingungen für Hyperscales — ein browserbasiertes Tycoon-Spiel, betrieben von Polyák Csaba e.v. (PromNET) aus Ungarn."
+  lang="de"
+  alternates={ALTS}
+  updated="2026-05-14"
+>
+  <h1>Allgemeine Geschäftsbedingungen</h1>
+  <p class="lead">
+    Verständliche Bedingungen für das Hyperscales-Browserspiel (offene Beta).
+  </p>
+  <div class="lang-row">
+    <a href="/legal/terms">English</a>
+    <a href="/hu/aszf">Magyar</a>
+    <span class="active">Deutsch</span>
+  </div>
+
+  <h2>1. Wer wir sind</h2>
+  <p>
+    Hyperscales (<a href="https://hyperscales.app">hyperscales.app</a>) wird betrieben von
+    <strong>{company.name}</strong>, einem ungarischen Einzelunternehmer, Marke
+    <strong>{company.brand}</strong>, eingetragen unter {company.address.full}.
+    Steuernummer: <code>{company.taxNumber}</code>.
+    Kontakt: <a href={`mailto:${company.email}`}>{company.email}</a>. Vollständige Daten im
+    <a href="/de/impressum">Impressum</a>. Hyperscales ist Teil der {company.parent}-Produktfamilie
+    (<a href={company.parentUrl}>{company.parentUrl}</a>).
+  </p>
+
+  <h2>2. Was Hyperscales ist</h2>
+  <p>
+    Hyperscales ist ein browserbasiertes Simulationsspiel, in dem du ein fiktives
+    Hosting-Unternehmen aufbaust und mit KI-generierten NPC-Kunden interagierst. Während
+    der offenen Beta wird es <strong>"wie besehen"</strong> bereitgestellt. Funktionen können
+    sich ohne Vorankündigung ändern, ausfallen oder verschwinden.
+  </p>
+
+  <h2>3. Wer spielen darf</h2>
+  <ul>
+    <li>Du musst mindestens <strong>16 Jahre alt</strong> sein (oder das in deinem Land geltende DSGVO-Mindestalter für digitale Einwilligung).</li>
+    <li>Du verpflichtest dich, das Spiel nicht für rechtswidrige Zwecke unter ungarischem oder EU-Recht zu nutzen.</li>
+    <li>Ein Mensch, ein Konto. Keine Bot-Konten, kein Farming. Wir dürfen nach eigenem Ermessen Rate-Limits setzen oder Konten schließen.</li>
+  </ul>
+
+  <h2>4. Dein Konto</h2>
+  <p>
+    Du bist für die Sicherheit deines Passworts verantwortlich. Wenn du das cross-brand
+    Single Sign-On (SSO) über {company.parent} nutzt, gelten dieselben Konto-Bedingungen.
+    Melde unter <a href={`mailto:${company.abuseEmail}`}>{company.abuseEmail}</a>, wenn du
+    unbefugten Zugriff vermutest.
+  </p>
+
+  <h2>5. KI-generierte Inhalte</h2>
+  <p>
+    Kundennachrichten, Tickets, NPC-Dialoge und ähnliche Spieltexte werden von Sprachmodellen
+    (LLMs) erzeugt. Sie sind <strong>fiktiv</strong> und können ungenau, seltsam oder
+    anstößig sein. Wir machen sie uns nicht zu eigen. Melde Übergriffe (illegale Inhalte,
+    Belästigung, kindeswohlgefährdendes Material) an
+    <a href={`mailto:${company.abuseEmail}`}>{company.abuseEmail}</a>.
+  </p>
+  <p>
+    Du kannst deinen eigenen LLM-API-Key einbringen. In diesem Fall gelten die Bedingungen
+    des LLM-Anbieters für diese Aufrufe — wir leiten sie lediglich weiter.
+  </p>
+
+  <h2>6. Nutzerinhalte</h2>
+  <p>
+    Namen, Firmenbezeichnungen, öffentliche Profiltexte und sonstige eingereichte Inhalte
+    dürfen nicht rechtswidrig, verleumderisch, sexueller Inhalt mit Minderjährigen oder
+    urheberrechtlich geschütztes Material sein, das dir nicht gehört. Wir entfernen
+    regelwidrige Inhalte und/oder Konten ohne Vorankündigung.
+  </p>
+  <p>
+    Du behältst das Eigentum an dem, was du erstellst. Du gewährst uns eine weltweite,
+    gebührenfreie Lizenz, dies zum Betrieb des Spiels zu hosten, anzuzeigen und zu verarbeiten.
+  </p>
+
+  <h2>7. Zahlungen</h2>
+  <p>
+    Das Spiel ist während der offenen Beta <strong>kostenlos</strong>. Eventuelle kostenpflichtige
+    Pläne folgen später — dafür gelten separate Bedingungen und ein Kündigungsablauf, und wir
+    informieren dich vorab. Du wirst nicht automatisch in Bezahlangebote eingeschrieben.
+  </p>
+
+  <h2>8. Verfügbarkeit</h2>
+  <p>
+    Wir streben hohe Verfügbarkeit an, gewähren in der Beta jedoch kein SLA. Wir können
+    Wartungen einplanen, missbräuchlichen Traffic drosseln oder Regionen ohne Vorankündigung
+    abschalten. Dein Spielstand wird in Cloudflare D1 (standardmäßig EU-Region) gespeichert
+    und ist best-effort dauerhaft, nicht garantiert.
+  </p>
+
+  <h2>9. Kündigung</h2>
+  <p>
+    Du kannst jederzeit aufhören zu spielen und die Löschung deines Kontos verlangen — sende
+    eine E-Mail an <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a> mit
+    dem Betreff "Konto löschen". Wir antworten innerhalb von 30 Tagen. Wir dürfen Konten
+    sperren oder löschen, die diese Bedingungen verletzen oder die Sicherheit anderer
+    Nutzer:innen gefährden.
+  </p>
+
+  <h2>10. Haftung</h2>
+  <p>
+    Soweit nach ungarischem und EU-Recht zulässig, wird Hyperscales ohne jegliche
+    Gewährleistung bereitgestellt. Wir haften nicht für verlorenen Spielfortschritt, für
+    Mehrkosten durch LLM-Anbieter Dritter oder für sonstige mittelbare Schäden. Zwingende
+    Verbraucherschutzregeln (z. B. für natürliche Personen als Verbraucher:innen) bleiben
+    unberührt.
+  </p>
+
+  <h2>11. Änderungen</h2>
+  <p>
+    Wir können diese AGB ändern. Wesentliche Änderungen werden in der App angekündigt und
+    durch ein neues "Stand"-Datum am Seitenende gekennzeichnet. Weiterspielen nach einer
+    Änderung gilt als Zustimmung. Andernfalls bitte das Spiel beenden und die Konto-Löschung
+    anfordern.
+  </p>
+
+  <h2>12. Streitbeilegung &amp; anwendbares Recht</h2>
+  <p>
+    Es gilt ungarisches Recht. Gerichtsstand ist der für unseren Sitz zuständige ungarische
+    Gerichtsort. EU-Verbraucher:innen können auch die
+    <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener">Online-Streitbeilegungsplattform</a>
+    der Europäischen Kommission nutzen. Verbraucher:innen in Ungarn können sich an die
+    örtlich zuständige Schlichtungsstelle (Békéltető Testület) wenden.
+  </p>
+
+  <h2>13. Kontakt</h2>
+  <p>
+    Bei Unklarheiten oder Streitigkeiten:
+    <a href={`mailto:${company.legalEmail}`}>{company.legalEmail}</a>.
+  </p>
+</LegalLayout>

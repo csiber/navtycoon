@@ -1,0 +1,137 @@
+---
+import LegalLayout from '../../layouts/LegalLayout.astro';
+import { company } from '../../data/company';
+
+const ALTS = { en: '/legal/terms', hu: '/hu/aszf', de: '/de/agb' };
+---
+<LegalLayout
+  title="Általános Szerződési Feltételek"
+  description="A Hyperscales böngészős szimulációs játék ÁSZF-je — szolgáltató: Polyák Csaba e.v. (PromNET), Magyarország."
+  lang="hu"
+  alternates={ALTS}
+  updated="2026-05-14"
+>
+  <h1>Általános Szerződési Feltételek</h1>
+  <p class="lead">
+    A Hyperscales böngészős játék használatának feltételei — érthető nyelven (nyílt béta).
+  </p>
+  <div class="lang-row">
+    <a href="/legal/terms">English</a>
+    <span class="active">Magyar</span>
+    <a href="/de/agb">Deutsch</a>
+  </div>
+
+  <h2>1. Ki vagyunk</h2>
+  <p>
+    A Hyperscales (<a href="https://hyperscales.app">hyperscales.app</a>) üzemeltetője
+    <strong>{company.name}</strong> egyéni vállalkozó, márkanév: <strong>{company.brand}</strong>,
+    székhely: {company.address.full}. Adószám: <code>{company.taxNumber}</code>.
+    Kapcsolat: <a href={`mailto:${company.email}`}>{company.email}</a>. Teljes cégadatok az
+    <a href="/hu/impresszum">impresszumban</a>. A Hyperscales a {company.parent} termékcsalád része
+    (<a href={company.parentUrl}>{company.parentUrl}</a>).
+  </p>
+
+  <h2>2. Mi a Hyperscales</h2>
+  <p>
+    A Hyperscales egy böngészős szimulációs játék, amelyben egy kitalált hosting-céget építesz fel
+    és AI által generált NPC ügyfelekkel interakciózol. A szolgáltatás a nyílt béta alatt
+    <strong>"ahogy van" alapon</strong> érhető el. A funkciók előzetes értesítés nélkül
+    változhatnak, hibásan működhetnek vagy megszűnhetnek.
+  </p>
+
+  <h2>3. Ki játszhat</h2>
+  <ul>
+    <li>Legalább <strong>16 éves</strong> kell lenned (vagy a GDPR-szerinti digitális
+        hozzájárulási korhatár szerint az országodban).</li>
+    <li>Vállalod, hogy nem használod a játékot magyar vagy EU-jog szerint jogellenes célra.</li>
+    <li>Egy ember, egy fiók. Botfiókok és farmolás tilos. Saját mérlegelésünk alapján
+        ratelimitálhatunk vagy fiókot zárhatunk.</li>
+  </ul>
+
+  <h2>4. A fiókod</h2>
+  <p>
+    A jelszavad biztonságáért te felelsz. Ha a {company.parent}-en keresztüli cross-brand
+    egyszeri bejelentkezést (SSO) használsz, ugyanezek a feltételek vonatkoznak rá.
+    Illetéktelen hozzáférés gyanúja esetén jelezd:
+    <a href={`mailto:${company.abuseEmail}`}>{company.abuseEmail}</a>.
+  </p>
+
+  <h2>5. AI által generált tartalom</h2>
+  <p>
+    Az ügyfél-üzenetek, ticketek, NPC-párbeszédek és hasonló játékon belüli szövegek nagy
+    nyelvi modellek (LLM-ek) által generáltak. <strong>Fiktívak</strong>, és lehetnek
+    pontatlanok, furcsák vagy sértőek. Nem támogatjuk őket. Ha valami átlépi a határt
+    (jogellenes tartalom, zaklatás, gyermek-szexuális tartalom közelében), jelentsd:
+    <a href={`mailto:${company.abuseEmail}`}>{company.abuseEmail}</a>.
+  </p>
+  <p>
+    Saját LLM API-kulcsot is bedughatsz. Ebben az esetben az LLM-szolgáltató feltételei
+    vonatkoznak az adott hívásokra — mi csak továbbítjuk.
+  </p>
+
+  <h2>6. Felhasználói tartalom</h2>
+  <p>
+    A nevek, cég-elnevezések, publikus profil-szövegek és bármilyen általad beküldött tartalom
+    nem lehet jogellenes, rágalmazó, kiskorúakat ábrázoló szexuális tartalom, vagy olyan
+    szerzői mű, ami nem a tied. A szabályt sértő tartalmat és/vagy fiókot előzetes értesítés
+    nélkül törölhetjük.
+  </p>
+  <p>
+    Az általad létrehozott tartalom a tied marad. Cserébe globális, jogdíjmentes licencet adsz
+    nekünk arra, hogy a játék működtetéséhez szükséges mértékben tároljuk, megjelenítsük és
+    feldolgozzuk.
+  </p>
+
+  <h2>7. Fizetés</h2>
+  <p>
+    A játék a nyílt béta alatt <strong>ingyenes</strong>. Később lehetnek fizetős csomagok —
+    ezekre külön feltételek és lemondási folyamat vonatkozik majd, és előre szólunk.
+    Automatikusan semmiféle fizetős szolgáltatásra nem írunk be.
+  </p>
+
+  <h2>8. Rendelkezésre állás</h2>
+  <p>
+    Magas rendelkezésre állásra törekszünk, de a béta alatt nincs SLA. Karbantartást
+    végezhetünk, abuse-os forgalmat throttle-olhatunk, vagy régiókat előzetes értesítés
+    nélkül lekapcsolhatunk. A mentésed Cloudflare D1-ben tárolódik (alapból EU-régió),
+    best-effort tartós, nem garantált.
+  </p>
+
+  <h2>9. Megszüntetés</h2>
+  <p>
+    Bármikor abbahagyhatod a játékot és kérheted a fiókod törlését — küldj egy emailt a
+    <a href={`mailto:${company.privacyEmail}`}>{company.privacyEmail}</a> címre "fiók törlése"
+    tárggyal. 30 napon belül válaszolunk. Mi a feltételeket sértő vagy a többi felhasználó
+    biztonságát veszélyeztető fiókokat felfüggeszthetjük vagy megszüntethetjük.
+  </p>
+
+  <h2>10. Felelősség</h2>
+  <p>
+    A magyar és EU-jog által megengedett legnagyobb mértékig a Hyperscales mindennemű
+    szavatosság nélkül kerül átadásra. Nem vállalunk felelősséget elveszett játékmenetért,
+    harmadik féltől származó LLM-költségek miatti bevételkiesésért vagy más közvetett
+    károkért. A magyar jog kötelező fogyasztóvédelmi szabályai (pl. természetes személy
+    fogyasztókra) ezt nem érintik.
+  </p>
+
+  <h2>11. Módosítások</h2>
+  <p>
+    Az ÁSZF-et módosíthatjuk. A lényeges változásokat a játékban jelezzük és új "Utolsó
+    frissítés" dátum kerül a lap aljára. A módosítás utáni további játék a változás
+    elfogadását jelenti. Ha nem fogadod el, hagyd abba a játékot és kérd a fiókod törlését.
+  </p>
+
+  <h2>12. Vitarendezés &amp; jogválasztás</h2>
+  <p>
+    Az ÁSZF-re a magyar jog az irányadó. A jogvitákban a szolgáltató székhelye szerint
+    illetékes magyar bíróság jár el. EU-fogyasztók az Európai Bizottság
+    <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener">Online Vitarendezési platformját</a>
+    is használhatják. Magyar fogyasztók a területileg illetékes Békéltető Testülethez fordulhatnak.
+  </p>
+
+  <h2>13. Kapcsolat</h2>
+  <p>
+    Bármi, ami nem egyértelmű, vagy vitatni szeretnél:
+    <a href={`mailto:${company.legalEmail}`}>{company.legalEmail}</a>.
+  </p>
+</LegalLayout>
