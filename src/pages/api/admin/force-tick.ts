@@ -14,6 +14,7 @@
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { tickAllActivePlayers } from '../../../lib/game/tick';
+import { tickAllNpcs } from '../../../lib/game/npc-tick';
 import type { WorkersAIBinding } from '../../../lib/ai/workers-ai';
 import type { VectorizeBinding } from '../../../lib/ai/vectorize';
 
@@ -48,6 +49,12 @@ export const POST = async (c: APIContext): Promise<Response> => {
     ai: env?.AI,
     vectorize: env?.VECTORIZE,
   });
+  let npcResult = { npcs_examined: 0, npcs_decided: 0, actions: {} as Record<string, number> };
+  try {
+    npcResult = await tickAllNpcs(db, now);
+  } catch (e) {
+    console.error('tickAllNpcs failed', e);
+  }
 
   const totals = results.reduce(
     (acc, r) => ({
@@ -62,7 +69,7 @@ export const POST = async (c: APIContext): Promise<Response> => {
   );
 
   return new Response(
-    JSON.stringify({ ok: true, players_ticked: results.length, totals }),
+    JSON.stringify({ ok: true, players_ticked: results.length, totals, npcs: npcResult }),
     { headers: { 'content-type': 'application/json', 'cache-control': 'private, no-store' } },
   );
 };

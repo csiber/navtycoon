@@ -823,10 +823,38 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
       scrollTrigger: { trigger: 'body', start: 'top top', end: 'bottom bottom', scrub: 2 },
     });
 
-    // Refresh ScrollTrigger after fonts/images load (heights can shift)
+    // Refresh ScrollTrigger after fonts/images/pin-spacer settle (heights shift
+    // dramatically once the timeline pin reserves its 100%-vh scroll distance,
+    // which pushes every later reveal-trigger out of position on first paint).
+    const refresh = () => { try { ScrollTrigger.refresh(); } catch (e) {} };
     window.addEventListener('load', () => {
-      setTimeout(() => ScrollTrigger.refresh(), 200);
+      refresh();
+      setTimeout(refresh, 200);
+      setTimeout(refresh, 800);
+      setTimeout(refresh, 2000);
     });
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => setTimeout(refresh, 50));
+    }
+
+    // Defensive force-show: if a reveal-target is still opacity:0 a few seconds
+    // after load, the ScrollTrigger never fired for it — force-clear so the
+    // section is never blank. Cheap insurance against future pin/refresh drift.
+    const forceShow = () => {
+      const targets = document.querySelectorAll(
+        '.feature, .post, .shot, .cta-side .row, .cta-final h2 > span'
+      );
+      targets.forEach((el) => {
+        const o = parseFloat(getComputedStyle(el).opacity);
+        if (o < 0.05) {
+          gsap.set(el, {
+            opacity: 1, y: 0, x: 0, rotateY: 0, scale: 1,
+            filter: 'none', clearProps: 'transform,filter',
+          });
+        }
+      });
+    };
+    setTimeout(forceShow, 3500);
   })();
 </script>
 

@@ -31,6 +31,66 @@ interface ShiftStateMsg {
 
 let ws: WebSocket | null = null;
 let lastState: ShiftStateMsg | null = null;
+let wsUrl: string | null = null;
+let reconnecting = false;
+
+function wsReady(): boolean {
+  return ws !== null && ws.readyState === WebSocket.OPEN;
+}
+
+function safeSend(payload: unknown): boolean {
+  if (wsReady()) {
+    ws!.send(JSON.stringify(payload));
+    return true;
+  }
+  void reconnect();
+  return false;
+}
+
+async function reconnect() {
+  if (reconnecting || !wsUrl) return;
+  reconnecting = true;
+  await new Promise((r) => setTimeout(r, 500));
+  try {
+    ws = new WebSocket(wsUrl);
+    attachWs(ws);
+  } catch (e) {
+    console.error('reconnect failed', e);
+  } finally {
+    reconnecting = false;
+  }
+}
+
+function attachWs(sock: WebSocket) {
+  sock.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'state') applyState(msg.state);
+    else if (msg.type === 'reply') {
+      if (lastState) {
+        const idx = lastState.queue.findIndex((c) => c.ticket_id === msg.ticket_id);
+        if (idx >= 0) {
+          lastState.queue[idx].current_satisfaction = msg.new_satisfaction;
+          lastState.queue[idx].conversation.push({
+            role: 'customer',
+            text: msg.text,
+            ts: Math.floor(Date.now() / 1000),
+          });
+          applyState(lastState);
+        }
+      }
+    } else if (msg.type === 'action_result') {
+      /* state-msg follows */
+    } else if (msg.type === 'shift_end') showShiftEnd(msg.summary, msg.newly_unlocked);
+    else if (msg.type === 'error') {
+      console.error('shift error', msg.error);
+      alert('Error: ' + msg.error);
+    }
+  };
+  sock.onclose = () => {
+    console.log('WS closed');
+    if (lastState?.status === 'active') void reconnect();
+  };
+}
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -129,35 +189,9 @@ async function startShift() {
     return;
   }
   const j = (await r.json()) as { shift_id: string; ws_path: string };
-  const wsUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${j.ws_path}`;
+  wsUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${j.ws_path}`;
   ws = new WebSocket(wsUrl);
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'state') applyState(msg.state);
-    else if (msg.type === 'reply') {
-      if (lastState) {
-        const idx = lastState.queue.findIndex((c) => c.ticket_id === msg.ticket_id);
-        if (idx >= 0) {
-          lastState.queue[idx].current_satisfaction = msg.new_satisfaction;
-          lastState.queue[idx].conversation.push({
-            role: 'customer',
-            text: msg.text,
-            ts: Math.floor(Date.now() / 1000),
-          });
-          applyState(lastState);
-        }
-      }
-    } else if (msg.type === 'action_result') {
-      /* state-msg follows */
-    } else if (msg.type === 'shift_end') showShiftEnd(msg.summary, msg.newly_unlocked);
-    else if (msg.type === 'error') {
-      console.error('shift error', msg.error);
-      alert('Error: ' + msg.error);
-    }
-  };
-  ws.onclose = () => {
-    console.log('WS closed');
-  };
+  attachWs(ws);
 }
 
 $('start-shift')?.addEventListener('click', startShift);
@@ -165,8 +199,8 @@ $('start-shift')?.addEventListener('click', startShift);
 $('msg-send').addEventListener('click', () => {
   const inp = $('msg-input') as HTMLInputElement;
   const text = inp.value.trim();
-  if (!text || !ws) return;
-  ws.send(JSON.stringify({ type: 'msg', text }));
+  if (!text) return;
+  if (!safeSend({ type: 'msg', text })) return;
   if (lastState && lastState.active_index >= 0) {
     const c = lastState.queue[lastState.active_index];
     c.conversation.push({ role: 'player', text, ts: Math.floor(Date.now() / 1000) });
@@ -181,8 +215,7 @@ $('msg-input')?.addEventListener('keydown', (e) => {
 
 document.querySelectorAll<HTMLElement>('[data-action]').forEach((b) =>
   b.addEventListener('click', () => {
-    if (!ws) return;
     const action = b.dataset.action;
-    ws.send(JSON.stringify({ type: 'action', action }));
+    safeSend({ type: 'action', action });
   }),
 );
