@@ -426,24 +426,9 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     // a 220px-wide gutter.
     const layoutEl = document.querySelector('.layout');
     if (layoutEl) layoutEl.style.gridTemplateColumns = '1fr';
-    // The real Edit-profile + Subscription form is rendered at body level
-    // (sibling of <div class="app">), which makes it visually orphaned at
-    // the page bottom. Move it into the right grid-cell so it sits below
-    // the Profile section like any other content card.
-    //
-    // The wrap is rendered AFTER this script in source-order, so it
-    // doesn't exist yet at this point in the synchronous parse. Defer
-    // with a microtask-equivalent setTimeout so the DOM is fully parsed
-    // when we reach for the node.
-    setTimeout(() => {
-      const editWrap = document.getElementById('settings-edit-wrap');
-      const rightCol = document.querySelector('.layout > div');
-      if (editWrap && rightCol) {
-        editWrap.style.maxWidth = '';        // remove 600px cap → match column width
-        editWrap.style.margin = '0 0 18px';  // align with .sec spacing
-        rightCol.appendChild(editWrap);
-      }
-    }, 0);
+    // (Edit-profile wrap DOM-move happens in a separate <script> block
+    // below the wrap element so we don't rely on setTimeout timing
+    // inside this try/catch — see end of file.)
     // Profile-head "Share /rep page" + "Edit avatar" buttons aren't wired.
     // They live in .profile-head > .actions (not .prof-actions).
     document.querySelectorAll('.profile-head .actions').forEach((el) => el.remove());
@@ -644,6 +629,22 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
         status.style.color = 'var(--pink)';
       }
     });
+  })();
+</script>
+<script is:inline>
+  // Move the Edit-profile + Subscription wrap into the right grid-cell.
+  // This script lives AFTER the wrap in source order, so getElementById
+  // is guaranteed to find it without timing tricks. (Earlier attempts in
+  // the main hydrate try/catch silently failed when an earlier line
+  // threw before reaching the move.)
+  (function () {
+    var wrap = document.getElementById('settings-edit-wrap');
+    var rightCol = document.querySelector('.layout > div');
+    if (wrap && rightCol) {
+      wrap.style.maxWidth = '';
+      wrap.style.margin = '0 0 18px';
+      rightCol.appendChild(wrap);
+    }
   })();
 </script>
 <script is:inline>
