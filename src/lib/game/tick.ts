@@ -101,6 +101,22 @@ export async function tickPlayer(
   let customersAcquired = 0;
   let marketingSpent = 0;
 
+  // Hard guard: NPCs use the archetype engine in npc-tick.ts, not this
+  // real-player loop. Step 5 here recomputes MRR from active customers —
+  // NPCs have none, so running tickPlayer on them would zero out their
+  // MRR. tickAllActivePlayers filters them out already, but if anyone
+  // calls tickPlayer directly with an NPC row, fail fast instead of
+  // silently corrupting state.
+  if ((player as { is_npc?: number }).is_npc === 1) {
+    return {
+      player_id: player.user_id,
+      tickets_spawned: 0, ai_tickets: 0, placeholder_tickets: 0,
+      money_added_cents: 0, churned: 0, events_spawned: 0,
+      customers_acquired: 0, marketing_spent_cents: 0,
+      era_advanced_to: null,
+    };
+  }
+
   // 0. Daily shift-counter rollover (UTC midnight). Without this,
   //    free_shifts_today / paid_shifts_today never reset → players are
   //    capped at the day-1 quota forever (real bug found in prod).
