@@ -1,4 +1,4 @@
-// Hyperscaler — achievement-rendszer.
+// Hyperscales — achievement-rendszer.
 // 12 idempotent, counts-driven unlock-check. A GET /api/game/achievements
 // minden hívásnál újra-számolja az aktuális statisztikákat (customer count,
 // resolved tickets, refund sum, shift count) és INSERT-elve az újakat.

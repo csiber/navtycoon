@@ -1,4 +1,4 @@
-# Hyperscaler
+# Hyperscales
 
 > Hosting-tycoon játék AI-ügyfelekkel. Browser-first, Cloudflare-natív.
 

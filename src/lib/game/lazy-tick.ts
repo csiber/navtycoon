@@ -1,5 +1,5 @@
 // src/lib/game/lazy-tick.ts
-// Hyperscaler — lazy-tick gating helper.
+// Hyperscales — lazy-tick gating helper.
 //
 // CF free-tier-en a worker-szintű 5-perces cron-trigger nem regisztrálható
 // (5/5 cron-cap). Workaround: minden /play dashboard-load tickteti a

@@ -1,12 +1,12 @@
-// Hyperscaler auth-réteg — cross-brand SSO PromNET-tel.
+// Hyperscales auth-réteg — cross-brand SSO PromNET-tel.
 //
-// FONTOS: Hyperscaler nincs saját users/sessions táblája. A user-fiókok a
+// FONTOS: Hyperscales nincs saját users/sessions táblája. A user-fiókok a
 // PromNET shared `users` táblájában élnek (PROMNET_DB binding), így ugyanazzal
-// a fiókkal lehet PromNET-en, NavBot-on és Hyperscaler-en is bejelentkezni.
+// a fiókkal lehet PromNET-en, NavBot-on és Hyperscales-en is bejelentkezni.
 //
 // Cookie-stratégia:
 //   - PromNET cookie: `pn_session` (domain: .promnet.hu)
-//   - Hyperscaler cookie: `navtycoon_session` (domain: .hyperscaler.game)
+//   - Hyperscales cookie: `navtycoon_session` (domain: .hyperscaler.game)
 //   - A cookie ÉRTÉKE ugyanaz a session-token (PROMNET_DB sessions.token).
 //   - Cross-domain cookie nincs, ezért a session-átadás ?_sso= handoff-tokennel
 //     történik (lásd: src/pages/api/auth/promnet-callback.ts).
@@ -112,7 +112,7 @@ export async function verifyPassword(
 
 // ── PromNET users / sessions műveletek ─────────────────────────────
 
-/** Minimális SELECT a PromNET users táblából — csak a Hyperscaler-nek
+/** Minimális SELECT a PromNET users táblából — csak a Hyperscales-nek
  *  szükséges oszlopok. (Az új PromNET-mezők itt nem kellenek; minimal-
  *  contract elv: kevesebb oszlop = kevesebb migration-coupling.) */
 async function findUserByEmail(

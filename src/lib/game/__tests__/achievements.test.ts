@@ -1,4 +1,4 @@
-// Hyperscaler — achievement unlock-flow tesztelése (in-memory D1).
+// Hyperscales — achievement unlock-flow tesztelése (in-memory D1).
 // Verifies: counts-driven unlocks fire, idempotent (no re-unlock),
 // owned-set check works.
 

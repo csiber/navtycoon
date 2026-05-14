@@ -1,7 +1,7 @@
 ---
 // /u/[id] -- public share-page. No auth required.
-// Hyperscaler run-summary as social-share card. Used by leaderboard's
-// "Share my run" → clipboard-copies https://hyperscaler.promnet.hu/u/<user-id>.
+// Hyperscales run-summary as social-share card. Used by leaderboard's
+// "Share my run" → clipboard-copies https://hyperscales.app/u/<user-id>.
 // OG-image fetch (twitter:image, og:image) generated server-side via /api/og/u/[id].
 import { getDB } from '../../lib/auth';
 import { ACHIEVEMENTS } from '../../lib/game/achievements';
@@ -67,20 +67,20 @@ const initials = companyName.split(/\s+/).map((w: string) => w[0] ?? '').join(''
 
 const ogTitle = `${companyName} · Day ${dayNum} · Rank #${rank}`;
 const ogDesc = `$${cashUsd} cash · $${mrrUsd} MRR · ${customerCount} customers · Era ${player.current_era}`;
-const pageUrl = `https://hyperscaler.promnet.hu/u/${id}`;
+const pageUrl = `https://hyperscales.app/u/${id}`;
 ---
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>{ogTitle} — Hyperscaler</title>
+<title>{ogTitle} — Hyperscales</title>
 <meta name="description" content={ogDesc} />
 <meta property="og:title" content={ogTitle} />
 <meta property="og:description" content={ogDesc} />
 <meta property="og:url" content={pageUrl} />
 <meta property="og:type" content="website" />
-<meta property="og:site_name" content="Hyperscaler" />
+<meta property="og:site_name" content="Hyperscales" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content={ogTitle} />
 <meta name="twitter:description" content={ogDesc} />
@@ -236,7 +236,7 @@ const pageUrl = `https://hyperscaler.promnet.hu/u/${id}`;
     </div>
   </div>
   <div class="foot">
-    <a href="/">Hyperscaler</a> · a hosting tycoon game · ai customers, real chaos
+    <a href="/">Hyperscales</a> · a hosting tycoon game · ai customers, real chaos
   </div>
 </div>
 </body>

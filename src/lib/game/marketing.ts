@@ -1,4 +1,4 @@
-// Hyperscaler — marketing-mix-normalize lib.
+// Hyperscales — marketing-mix-normalize lib.
 // A user tetszőleges súlyokat ad meg (seo / ppc / referral); mi 100%-ra
 // normalizáljuk és kerekítjük úgy, hogy a 3 tag pontosan 100-at adjon ki.
 // Üres / mind-zéró input → balanced default (33/33/34).

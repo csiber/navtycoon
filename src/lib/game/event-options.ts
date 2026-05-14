@@ -1,4 +1,4 @@
-// Hyperscaler — event-option definíciók a cron-tick által spawnolt
+// Hyperscales — event-option definíciók a cron-tick által spawnolt
 // events táblához. Minden EventType-hez 2-3 választható "döntés" tartozik,
 // mindegyik visszaad egy EventOptionResult-ot (cash/satisfaction/reputation delta + szöveg).
 //

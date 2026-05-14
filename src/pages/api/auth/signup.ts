@@ -1,4 +1,4 @@
-// POST /api/auth/signup — új Hyperscaler-fiók (cross-brand: PromNET users-be).
+// POST /api/auth/signup — új Hyperscales-fiók (cross-brand: PromNET users-be).
 //
 // Body: { email, password, company_name, city? }
 // 1. Validáció (email, password ≥8, company_name ≥2)
@@ -74,7 +74,7 @@ export async function POST(context: APIContext): Promise<Response> {
     const ua = context.request.headers.get('user-agent') ?? undefined;
     const token = await createPromnetSession(pdb, user.id, ip, ua);
 
-    // 3) Hyperscaler player + starter-bootstrap — best-effort.
+    // 3) Hyperscales player + starter-bootstrap — best-effort.
     // Ha a player már létezik (pl. callback-bridge előbb futott), nem
     // bootstrappelünk újra; csak first-time signup-on rakjuk ki a kezdő
     // szervert / customer-eket / ticketeket.

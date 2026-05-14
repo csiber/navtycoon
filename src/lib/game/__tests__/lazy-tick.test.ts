@@ -1,5 +1,5 @@
 // src/lib/game/__tests__/lazy-tick.test.ts
-// Hyperscaler — maybeLazyTick throttle + atomic-claim Vitest.
+// Hyperscales — maybeLazyTick throttle + atomic-claim Vitest.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { D1Database } from '@cloudflare/workers-types/experimental';

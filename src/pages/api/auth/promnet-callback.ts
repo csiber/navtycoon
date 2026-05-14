@@ -17,7 +17,7 @@
 //    Ekkor csak validálni kell a tokent, és setSessionCookie + player-bootstrap.
 //
 // Mindkét esetben:
-//    - Ha PromNET-user létezik DE Hyperscaler-player még nincs → auto-create
+//    - Ha PromNET-user létezik DE Hyperscales-player még nincs → auto-create
 //      a PromNET display_name-ből származtatott company_name-mel.
 
 import type { APIContext } from 'astro';
@@ -105,7 +105,7 @@ export async function GET(context: APIContext): Promise<Response> {
         'SELECT email, display_name FROM users WHERE id = ? LIMIT 1',
       ).bind(userId).first<{ email: string; display_name: string | null }>();
       const displayName = u?.display_name?.trim();
-      const fromEmail = u?.email?.split('@')[0] ?? 'New Hyperscaler';
+      const fromEmail = u?.email?.split('@')[0] ?? 'New Hyperscales';
       const companyName = displayName && displayName.length >= 2
         ? displayName.slice(0, 80)
         : fromEmail.slice(0, 80);

@@ -1,5 +1,5 @@
 // src/lib/game/era-progress.ts
-// Hyperscaler — era-progression logic.
+// Hyperscales — era-progression logic.
 //
 // Players start in Era 1 (LAMP) and auto-advance when meeting the next-era
 // requirements. Each era unlocks new server types, more customer-acquisition

@@ -1,5 +1,5 @@
 // src/lib/game/__tests__/llm-cap.test.ts
-// Hyperscaler — Plan 2 Task 4: per-user daily LLM-call budget tracker.
+// Hyperscales — Plan 2 Task 4: per-user daily LLM-call budget tracker.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { D1Database } from '@cloudflare/workers-types/experimental';

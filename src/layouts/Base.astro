@@ -6,7 +6,7 @@ import { getCurrentUser } from '../lib/auth';
 interface Props {
   title?: string;
 }
-const { title = 'Hyperscaler' } = Astro.props;
+const { title = 'Hyperscales' } = Astro.props;
 const user = await getCurrentUser(Astro as unknown as Parameters<typeof getCurrentUser>[0]);
 ---
 <!doctype html>
@@ -14,13 +14,13 @@ const user = await getCurrentUser(Astro as unknown as Parameters<typeof getCurre
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{title} · Hyperscaler</title>
+  <title>{title} · Hyperscales</title>
   <meta name="description" content="Run a hosting empire. Your customers are AI." />
 </head>
 <body class="bg-nt-bg text-nt-text font-sans min-h-screen">
   <header class="border-b border-nt-border bg-nt-bg-2/70 backdrop-blur sticky top-0 z-10">
     <nav class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-      <a href="/" class="text-xl font-bold tracking-tight">⚡ Hyperscaler</a>
+      <a href="/" class="text-xl font-bold tracking-tight">⚡ Hyperscales</a>
       <div class="flex items-center gap-4 text-sm">
         {user ? (
           <>
@@ -46,7 +46,7 @@ const user = await getCurrentUser(Astro as unknown as Parameters<typeof getCurre
     <slot />
   </main>
   <footer class="border-t border-nt-border mt-16 py-6 text-center text-nt-text-dim text-sm">
-    <p>© 2026 Hyperscaler · Built on Cloudflare</p>
+    <p>© 2026 Hyperscales · Built on Cloudflare</p>
   </footer>
 </body>
 </html>

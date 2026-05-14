@@ -1,5 +1,5 @@
 // src/lib/game/tick.ts
-// Hyperscaler — game-tick logic. Runs every 5 minutes via Cron Trigger.
+// Hyperscales — game-tick logic. Runs every 5 minutes via Cron Trigger.
 //
 // Per-tick responsibilities:
 //   1. money-trickle proportional to MRR (cash += MRR * 5min/30days)

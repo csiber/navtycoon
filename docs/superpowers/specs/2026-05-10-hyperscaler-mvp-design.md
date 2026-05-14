@@ -1,6 +1,6 @@
-# Hyperscaler — Hosting-tycoon játék MVP design
+# Hyperscales — Hosting-tycoon játék MVP design
 
-**Working title:** Hyperscaler (`hyperscaler.game`)
+**Working title:** Hyperscales (`hyperscaler.game`)
 **Status:** Design — user-approved 2026-05-10, delegated decisions filled in
 **Owner:** csiber
 **Phase:** 1 / 4 (MVP) → Phase 2 multiplayer-events → Phase 3 Era 3+4 → Phase 4 Steam-port
@@ -308,8 +308,8 @@ Architektúra:
 
 ### 9.2 Cross-brand promóció
 
-- PromNET-dashboard-on banner: "Játssz Hyperscaler-rel" (dev-érdeklődő user-eknek)
-- Hyperscaler-on Easter-egg: "Want a real CF-account?" → PromNET-promóció link
+- PromNET-dashboard-on banner: "Játssz Hyperscales-rel" (dev-érdeklődő user-eknek)
+- Hyperscales-on Easter-egg: "Want a real CF-account?" → PromNET-promóció link
 - "Csaba-cameo" achievement: ha eléred az 1M MRR-t → fő-NPC-ként megjelenik egy "Founder Polyák Csaba" customer
 
 ## 10. Brand humor (kötelező réteg!)
@@ -513,7 +513,7 @@ CREATE TABLE audit_log (
 - Új CF Pages project: `navtycoon`
 - Új D1 database: `navtycoon-prod` (külön a PromNET-től)
 - Vectorize index: `navtycoon-customer-memory`
-- Új Stripe products: "Hyperscaler Pro Monthly" ($5)
+- Új Stripe products: "Hyperscales Pro Monthly" ($5)
 - Domain: **`hyperscaler.game`** (ha foglalt: `edgebaron.io`, `hostlords.com`, vagy user-pick)
 - Cron Trigger: `*/5 * * * *` game-tick + `0 0 * * *` daily-reset
 

@@ -1,4 +1,4 @@
-// Hyperscaler — Upgrade-tree (20 specs: Era 1: 8, Era 2: 12).
+// Hyperscales — Upgrade-tree (20 specs: Era 1: 8, Era 2: 12).
 // Phase 1 scope. Era 3-4 upgrades come in Phase 2.
 //
 // Konvenciók:

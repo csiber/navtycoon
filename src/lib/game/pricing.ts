@@ -1,4 +1,4 @@
-// Hyperscaler — pricing-clamp lib.
+// Hyperscales — pricing-clamp lib.
 // Plan-tier-szintű árazás cents-ben, hard min/max bound-okkal: ha a játékos
 // kívülre lőne, csendben befogjuk a tartományba (UX: nincs error, csak clamp).
 //

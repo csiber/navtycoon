@@ -1,5 +1,5 @@
 // src/lib/game/llm-cap.ts
-// Hyperscaler — Plan 2 Task 4: per-user daily LLM-call budget tracker.
+// Hyperscales — Plan 2 Task 4: per-user daily LLM-call budget tracker.
 // Free=5/day, Pro=50/day. UPSERT-pattern atomi-inkrementtel; cap-túllépéskor
 // rollback-decrement, hogy a counter ne ússzon el a cap fölé.
 //

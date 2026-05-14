@@ -1,5 +1,5 @@
 // src/lib/game/pro-sync.ts
-// Hyperscaler — Pro-status auto-sync from PromNET subscriptions.
+// Hyperscales — Pro-status auto-sync from PromNET subscriptions.
 //
 // Source of truth: PromNET-D1 `subscriptions` table.
 //   - status='active' AND plan_id NOT IN ('free','none') AND current_period_end > now

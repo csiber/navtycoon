@@ -1,5 +1,5 @@
 // src/lib/game/__tests__/tick.test.ts
-// Hyperscaler — tickPlayer + tickAllActivePlayers Vitest.
+// Hyperscales — tickPlayer + tickAllActivePlayers Vitest.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { D1Database } from '@cloudflare/workers-types/experimental';

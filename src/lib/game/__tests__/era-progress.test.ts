@@ -1,5 +1,5 @@
 // src/lib/game/__tests__/era-progress.test.ts
-// Hyperscaler — era-progression tests.
+// Hyperscales — era-progression tests.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { D1Database } from '@cloudflare/workers-types/experimental';

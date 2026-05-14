@@ -1,4 +1,4 @@
-// Hyperscaler — Server-tier definitions.
+// Hyperscales — Server-tier definitions.
 // Era 1+2 active (Phase 1). Era 3+4 placeholders for Phase 2.
 //
 // Konvenciók:

@@ -1,8 +1,8 @@
-# Hyperscaler Plan 1 — Infrastructure + Game Core
+# Hyperscales Plan 1 — Infrastructure + Game Core
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deployolható working backend a Hyperscaler hosting-tycoon játékhoz: player-signup, async game-loop (cron-tick → ticket-spawn placeholder, money-trickle, churn), server-upgrade-rendszer, alap dashboard UI. **AI-chat és shift-mode NEM része Plan 1-nek** — ez Plan 2.
+**Goal:** Deployolható working backend a Hyperscales hosting-tycoon játékhoz: player-signup, async game-loop (cron-tick → ticket-spawn placeholder, money-trickle, churn), server-upgrade-rendszer, alap dashboard UI. **AI-chat és shift-mode NEM része Plan 1-nek** — ez Plan 2.
 
 **Architecture:** Astro 5 (Pages-deploy) + Workers (game-API) + D1 (`navtycoon-prod`) + Cron Trigger (5min tick) + cross-brand SSO a PromNET `users` táblájához. NO Workers AI, NO Vectorize, NO Durable Objects. Ezek Plan 2.
 
@@ -225,7 +225,7 @@ dist/
 
 `README.md`:
 ```markdown
-# Hyperscaler
+# Hyperscales
 
 > Hosting-tycoon játék AI-ügyfelekkel. Browser-first, Cloudflare-natív.
 
@@ -254,7 +254,7 @@ Expected: clean build, `dist/` directory created.
 cd /home/aika/navtycoon
 gh repo create csiber/navtycoon --public --description "Hosting-tycoon játék AI-ügyfelekkel. Cloudflare-natív." --source=. --remote=origin
 git add .
-git commit -m "feat: Astro 5 + Tailwind scaffold (Hyperscaler MVP Plan 1)"
+git commit -m "feat: Astro 5 + Tailwind scaffold (Hyperscales MVP Plan 1)"
 git push -u origin main
 ```
 
@@ -318,7 +318,7 @@ crons = ["*/5 * * * *", "0 0 * * *"]
 
 ```sql
 -- migrations/0001_initial_schema.sql
--- Hyperscaler Phase 1 — initial schema (all 8 tables from spec §12)
+-- Hyperscales Phase 1 — initial schema (all 8 tables from spec §12)
 
 CREATE TABLE IF NOT EXISTS players (
   user_id TEXT PRIMARY KEY,
@@ -812,7 +812,7 @@ export const POST = async (c: APIContext): Promise<Response> => {
     VALUES (?, ?, ?, ?)
   `).bind(sessionId, userId, expiresAt, now).run();
 
-  // Create Hyperscaler player record
+  // Create Hyperscales player record
   await createPlayer(db, { user_id: userId, company_name, city });
 
   const headers = new Headers({ 'content-type': 'application/json' });
@@ -875,7 +875,7 @@ export const GET = async (c: APIContext): Promise<Response> => {
   `).bind(sessionId, Math.floor(Date.now() / 1000)).first<{ id: string; email: string; display_name: string }>();
   if (!session) return new Response('Invalid session', { status: 401 });
 
-  // Auto-create Hyperscaler player on first SSO if missing
+  // Auto-create Hyperscales player on first SSO if missing
   const db = getDB(c)!;
   const existing = await getPlayer(db, session.id);
   if (!existing) {
@@ -959,7 +959,7 @@ export const GET = async (c: APIContext): Promise<Response> => {
 ---
 // src/layouts/Base.astro
 import { getCurrentUser } from '../lib/auth';
-const { title = 'Hyperscaler' } = Astro.props;
+const { title = 'Hyperscales' } = Astro.props;
 const user = await getCurrentUser(Astro);
 ---
 <!doctype html>
@@ -967,13 +967,13 @@ const user = await getCurrentUser(Astro);
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>{title} · Hyperscaler</title>
+  <title>{title} · Hyperscales</title>
   <link rel="stylesheet" href="/_astro/style.css" />
 </head>
 <body class="bg-nt-bg text-nt-text font-sans min-h-screen">
   <header class="border-b border-nt-border bg-nt-bg-2/70 backdrop-blur sticky top-0 z-10">
     <nav class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-      <a href="/" class="text-xl font-bold tracking-tight">⚡ Hyperscaler</a>
+      <a href="/" class="text-xl font-bold tracking-tight">⚡ Hyperscales</a>
       <div class="flex items-center gap-4 text-sm">
         {user ? (
           <>
@@ -1006,7 +1006,7 @@ const user = await getCurrentUser(Astro);
 // src/pages/index.astro
 import Base from '../layouts/Base.astro';
 ---
-<Base title="Hyperscaler — hosting tycoon with AI customers">
+<Base title="Hyperscales — hosting tycoon with AI customers">
   <section class="text-center py-20">
     <h1 class="text-5xl font-bold mb-4 tracking-tight">
       Run a hosting empire.<br />
@@ -2370,7 +2370,7 @@ Use the `claude+admin@promnet.hu` user (per `feedback_promnet_admin_login.md`) f
 - [ ] **Step 5: Tag release**
 
 ```bash
-git tag -a v0.1.0-plan1-infra-core -m "Hyperscaler Plan 1 — Infra + Game Core deployed"
+git tag -a v0.1.0-plan1-infra-core -m "Hyperscales Plan 1 — Infra + Game Core deployed"
 git push origin v0.1.0-plan1-infra-core
 ```
 

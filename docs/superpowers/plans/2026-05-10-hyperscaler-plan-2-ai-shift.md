@@ -1,4 +1,4 @@
-# Hyperscaler Plan 2 — AI Engine + Shift-Mode
+# Hyperscales Plan 2 — AI Engine + Shift-Mode
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -2415,7 +2415,7 @@ Latest deployment status should be `success`.
 - [ ] **Step 3: Smoke-test**
 
 Manual test sequence:
-1. Visit https://hyperscaler.promnet.hu/signup
+1. Visit https://hyperscales.app/signup
 2. Create test-account; verify redirect to /play
 3. Go to /play/shift; click "Start Shift"
 4. WS connects, queue + active customer render
@@ -2429,7 +2429,7 @@ If any of the above fails, fix and re-deploy.
 - [ ] **Step 4: Verify cron-tick is now AI-driven (production)**
 
 ```bash
-curl -X POST -H "x-cron-secret: <secret>" -H "Origin: https://hyperscaler.promnet.hu" https://hyperscaler.promnet.hu/api/cron/tick
+curl -X POST -H "x-cron-secret: <secret>" -H "Origin: https://hyperscales.app" https://hyperscales.app/api/cron/tick
 ```
 
 Response should include `"ai_tickets": N` > 0 if any active player has free customers + budget.
@@ -2438,7 +2438,7 @@ Response should include `"ai_tickets": N` > 0 if any active player has free cust
 
 ```bash
 cd /home/aika/navtycoon
-git tag -a v0.2.0-plan2-ai-shift -m "Hyperscaler Plan 2 — AI engine + Shift-mode deployed"
+git tag -a v0.2.0-plan2-ai-shift -m "Hyperscales Plan 2 — AI engine + Shift-mode deployed"
 git push origin v0.2.0-plan2-ai-shift
 ```
 

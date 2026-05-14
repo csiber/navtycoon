@@ -1,5 +1,5 @@
 # NavTycoon — Cloudflare Pages konfiguráció.
-# Hyperscaler MVP Plan 1: D1 (game-state) + PromNET D1 (cross-brand SSO read) + SESSION KV.
+# Hyperscales MVP Plan 1: D1 (game-state) + PromNET D1 (cross-brand SSO read) + SESSION KV.
 # Cron-trigger: 5 perc tick (idő-előre + AI-ticket spawn) + napi reset (UTC 0:00).
 #
 # Megjegyzés: a Pages config NEM támogatja az `account_id` + `triggers` mezőket

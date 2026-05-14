@@ -1,5 +1,5 @@
 // src/pages/api/game/onboarding-complete.ts
-// Hyperscaler — first-time-player onboarding completion endpoint.
+// Hyperscales — first-time-player onboarding completion endpoint.
 //
 // POST /api/game/onboarding-complete
 // Idempotent: csak akkor frissít, ha az onboarding_completed_at még NULL.

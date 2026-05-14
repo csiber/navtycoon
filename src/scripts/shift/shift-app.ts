@@ -1,5 +1,5 @@
 // src/scripts/shift/shift-app.ts
-// Hyperscaler — Plan 2 Task 13: Shift-mode client.
+// Hyperscales — Plan 2 Task 13: Shift-mode client.
 // Connects to /api/shift/{shiftId} WebSocket via DO, renders queue + active-customer
 // chat, sends player messages + action-button events. XSS-safe DOM: customer names,
 // ticket text, AI replies are user/AI-supplied → createElement + textContent only,

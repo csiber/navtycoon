@@ -1,4 +1,4 @@
-// Hyperscaler — DB-row típusok per tábla.
+// Hyperscales — DB-row típusok per tábla.
 // Forrás: /home/aika/navtycoon/migrations/0001_initial_schema.sql
 //
 // Konvenciók:

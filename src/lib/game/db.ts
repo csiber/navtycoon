@@ -1,4 +1,4 @@
-// Hyperscaler — D1 CRUD-helpers per-table.
+// Hyperscales — D1 CRUD-helpers per-table.
 // Stílus: per-player WHERE-szűrés, prepared-statement bind, types from types.ts.
 //
 // Konvenciók:

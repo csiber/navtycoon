@@ -5,7 +5,7 @@
 //   1. User itt érkezik: /api/auth/promnet-bridge[?next=/play]
 //   2. Redirect: https://promnet.hu/app/belepes?next=<absolute-hyperscaler-callback-url>
 //      A PromNET belepes.astro elfogad absolute URL-t a brand-whitelistre
-//      (hyperscaler.promnet.hu rajta van). Login után issue-ol egy SSO
+//      (hyperscales.app rajta van). Login után issue-ol egy SSO
 //      handoff-tokent és az absolute URL-re irányít `?_sso=<token>`-nel.
 //   3. /api/auth/promnet-callback redeemHandoff-fal validálja a tokent
 //      és session-cookie-t állít be.
@@ -23,7 +23,7 @@ export async function GET(context: APIContext): Promise<Response> {
   // Csak local-path-et fogadunk el a `next`-ben (open-redirect védelem).
   const safeNext = nextParam && nextParam.startsWith('/') ? nextParam : '/play';
 
-  // Hyperscaler-callback URL (absolute) — a PromNET belepes erre redirectel
+  // Hyperscales-callback URL (absolute) — a PromNET belepes erre redirectel
   // login után, `?_sso=<handoff-token>`-nel appendelve.
   const callbackUrl = new URL(CALLBACK_PATH, url.origin);
   callbackUrl.searchParams.set('next', safeNext);

@@ -1,4 +1,4 @@
-// Miniflare-alapú in-memory D1 a Hyperscaler tesztekhez.
+// Miniflare-alapú in-memory D1 a Hyperscales tesztekhez.
 // A migrations/ minden .sql-fájlját végigfuttatja sorba (0001…), így a
 // tesztek mindig az aktuális prod-séma ellen futnak.
 

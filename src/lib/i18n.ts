@@ -1,5 +1,5 @@
 // src/lib/i18n.ts
-// Hyperscaler — egyszerű kulcs-szótár 3 lokálhoz (EN/HU/DE).
+// Hyperscales — egyszerű kulcs-szótár 3 lokálhoz (EN/HU/DE).
 // EN a default + fallback. A persona-quotes és a vicces review-blokkok
 // szándékosan EN-ben maradnak — a humor nem fordítható egyformán élesen.
 //
