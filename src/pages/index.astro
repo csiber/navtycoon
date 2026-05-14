@@ -283,7 +283,20 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
     // /signup — eliminates the "double work" of having to find the tiny
     // login link manually.
     const isAuthed = document.body.dataset.authed === '1';
-    const ctaTarget = isAuthed ? '/play' : '/signup';
+    // Forward the user's currently-active landing locale to /signup so the
+    // form opens in the right language — eliminates the "EN landing → HU
+    // signup form" jarring switch the user reported.
+    function currentLandingLocale() {
+      try {
+        const saved = localStorage.getItem('hs_lang');
+        if (saved && ['en','hu','de'].includes(saved)) return saved;
+      } catch {}
+      const html = document.documentElement.lang || '';
+      if (['en','hu','de'].includes(html)) return html;
+      return 'en';
+    }
+    const _loc = currentLandingLocale();
+    const ctaTarget = isAuthed ? '/play' : ('/signup?lang=' + _loc);
     const ctaLabel = isAuthed ? 'Folytatás a vezérlőre →' : null;
     document.querySelectorAll('.btn-primary').forEach(b => {
       if (ctaLabel) b.textContent = ctaLabel;

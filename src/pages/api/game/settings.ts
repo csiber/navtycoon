@@ -62,10 +62,31 @@ export const PATCH = async (c: APIContext): Promise<Response> => {
       return jerr(400, `${field} must be string or null`);
     }
   }
+  // preferred_lang is a separate path because updatePlayer's typed
+  // signature only allows company_name + city. Validated here against
+  // the same en|hu|de whitelist as signup.
+  let langUpdated: string | null = null;
+  if (body.preferred_lang !== undefined) {
+    const lang = typeof body.preferred_lang === 'string' ? body.preferred_lang.toLowerCase() : '';
+    if (!['en', 'hu', 'de'].includes(lang)) {
+      return jerr(400, 'preferred_lang must be en|hu|de');
+    }
+    await db.prepare('UPDATE players SET preferred_lang = ? WHERE user_id = ?')
+      .bind(lang, user.id).run();
+    langUpdated = lang;
+    hasUpdate = true;
+  }
+
   if (!hasUpdate) return jerr(400, 'nothing to update');
 
-  await updatePlayer(db, user.id, patch);
-  return new Response(JSON.stringify({ ok: true, updated: patch }), {
-    headers: { 'content-type': 'application/json' },
-  });
+  if (Object.keys(patch).length > 0) {
+    await updatePlayer(db, user.id, patch);
+  }
+  return new Response(
+    JSON.stringify({
+      ok: true,
+      updated: { ...patch, ...(langUpdated ? { preferred_lang: langUpdated } : {}) },
+    }),
+    { headers: { 'content-type': 'application/json' } },
+  );
 };
