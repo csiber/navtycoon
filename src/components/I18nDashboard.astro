@@ -6,8 +6,14 @@
 //      a static EN→HU/DE text dictionary that walks every text node
 // Reads `localStorage.hs_lang` (persisted by the landing's lang switcher)
 // or ?lang=… query.
+//
+// Also renders <SidebarUser />, which wires the hardcoded "promnet · log out"
+// row + "Shortcuts ⌘K" link in the sidebar foot into a real profile menu +
+// keyboard-shortcut modal + animated logout transition.
 import { TRANSLATIONS } from '../lib/i18n';
+import SidebarUser from './SidebarUser.astro';
 ---
+<SidebarUser />
 <script is:inline define:vars={{ DASH_TRANSLATIONS: TRANSLATIONS }}>
   (function () {
     const SUPPORTED = ['en', 'hu', 'de'];

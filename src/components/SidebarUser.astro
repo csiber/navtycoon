@@ -1,0 +1,449 @@
+---
+// Wires up the sidebar-foot user block + shortcuts row that ships hard-
+// coded inside every /play/* page's pageHtml. Drop this component in
+// alongside <I18nDashboard /> and <DashboardAnims /> on every play-page.
+//
+// Two behaviors:
+//   1. Click on the user-row (.side-foot .me) → open an animated profile
+//      dropdown with: 👤 Profil (→ /play/settings), 🌓 Téma váltása,
+//      🚪 Kilépés (POST /api/auth/logout → /).
+//   2. Click on the "Shortcuts ⌘K" link → open an animated shortcuts
+//      modal listing the real keyboard shortcuts wired on /play/*.
+//   3. ⌘K / Ctrl+K binding also opens the shortcuts modal.
+//
+// The whole component is pure client-side enhancement: if JS fails, the
+// original anchor is still a focusable element but does nothing — same
+// as before, no regression.
+---
+
+<style is:global>
+  /* ─── Make the user-row + shortcuts row clickable ─── */
+  .side-foot .me {
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 4px 6px;
+    margin: 4px -6px 0;
+    transition: background-color .18s ease, color .18s ease;
+    position: relative;
+  }
+  .side-foot .me:hover {
+    background-color: rgba(99, 102, 241, 0.10);
+    color: var(--text);
+  }
+  .side-foot .me::after {
+    content: "▾";
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--dim);
+    transition: transform .2s ease;
+  }
+  .side-foot .me.open::after {
+    transform: rotate(180deg);
+    color: var(--indigo-2);
+  }
+  .side-foot a[href="#"] {
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 4px 6px;
+    margin: 0 -6px;
+    transition: background-color .18s ease, color .18s ease;
+  }
+  .side-foot a[href="#"]:hover {
+    background-color: rgba(99, 102, 241, 0.08);
+    color: var(--text);
+  }
+
+  /* ─── Profile dropdown menu ─── */
+  .sidebar-user-menu {
+    position: fixed;
+    z-index: 200;
+    min-width: 220px;
+    background: linear-gradient(180deg, var(--panel, #121626) 0%, var(--bg, #07090f) 100%);
+    border: 1px solid var(--line-2, #262c46);
+    border-radius: 10px;
+    box-shadow:
+      0 24px 60px -16px rgba(0,0,0,.7),
+      0 0 0 1px rgba(99,102,241,0.08) inset;
+    padding: 6px;
+    display: none;
+    transform-origin: bottom left;
+  }
+  .sidebar-user-menu.open {
+    display: block;
+    animation: sidebar-user-in .18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .sidebar-user-menu.closing {
+    animation: sidebar-user-out .12s ease-in forwards;
+  }
+  @keyframes sidebar-user-in {
+    from { opacity: 0; transform: translateY(6px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes sidebar-user-out {
+    to { opacity: 0; transform: translateY(4px) scale(0.97); }
+  }
+  .sidebar-user-menu .item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px;
+    border-radius: 7px;
+    color: var(--muted, #8b92ad);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    width: 100%;
+    text-align: left;
+    text-decoration: none;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .sidebar-user-menu .item:hover {
+    background-color: rgba(99,102,241,0.14);
+    color: var(--text, #e9ecf5);
+  }
+  .sidebar-user-menu .item.danger:hover {
+    background-color: rgba(244,63,94,0.15);
+    color: #f43f5e;
+  }
+  .sidebar-user-menu .item .ico {
+    width: 18px; height: 18px;
+    display: grid; place-items: center;
+    font-size: 14px;
+  }
+  .sidebar-user-menu .sep {
+    height: 1px;
+    background: var(--line, #1e2338);
+    margin: 4px 4px;
+  }
+
+  /* ─── Shortcuts modal ─── */
+  .sidebar-shortcuts-modal {
+    position: fixed; inset: 0;
+    z-index: 250;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .sidebar-shortcuts-modal.open { display: flex; }
+  .sidebar-shortcuts-modal .backdrop {
+    position: fixed; inset: 0;
+    background: rgba(7,9,15,0.78);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: shortcuts-bg-in .25s ease-out;
+  }
+  @keyframes shortcuts-bg-in {
+    from { opacity: 0; } to { opacity: 1; }
+  }
+  .sidebar-shortcuts-modal .card {
+    position: relative; z-index: 2;
+    width: 100%; max-width: 480px;
+    background: var(--panel, #121626);
+    border: 1px solid var(--line-2, #262c46);
+    border-radius: 14px;
+    padding: 22px 24px;
+    box-shadow: 0 32px 64px -16px rgba(0,0,0,.7);
+    animation: shortcuts-card-in .3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes shortcuts-card-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .sidebar-shortcuts-modal h3 {
+    font-family: var(--display, sans-serif);
+    font-size: 18px; font-weight: 600;
+    color: var(--text);
+    margin: 0 0 14px;
+  }
+  .sidebar-shortcuts-modal .row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px dashed var(--line);
+    font-size: 13px;
+  }
+  .sidebar-shortcuts-modal .row:last-child { border-bottom: 0; }
+  .sidebar-shortcuts-modal .row .label { color: var(--muted); }
+  .sidebar-shortcuts-modal .row .keys {
+    display: inline-flex; gap: 4px;
+  }
+  .sidebar-shortcuts-modal kbd {
+    font-family: var(--mono, monospace);
+    font-size: 11px;
+    padding: 3px 7px;
+    border-radius: 5px;
+    background: var(--panel-2, #161a2c);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    color: var(--text);
+    min-width: 22px;
+    text-align: center;
+  }
+  .sidebar-shortcuts-modal .close {
+    position: absolute; top: 12px; right: 12px;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    cursor: pointer;
+    display: grid; place-items: center;
+    font-size: 13px;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .sidebar-shortcuts-modal .close:hover {
+    background-color: rgba(244,63,94,0.15);
+    color: #f43f5e;
+  }
+
+  /* ─── Logout flying-overlay ─── */
+  .logout-overlay {
+    position: fixed; inset: 0;
+    z-index: 300;
+    display: none;
+    align-items: center; justify-content: center;
+    background: radial-gradient(circle at center, rgba(244,63,94,0.18), rgba(7,9,15,0.97) 70%);
+    backdrop-filter: blur(20px);
+  }
+  .logout-overlay.active {
+    display: flex;
+    animation: logout-bg-in .35s ease-out;
+  }
+  @keyframes logout-bg-in {
+    from { opacity: 0; } to { opacity: 1; }
+  }
+  .logout-overlay .content {
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    animation: logout-content-in .4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes logout-content-in {
+    from { opacity: 0; transform: scale(0.85); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .logout-overlay .icon {
+    font-size: 56px;
+    line-height: 1;
+  }
+  .logout-overlay .label {
+    font-family: var(--display, sans-serif);
+    font-size: 18px;
+    color: var(--text);
+  }
+  .logout-overlay .sub {
+    font-family: var(--mono, monospace);
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar-user-menu, .sidebar-user-menu.open, .sidebar-user-menu.closing,
+    .sidebar-shortcuts-modal .backdrop, .sidebar-shortcuts-modal .card,
+    .logout-overlay, .logout-overlay .content {
+      animation: none !important;
+    }
+  }
+</style>
+
+<div class="sidebar-user-menu" id="sidebar-user-menu" role="menu" aria-hidden="true">
+  <a href="/play/settings" class="item" role="menuitem">
+    <span class="ico">👤</span><span>Profil &amp; beállítások</span>
+  </a>
+  <button type="button" class="item" data-action="toggle-theme" role="menuitem">
+    <span class="ico">🌓</span><span>Téma váltása</span>
+  </button>
+  <a href="/play/finance" class="item" role="menuitem">
+    <span class="ico">$</span><span>Pénzügy</span>
+  </a>
+  <div class="sep"></div>
+  <button type="button" class="item danger" data-action="logout" role="menuitem">
+    <span class="ico">🚪</span><span>Kijelentkezés</span>
+  </button>
+</div>
+
+<div class="sidebar-shortcuts-modal" id="sidebar-shortcuts-modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="backdrop" data-close></div>
+  <div class="card">
+    <button type="button" class="close" data-close aria-label="Bezárás">✕</button>
+    <h3>Gyorsbillentyűk</h3>
+    <div class="row">
+      <span class="label">Gyors-paletta</span>
+      <span class="keys"><kbd>⌘</kbd><kbd>K</kbd></span>
+    </div>
+    <div class="row">
+      <span class="label">Műszak indítása</span>
+      <span class="keys"><kbd>S</kbd></span>
+    </div>
+    <div class="row">
+      <span class="label">Vezérlő</span>
+      <span class="keys"><kbd>G</kbd><kbd>D</kbd></span>
+    </div>
+    <div class="row">
+      <span class="label">Szerverek</span>
+      <span class="keys"><kbd>G</kbd><kbd>S</kbd></span>
+    </div>
+    <div class="row">
+      <span class="label">Ügyfelek</span>
+      <span class="keys"><kbd>G</kbd><kbd>C</kbd></span>
+    </div>
+    <div class="row">
+      <span class="label">Ticketek</span>
+      <span class="keys"><kbd>G</kbd><kbd>T</kbd></span>
+    </div>
+    <div class="row">
+      <span class="label">Pénzügy</span>
+      <span class="keys"><kbd>G</kbd><kbd>F</kbd></span>
+    </div>
+    <div class="row">
+      <span class="label">Modal bezárása</span>
+      <span class="keys"><kbd>Esc</kbd></span>
+    </div>
+  </div>
+</div>
+
+<div class="logout-overlay" id="logout-overlay" aria-hidden="true">
+  <div class="content">
+    <div class="icon">👋</div>
+    <div class="label" id="logout-label">Kijelentkezés…</div>
+    <div class="sub">a viszontlátásra</div>
+  </div>
+</div>
+
+<script is:inline>
+  (function () {
+    const meRow = document.querySelector('.side-foot .me');
+    const menu = document.getElementById('sidebar-user-menu');
+    const shortcutsModal = document.getElementById('sidebar-shortcuts-modal');
+    const logoutOverlay = document.getElementById('logout-overlay');
+    if (!meRow || !menu) return;
+
+    let menuOpen = false;
+
+    function positionMenu() {
+      const rect = meRow.getBoundingClientRect();
+      // Position the menu just above the me-row, left-aligned.
+      menu.style.left = rect.left + 'px';
+      menu.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+    }
+
+    function openMenu() {
+      if (menuOpen) return;
+      menuOpen = true;
+      positionMenu();
+      menu.classList.remove('closing');
+      menu.classList.add('open');
+      menu.setAttribute('aria-hidden', 'false');
+      meRow.classList.add('open');
+    }
+
+    function closeMenu(immediate) {
+      if (!menuOpen) return;
+      menuOpen = false;
+      meRow.classList.remove('open');
+      if (immediate) {
+        menu.classList.remove('open', 'closing');
+        menu.setAttribute('aria-hidden', 'true');
+        return;
+      }
+      menu.classList.add('closing');
+      setTimeout(() => {
+        menu.classList.remove('open', 'closing');
+        menu.setAttribute('aria-hidden', 'true');
+      }, 120);
+    }
+
+    function toggleMenu() {
+      if (menuOpen) closeMenu();
+      else openMenu();
+    }
+
+    meRow.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMenu();
+    });
+    document.addEventListener('click', (e) => {
+      if (!menu.contains(e.target) && !meRow.contains(e.target)) closeMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && menuOpen) closeMenu();
+    });
+    window.addEventListener('resize', () => { if (menuOpen) positionMenu(); });
+    window.addEventListener('scroll', () => { if (menuOpen) positionMenu(); }, true);
+
+    // ─── Menu actions ─────────────────────────────────────────────
+    menu.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const action = btn.getAttribute('data-action');
+
+      if (action === 'toggle-theme') {
+        // Theme toggle: cycle dark ↔ light if a `data-theme` attribute is used.
+        // navtycoon is dark-only today; we toggle a `light` class as a noop placeholder.
+        document.documentElement.classList.toggle('hs-light');
+        closeMenu();
+        return;
+      }
+
+      if (action === 'logout') {
+        closeMenu(true);
+        // Show animated logout overlay before the network call.
+        if (logoutOverlay) logoutOverlay.classList.add('active');
+        try {
+          await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+        } catch { /* ignore — we still redirect */ }
+        // Hold the goodbye animation for 700 ms then redirect home.
+        setTimeout(() => { window.location.href = '/'; }, 700);
+      }
+    });
+
+    // ─── Shortcuts modal ────────────────────────────────────────
+    function openShortcuts() {
+      if (!shortcutsModal) return;
+      closeMenu(true);
+      shortcutsModal.classList.add('open');
+      shortcutsModal.setAttribute('aria-hidden', 'false');
+    }
+    function closeShortcuts() {
+      if (!shortcutsModal) return;
+      shortcutsModal.classList.remove('open');
+      shortcutsModal.setAttribute('aria-hidden', 'true');
+    }
+
+    // The hardcoded "Shortcuts ⌘K" anchor in side-foot has href="#".
+    // Hook every anchor whose textContent contains "Shortcuts" inside side-foot.
+    document.querySelectorAll('.side-foot a').forEach((a) => {
+      if (/Shortcuts/i.test(a.textContent || '')) {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          openShortcuts();
+        });
+      }
+    });
+
+    shortcutsModal?.addEventListener('click', (e) => {
+      if (e.target.closest('[data-close]')) closeShortcuts();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && shortcutsModal?.classList.contains('open')) closeShortcuts();
+      // ⌘K / Ctrl+K → open shortcuts (a real palette would intercept earlier)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && !shortcutsModal?.classList.contains('open')) {
+        e.preventDefault();
+        openShortcuts();
+      }
+      // G + (D/S/C/T/F) for nav jumps (Vim-style two-stroke)
+      if (window._hsGotoArmed && /^[a-z]$/i.test(e.key)) {
+        const k = e.key.toLowerCase();
+        const routes = { d: '/play', s: '/play/servers', c: '/play/customers', t: '/play/tickets', f: '/play/finance' };
+        const target = routes[k];
+        window._hsGotoArmed = false;
+        if (target) {
+          e.preventDefault();
+          window.location.href = target;
+        }
+      } else if (e.key.toLowerCase() === 'g' && !e.metaKey && !e.ctrlKey && !e.altKey && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+        window._hsGotoArmed = true;
+        setTimeout(() => { window._hsGotoArmed = false; }, 1500);
+      }
+    });
+  })();
+</script>
