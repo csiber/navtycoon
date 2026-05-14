@@ -7,13 +7,13 @@
 //
 // Bump CACHE_VERSION to invalidate everything on next visit.
 
-const CACHE_VERSION = 'hs-v3';
+const CACHE_VERSION = 'hs-v4';
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
 const PRECACHE = [
   '/',
-  '/offline.html',
+  '/offline',
   '/favicon.svg',
   '/icon-192.png',
   '/icon-512.png',
@@ -88,7 +88,7 @@ self.addEventListener('fetch', (event) => {
       } catch {
         const cached = await caches.match(req);
         if (cached) return cached;
-        return (await caches.match('/offline.html')) ||
+        return (await caches.match('/offline')) ||
                new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
       }
     })());
