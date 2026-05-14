@@ -33,15 +33,32 @@ export const POST = async (c: APIContext): Promise<Response> => {
 
   const now = Math.floor(Date.now() / 1000);
   let inserted = 0;
+  let updated = 0;
 
   for (const npc of NPC_CHARACTERS) {
+    // UPSERT: insert new NPC, or refresh state to the spec'd initial
+    // values. This is also our recovery path when something has zeroed
+    // an NPC's MRR (e.g. an old `tickPlayer` build running over them
+    // before the is_npc=0 filter shipped).
     const res = await db
       .prepare(
-        'INSERT OR IGNORE INTO players (' +
+        'INSERT INTO players (' +
           'user_id, company_name, city, founded_at, current_era, reputation, ' +
           'cash_usd_cents, mrr_usd_cents, last_active_at, created_at, ' +
           'is_npc, npc_archetype, npc_persona_bio, npc_last_decision_at' +
-        ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 0)',
+        ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 0) ' +
+        'ON CONFLICT(user_id) DO UPDATE SET ' +
+          'company_name = excluded.company_name, ' +
+          'city = excluded.city, ' +
+          'current_era = excluded.current_era, ' +
+          'reputation = excluded.reputation, ' +
+          'cash_usd_cents = excluded.cash_usd_cents, ' +
+          'mrr_usd_cents = excluded.mrr_usd_cents, ' +
+          'last_active_at = excluded.last_active_at, ' +
+          'is_npc = 1, ' +
+          'npc_archetype = excluded.npc_archetype, ' +
+          'npc_persona_bio = excluded.npc_persona_bio, ' +
+          'npc_last_decision_at = 0',
       )
       .bind(
         npc.user_id,
@@ -58,8 +75,11 @@ export const POST = async (c: APIContext): Promise<Response> => {
         npc.persona_bio,
       )
       .run();
-    // D1 .run() returns { meta: { changes } } — count real inserts
-    const changes = (res as { meta?: { changes?: number } }).meta?.changes ?? 0;
+    // D1 .run() meta.changes = 1 for both insert and update via UPSERT,
+    // so we have to look at last_row_id vs existence-check separately.
+    // Cheap approach: count meta.changes; we don't strictly need the
+    // insert/update split, but it's nice telemetry.
+    const changes = (res as { meta?: { changes?: number; last_row_id?: number } }).meta?.changes ?? 0;
     if (changes > 0) inserted++;
   }
 
