@@ -530,6 +530,12 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
   <input id="set-city" type="text" value={player.city ?? ''}
          maxlength="60"
          style="width:100%;padding:10px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);margin-bottom:14px;" />
+  <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px;">Language / Nyelv / Sprache</label>
+  <div id="set-lang-row" style="display:flex;gap:6px;margin-bottom:14px;" data-current={(player as { preferred_lang?: string }).preferred_lang ?? 'en'}>
+    <button type="button" data-lang="en" class="lang-pick" style="flex:1;padding:8px 12px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;cursor:pointer;">EN</button>
+    <button type="button" data-lang="hu" class="lang-pick" style="flex:1;padding:8px 12px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;cursor:pointer;">HU</button>
+    <button type="button" data-lang="de" class="lang-pick" style="flex:1;padding:8px 12px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;cursor:pointer;">DE</button>
+  </div>
   <button id="set-save"
           style="padding:10px 20px;background:var(--indigo);color:#fff;border:0;border-radius:8px;font-weight:600;cursor:pointer;">Save changes</button>
   <p id="set-status" style="margin-top:10px;font-size:12px;color:var(--dim);"></p>
@@ -572,6 +578,29 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 </div>
 <script is:inline>
   (function () {
+    // Lang-picker visual state — highlight the currently-selected one and
+    // let user click to change. Stored on click; persists on save.
+    var langRow = document.getElementById('set-lang-row');
+    var currentLang = langRow ? (langRow.dataset.current || 'en') : 'en';
+    function paintLang() {
+      if (!langRow) return;
+      langRow.querySelectorAll('.lang-pick').forEach(function (b) {
+        var on = b.dataset.lang === currentLang;
+        b.style.background = on ? 'var(--indigo)' : 'var(--panel-2)';
+        b.style.color = on ? '#fff' : 'var(--text)';
+        b.style.borderColor = on ? 'var(--indigo)' : 'var(--line)';
+      });
+    }
+    paintLang();
+    if (langRow) {
+      langRow.querySelectorAll('.lang-pick').forEach(function (b) {
+        b.addEventListener('click', function () {
+          currentLang = b.dataset.lang;
+          paintLang();
+        });
+      });
+    }
+
     var btn = document.getElementById('set-save');
     if (!btn) return;
     btn.addEventListener('click', async function () {
@@ -589,7 +618,7 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
         var r = await fetch('/api/game/settings', {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ company_name: cn, city: city || null }),
+          body: JSON.stringify({ company_name: cn, city: city || null, preferred_lang: currentLang }),
         });
         var j = await r.json();
         if (!j.ok) {
@@ -597,6 +626,9 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
           status.style.color = 'var(--pink)';
           return;
         }
+        // Mirror to localStorage so the I18nDashboard reapplies instantly
+        // on the reloaded page.
+        try { localStorage.setItem('hs_lang', currentLang); } catch {}
         status.textContent = '✓ Saved. Reloading...';
         status.style.color = 'var(--mint)';
         setTimeout(function () { location.reload(); }, 800);

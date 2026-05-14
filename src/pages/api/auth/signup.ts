@@ -35,6 +35,7 @@ interface SignupBody {
   password?: string;
   company_name?: string;
   city?: string | null;
+  lang?: string;
 }
 
 export async function POST(context: APIContext): Promise<Response> {
@@ -55,6 +56,8 @@ export async function POST(context: APIContext): Promise<Response> {
   const companyName = (typeof body.company_name === 'string' ? body.company_name : '').trim();
   const cityRaw = typeof body.city === 'string' ? body.city.trim() : '';
   const city = cityRaw.length > 0 ? cityRaw.slice(0, 80) : null;
+  const langRaw = typeof body.lang === 'string' ? body.lang.toLowerCase() : '';
+  const preferredLang = (['en', 'hu', 'de'].includes(langRaw) ? langRaw : 'en') as 'en' | 'hu' | 'de';
 
   if (!isValidEmail(email)) return jerr(400, 'Érvénytelen email-cím.');
   const pwIssue = passwordIssue(password);
@@ -89,6 +92,12 @@ export async function POST(context: APIContext): Promise<Response> {
           company_name: companyName,
           city,
         });
+        // Persist signup-time language preference. createPlayer doesn't
+        // accept preferred_lang yet (would need a schema-aware refactor),
+        // so we UPDATE in place — the row is fresh, race-free.
+        await db.prepare(
+          'UPDATE players SET preferred_lang = ? WHERE user_id = ?',
+        ).bind(preferredLang, user.id).run();
 
         // === Starter bootstrap ===
         const userId = user.id;

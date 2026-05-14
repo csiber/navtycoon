@@ -5,81 +5,101 @@
 // straight to /play. This eliminates the "double work" of a returning user
 // landing on /signup from the landing page and having to find the small
 // "Log in" link manually.
+//
+// Locale-aware: respects ?lang=en|hu|de URL param (preferred — passed
+// from the landing CTA), falling back to Accept-Language header. The
+// chosen locale is sent along with the signup form so the new player's
+// preferred_lang column is set in the same insert.
 import Base from '../layouts/Base.astro';
 import { getCurrentUser } from '../lib/auth';
+import { t, type Locale, LOCALES } from '../lib/i18n';
 
 const existing = await getCurrentUser(Astro);
 if (existing) return Astro.redirect('/play');
+
+function detectLocale(): Locale {
+  const url = new URL(Astro.request.url);
+  const qLang = url.searchParams.get('lang');
+  if (qLang && (LOCALES as readonly string[]).includes(qLang)) return qLang as Locale;
+  const al = Astro.request.headers.get('accept-language') ?? '';
+  const first = al.split(',')[0]?.slice(0, 2).toLowerCase();
+  if (first && (LOCALES as readonly string[]).includes(first)) return first as Locale;
+  return 'en';
+}
+const locale: Locale = detectLocale();
 ---
-<Base title="Sign up">
-  <div class="max-w-md mx-auto py-10 px-4">
-    {/* Tab-switcher at the top — clear, equal-weight choice between signup
-        and login. Replaces the previous tiny "Log in" link buried at the
-        bottom of the page. */}
+<Base title={t(locale, 'auth.tab.signup')}>
+  <div class="max-w-md mx-auto py-10 px-4" data-locale={locale}>
     <div class="flex gap-2 mb-8 p-1 bg-nt-bg-2 border border-nt-border rounded-lg">
       <button class="flex-1 px-4 py-2 rounded font-semibold text-sm bg-nt-accent text-white">
-        Új fiók
+        {t(locale, 'auth.tab.signup')}
       </button>
-      <a href="/login" class="flex-1 px-4 py-2 rounded font-semibold text-sm text-center text-nt-text-dim hover:text-nt-text hover:bg-nt-bg transition">
-        Bejelentkezés
+      <a href={`/login?lang=${locale}`} class="flex-1 px-4 py-2 rounded font-semibold text-sm text-center text-nt-text-dim hover:text-nt-text hover:bg-nt-bg transition">
+        {t(locale, 'auth.tab.login')}
       </a>
     </div>
 
     <div class="flex items-start gap-3 mb-6">
       <div class="text-3xl">⚡</div>
       <div>
-        <h1 class="text-2xl font-bold">Indítsd el a hosting-cégedet</h1>
-        <p class="text-nt-text-dim text-sm mt-1">
-          3 ügyfél már panaszra készen. Ingyenes induló LAMP-box. MRR: $15/hó.
-        </p>
+        <h1 class="text-2xl font-bold">{t(locale, 'auth.signup.title')}</h1>
+        <p class="text-nt-text-dim text-sm mt-1">{t(locale, 'auth.signup.sub')}</p>
       </div>
     </div>
 
     <form id="signup-form" class="space-y-3">
       <div>
-        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Cég neve</label>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">{t(locale, 'auth.signup.company')}</label>
         <input type="text" name="company_name"
-               placeholder="pl. PiroshTech Kft."
+               placeholder={t(locale, 'auth.signup.company_ph')}
                required minlength="2" maxlength="60"
                class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
       </div>
       <div>
-        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Város <span class="text-nt-text-dim normal-case">(opcionális)</span></label>
-        <input type="text" name="city" placeholder="Budapest" maxlength="60"
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">
+          {t(locale, 'auth.signup.city')} <span class="text-nt-text-dim normal-case">{t(locale, 'auth.signup.city_opt')}</span>
+        </label>
+        <input type="text" name="city" placeholder={t(locale, 'auth.signup.city_ph')} maxlength="60"
                class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
       </div>
       <div>
-        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Email</label>
-        <input type="email" name="email" placeholder="te@cég.hu" required autocomplete="email"
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">{t(locale, 'auth.signup.email')}</label>
+        <input type="email" name="email" placeholder={t(locale, 'auth.signup.email_ph')} required autocomplete="email"
                class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
       </div>
       <div>
-        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Jelszó <span class="text-nt-text-dim normal-case">(min 8 karakter)</span></label>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">
+          {t(locale, 'auth.signup.password')} <span class="text-nt-text-dim normal-case">{t(locale, 'auth.signup.password_hint')}</span>
+        </label>
         <input type="password" name="password" placeholder="••••••••" required
                autocomplete="new-password" minlength="8"
                class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
       </div>
       <button class="w-full px-4 py-3 bg-nt-accent rounded font-semibold mt-2 hover:opacity-90 transition">
-        Fiók létrehozása →
+        {t(locale, 'auth.signup.submit')}
       </button>
       <p id="status" class="text-sm" aria-live="polite"></p>
     </form>
 
     <p class="mt-8 text-center text-nt-text-dim text-xs">
-      A regisztrációval elfogadod az
-      <a href="/legal/terms" class="text-nt-accent hover:underline">ÁSZF-et</a> és az
-      <a href="/legal/privacy" class="text-nt-accent hover:underline">Adatkezelési tájékoztatót</a>.
+      {t(locale, 'auth.signup.legal')}
+      <a href="/legal/terms" class="text-nt-accent hover:underline">{t(locale, 'auth.signup.legal.terms')}</a>
+      {t(locale, 'auth.signup.legal.and')}
+      <a href="/legal/privacy" class="text-nt-accent hover:underline">{t(locale, 'auth.signup.legal.privacy')}</a>.
     </p>
 
-    <script>
+    <script define:vars={{ locale, creatingMsg: t(locale, 'auth.status.creating') }}>
       document.getElementById('signup-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const fd = new FormData(e.target as HTMLFormElement);
+        const fd = new FormData(e.target);
         const status = document.getElementById('status');
         if (status) {
-          status.textContent = 'Creating your hosting company…';
+          status.textContent = creatingMsg;
           status.className = 'text-sm text-nt-text-dim';
         }
+        // Persist locale to localStorage so the dashboard inherits it
+        // immediately after the redirect.
+        try { localStorage.setItem('hs_lang', locale); } catch {}
         const r = await fetch('/api/auth/signup', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -88,13 +108,14 @@ if (existing) return Astro.redirect('/play');
             password: fd.get('password'),
             company_name: fd.get('company_name'),
             city: fd.get('city') || null,
+            lang: locale,
           }),
         });
         if (!r.ok) {
           let err = 'Signup failed.';
           try {
             const j = await r.json();
-            err = (j as { error?: string })?.error ?? err;
+            err = (j && j.error) ?? err;
           } catch {}
           if (status) {
             status.textContent = 'Error: ' + err;
@@ -102,7 +123,7 @@ if (existing) return Astro.redirect('/play');
           }
           return;
         }
-        const j = await r.json() as { redirect?: string };
+        const j = await r.json();
         location.href = j.redirect ?? '/play';
       });
     </script>

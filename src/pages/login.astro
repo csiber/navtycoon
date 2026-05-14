@@ -3,71 +3,85 @@
 //
 // Smart auth-check: already-logged-in visitor → skip the form, go straight
 // to the requested destination (default /play).
+//
+// Locale-aware: respects ?lang=en|hu|de URL param, falling back to
+// Accept-Language header.
 import Base from '../layouts/Base.astro';
 import { getCurrentUser } from '../lib/auth';
+import { t, type Locale, LOCALES } from '../lib/i18n';
 
 const url = new URL(Astro.request.url);
 const next = url.searchParams.get('next') ?? '/play';
 
 const existing = await getCurrentUser(Astro);
 if (existing) return Astro.redirect(next);
+
+function detectLocale(): Locale {
+  const qLang = url.searchParams.get('lang');
+  if (qLang && (LOCALES as readonly string[]).includes(qLang)) return qLang as Locale;
+  const al = Astro.request.headers.get('accept-language') ?? '';
+  const first = al.split(',')[0]?.slice(0, 2).toLowerCase();
+  if (first && (LOCALES as readonly string[]).includes(first)) return first as Locale;
+  return 'en';
+}
+const locale: Locale = detectLocale();
 ---
-<Base title="Log in">
-  <div class="max-w-md mx-auto py-10 px-4">
-    {/* Same tab-switcher as /signup so the choice is symmetrical. */}
+<Base title={t(locale, 'auth.tab.login')}>
+  <div class="max-w-md mx-auto py-10 px-4" data-locale={locale}>
     <div class="flex gap-2 mb-8 p-1 bg-nt-bg-2 border border-nt-border rounded-lg">
-      <a href="/signup" class="flex-1 px-4 py-2 rounded font-semibold text-sm text-center text-nt-text-dim hover:text-nt-text hover:bg-nt-bg transition">
-        Új fiók
+      <a href={`/signup?lang=${locale}`} class="flex-1 px-4 py-2 rounded font-semibold text-sm text-center text-nt-text-dim hover:text-nt-text hover:bg-nt-bg transition">
+        {t(locale, 'auth.tab.signup')}
       </a>
       <button class="flex-1 px-4 py-2 rounded font-semibold text-sm bg-nt-accent text-white">
-        Bejelentkezés
+        {t(locale, 'auth.tab.login')}
       </button>
     </div>
 
     <div class="flex items-start gap-3 mb-6">
       <div class="text-3xl">⚡</div>
       <div>
-        <h1 class="text-2xl font-bold">Üdv újra</h1>
-        <p class="text-nt-text-dim text-sm mt-1">Folytasd ott ahol abbahagytad.</p>
+        <h1 class="text-2xl font-bold">{t(locale, 'auth.login.title')}</h1>
+        <p class="text-nt-text-dim text-sm mt-1">{t(locale, 'auth.login.sub')}</p>
       </div>
     </div>
 
     <a href="/api/auth/promnet-bridge"
        class="block w-full px-4 py-3 bg-nt-accent rounded text-center font-semibold mb-4 hover:opacity-90 transition">
-      Belépés PromNET-fiókkal →
+      {t(locale, 'auth.login.promnet')}
     </a>
 
     <div class="flex items-center gap-3 my-6">
       <div class="flex-1 h-px bg-nt-border"></div>
-      <span class="text-xs uppercase tracking-wide text-nt-text-dim">vagy email-lel</span>
+      <span class="text-xs uppercase tracking-wide text-nt-text-dim">{t(locale, 'auth.login.divider')}</span>
       <div class="flex-1 h-px bg-nt-border"></div>
     </div>
 
     <form id="login-form" class="space-y-3">
       <div>
-        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Email</label>
-        <input type="email" name="email" placeholder="te@cég.hu" required autocomplete="email"
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">{t(locale, 'auth.signup.email')}</label>
+        <input type="email" name="email" placeholder={t(locale, 'auth.signup.email_ph')} required autocomplete="email"
                class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
       </div>
       <div>
-        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Jelszó</label>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">{t(locale, 'auth.signup.password')}</label>
         <input type="password" name="password" placeholder="••••••••" required
                autocomplete="current-password" minlength="8"
                class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
       </div>
       <button class="w-full px-4 py-3 border border-nt-border rounded hover:bg-nt-bg-2 font-semibold transition">
-        Bejelentkezés
+        {t(locale, 'auth.login.submit')}
       </button>
       <p id="status" class="text-sm" aria-live="polite"></p>
     </form>
 
-    <script define:vars={{ next }}>
+    <script define:vars={{ next, locale, checkingMsg: t(locale, 'auth.status.checking') }}>
+      try { localStorage.setItem('hs_lang', locale); } catch {}
       document.getElementById('login-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
         const status = document.getElementById('status');
         if (status) {
-          status.textContent = 'Checking credentials…';
+          status.textContent = checkingMsg;
           status.className = 'text-sm text-nt-text-dim';
         }
         const r = await fetch('/api/auth/login', {
