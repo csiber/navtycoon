@@ -254,9 +254,15 @@ const pageHtml = "\n<div class=\"app\">\n\n  <!-- Sidebar -->\n  <aside>\n    <a
   </script>
 <script is:inline>
   // Idle rack-LED activity: subtly flip random LEDs to amber every ~1.9s
-  // so the rack feels alive even on an idle dashboard.
+  // so the rack feels alive. Only animates rows that already have a lit
+  // LED on first paint — empty rack bays don't have any hardware, so
+  // their LEDs blinking would be a confusing animation artifact (user-
+  // reported: "üres rackek néha villognak. ha nincs ott semmi mi villog").
   (function () {
-    const leds = document.querySelectorAll('.u-row .leds i');
+    const leds = [];
+    document.querySelectorAll('.u-row:not(.empty) .leds i').forEach((led) => {
+      if (led.className) leds.push(led);
+    });
     if (leds.length === 0) return;
     setInterval(() => {
       const idx = Math.floor(Math.random() * leds.length);

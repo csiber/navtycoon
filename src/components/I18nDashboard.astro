@@ -495,5 +495,104 @@ import SidebarUser from './SidebarUser.astro';
     // are already in place and the walker skips them).
     applyI18nAttrs();
     applyStatic();
+
+    // ─── Topbar notification bell ────────────────────────────────────
+    // Every dashboard template ships <button class="bell" data-count="…">
+    // with no click handler. Wire it to a lightweight popover with
+    // recent in-game events: open tickets + recent forum threads.
+    (function wireBell() {
+      const bells = document.querySelectorAll('button.bell');
+      if (!bells.length) return;
+      let popover = null;
+      let listEl = null;
+      function build() {
+        if (popover) return popover;
+        popover = document.createElement('div');
+        popover.id = 'bell-popover';
+        popover.style.cssText = 'position:fixed;top:64px;right:18px;width:320px;max-height:70vh;overflow-y:auto;background:var(--panel,#121626);border:1px solid var(--line-2,#262c46);border-radius:12px;box-shadow:0 18px 40px -10px rgba(0,0,0,.6);z-index:60;padding:8px;font-family:var(--body,sans-serif);font-size:13px;display:none;';
+        const head = document.createElement('div');
+        head.style.cssText = 'padding:10px 12px;font-family:var(--mono,monospace);font-size:11px;color:var(--muted,#8b92ad);text-transform:uppercase;letter-spacing:0.08em;';
+        head.textContent = 'Inbox';
+        listEl = document.createElement('div');
+        listEl.id = 'bell-list';
+        listEl.style.cssText = 'padding:0 4px 4px;';
+        const placeholder = document.createElement('div');
+        placeholder.style.cssText = 'padding:14px 12px;color:var(--muted,#8b92ad);font-size:12px;';
+        placeholder.textContent = 'Loading…';
+        listEl.appendChild(placeholder);
+        popover.appendChild(head);
+        popover.appendChild(listEl);
+        document.body.appendChild(popover);
+        document.addEventListener('click', (e) => {
+          const t = e.target;
+          if (!popover.contains(t) && !Array.from(bells).some((b) => b.contains(t))) {
+            popover.style.display = 'none';
+          }
+        });
+        return popover;
+      }
+      async function load() {
+        while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+        const items = [];
+        try {
+          const r = await fetch('/api/game/state', { cache: 'no-store' });
+          if (r.ok) {
+            const j = await r.json();
+            const open = j && j.counts && j.counts.openTickets ? j.counts.openTickets : 0;
+            if (open > 0) items.push({ icon: '✉', title: open + ' nyitott ticket', sub: 'Triage egy shift-tel', href: '/play/tickets' });
+          }
+        } catch {}
+        try {
+          const r = await fetch('/api/forum/threads?limit=3', { cache: 'no-store' });
+          if (r.ok) {
+            const j = await r.json();
+            const threads = (j && j.threads) || [];
+            for (const t of threads.slice(0, 2)) {
+              items.push({ icon: '💬', title: String(t.title || '').slice(0, 50), sub: 'tőle: ' + (t.author_name || 'unknown'), href: '/play/community/' + t.id });
+            }
+          }
+        } catch {}
+        if (!items.length) {
+          const empty = document.createElement('div');
+          empty.style.cssText = 'padding:14px 12px;color:var(--muted,#8b92ad);font-size:12px;';
+          empty.textContent = 'Nincs új esemény.';
+          listEl.appendChild(empty);
+          return;
+        }
+        for (const it of items) {
+          const a = document.createElement('a');
+          a.href = it.href;
+          a.style.cssText = 'display:flex;gap:10px;padding:10px 12px;border-radius:8px;text-decoration:none;color:var(--text,#e9ecf5);align-items:flex-start;';
+          a.onmouseenter = () => { a.style.background = 'var(--panel-2,#161a2c)'; };
+          a.onmouseleave = () => { a.style.background = ''; };
+          const icon = document.createElement('span');
+          icon.style.cssText = 'font-size:16px;line-height:1.1;flex:none;';
+          icon.textContent = it.icon;
+          const txtWrap = document.createElement('span');
+          txtWrap.style.cssText = 'flex:1;min-width:0;';
+          const title = document.createElement('span');
+          title.style.cssText = 'display:block;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+          title.textContent = it.title;
+          const sub = document.createElement('span');
+          sub.style.cssText = 'display:block;color:var(--muted,#8b92ad);font-size:11px;margin-top:2px;';
+          sub.textContent = it.sub;
+          txtWrap.appendChild(title);
+          txtWrap.appendChild(sub);
+          a.appendChild(icon);
+          a.appendChild(txtWrap);
+          listEl.appendChild(a);
+        }
+      }
+      bells.forEach((bell) => {
+        bell.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const pop = build();
+          if (pop.style.display === 'block') { pop.style.display = 'none'; return; }
+          pop.style.display = 'block';
+          void load();
+        });
+      });
+    })();
   })();
 </script>
