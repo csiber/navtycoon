@@ -728,7 +728,25 @@ import SidebarUser from './SidebarUser.astro';
       },
     };
 
-    function walkText(node, dict) {
+    // Dynamic patterns that exact-match can't cover because they embed
+    // numbers (era N, current progress X/Y). Tried in order against the
+    // trimmed textNode; first match wins.
+    const PATTERNS = {
+      hu: [
+        [/^REQUIREMENTS FOR ERA (\d+) \((\d+)\/(\d+)\)$/, 'KÖV. KORSZAK ($1) FELTÉTELEI ($2/$3)'],
+        [/^(\d+)% to unlock$/, '$1% feloldásig'],
+        [/^Day (\d+)$/, '$1. nap'],
+        [/^Day (\d+) \/ 365$/, '$1. nap / 365'],
+      ],
+      de: [
+        [/^REQUIREMENTS FOR ERA (\d+) \((\d+)\/(\d+)\)$/, 'VORAUSSETZUNGEN FÜR ÄRA $1 ($2/$3)'],
+        [/^(\d+)% to unlock$/, '$1% bis zum Freischalten'],
+        [/^Day (\d+)$/, 'Tag $1'],
+        [/^Day (\d+) \/ 365$/, 'Tag $1 / 365'],
+      ],
+    };
+
+    function walkText(node, dict, patterns) {
       if (node.nodeType === 3) {
         const raw = node.nodeValue;
         if (!raw) return;
@@ -736,6 +754,15 @@ import SidebarUser from './SidebarUser.astro';
         if (!trimmed) return;
         if (dict[trimmed]) {
           node.nodeValue = raw.replace(trimmed, dict[trimmed]);
+          return;
+        }
+        if (patterns) {
+          for (const [re, repl] of patterns) {
+            if (re.test(trimmed)) {
+              node.nodeValue = raw.replace(trimmed, trimmed.replace(re, repl));
+              return;
+            }
+          }
         }
         return;
       }
@@ -748,14 +775,14 @@ import SidebarUser from './SidebarUser.astro';
         const t = (el.textContent || '').trim();
         if (dict[t]) el.textContent = dict[t];
       }
-      for (let i = 0; i < el.childNodes.length; i++) walkText(el.childNodes[i], dict);
+      for (let i = 0; i < el.childNodes.length; i++) walkText(el.childNodes[i], dict, patterns);
     }
 
     function applyStatic() {
       if (locale === 'en') return;
       const dict = STATIC[locale];
       if (!dict) return;
-      walkText(document.body, dict);
+      walkText(document.body, dict, PATTERNS[locale]);
     }
 
     // Run attrs first, then static walker (so any data-i18n-resolved keys
