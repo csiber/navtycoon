@@ -1,35 +1,74 @@
 ---
 // /signup — Hyperscales új-fiók form (cross-brand: PromNET users-be).
+//
+// Smart auth-check: if the visitor already has a valid session, send them
+// straight to /play. This eliminates the "double work" of a returning user
+// landing on /signup from the landing page and having to find the small
+// "Log in" link manually.
 import Base from '../layouts/Base.astro';
+import { getCurrentUser } from '../lib/auth';
+
+const existing = await getCurrentUser(Astro);
+if (existing) return Astro.redirect('/play');
 ---
 <Base title="Sign up">
-  <div class="max-w-md mx-auto py-12">
-    <h1 class="text-3xl font-bold mb-2">Start your hosting empire</h1>
-    <p class="text-nt-text-dim mb-6">
-      3 customers ready to complain. Server: free starter LAMP-box. MRR: $15/mo.
-    </p>
+  <div class="max-w-md mx-auto py-10 px-4">
+    {/* Tab-switcher at the top — clear, equal-weight choice between signup
+        and login. Replaces the previous tiny "Log in" link buried at the
+        bottom of the page. */}
+    <div class="flex gap-2 mb-8 p-1 bg-nt-bg-2 border border-nt-border rounded-lg">
+      <button class="flex-1 px-4 py-2 rounded font-semibold text-sm bg-nt-accent text-white">
+        Új fiók
+      </button>
+      <a href="/login" class="flex-1 px-4 py-2 rounded font-semibold text-sm text-center text-nt-text-dim hover:text-nt-text hover:bg-nt-bg transition">
+        Bejelentkezés
+      </a>
+    </div>
+
+    <div class="flex items-start gap-3 mb-6">
+      <div class="text-3xl">⚡</div>
+      <div>
+        <h1 class="text-2xl font-bold">Indítsd el a hosting-cégedet</h1>
+        <p class="text-nt-text-dim text-sm mt-1">
+          3 ügyfél már panaszra készen. Ingyenes induló LAMP-box. MRR: $15/hó.
+        </p>
+      </div>
+    </div>
 
     <form id="signup-form" class="space-y-3">
-      <input type="text" name="company_name"
-             placeholder="Company name (e.g. PiroshTech LLC)"
-             required minlength="2" maxlength="60"
-             class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text" />
-      <input type="text" name="city" placeholder="City (optional)" maxlength="60"
-             class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text" />
-      <input type="email" name="email" placeholder="Email" required autocomplete="email"
-             class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text" />
-      <input type="password" name="password" placeholder="Password (min 8)" required
-             autocomplete="new-password" minlength="8"
-             class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text" />
-      <button class="w-full px-4 py-2 bg-nt-accent rounded font-semibold">
-        Create account
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Cég neve</label>
+        <input type="text" name="company_name"
+               placeholder="pl. PiroshTech Kft."
+               required minlength="2" maxlength="60"
+               class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Város <span class="text-nt-text-dim normal-case">(opcionális)</span></label>
+        <input type="text" name="city" placeholder="Budapest" maxlength="60"
+               class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Email</label>
+        <input type="email" name="email" placeholder="te@cég.hu" required autocomplete="email"
+               class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
+      </div>
+      <div>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Jelszó <span class="text-nt-text-dim normal-case">(min 8 karakter)</span></label>
+        <input type="password" name="password" placeholder="••••••••" required
+               autocomplete="new-password" minlength="8"
+               class="w-full px-3 py-2 bg-nt-bg-2 border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition" />
+      </div>
+      <button class="w-full px-4 py-3 bg-nt-accent rounded font-semibold mt-2 hover:opacity-90 transition">
+        Fiók létrehozása →
       </button>
       <p id="status" class="text-sm" aria-live="polite"></p>
     </form>
 
-    <p class="mt-6 text-center text-nt-text-dim text-sm">
-      Already have an account?
-      <a href="/login" class="text-nt-accent">Log in</a>.
+    <p class="mt-8 text-center text-nt-text-dim text-xs">
+      A regisztrációval elfogadod az
+      <a href="/legal/terms" class="text-nt-accent hover:underline">ÁSZF-et</a> és az
+      <a href="/legal/privacy" class="text-nt-accent hover:underline">Adatkezelési tájékoztatót</a>.
     </p>
 
     <script>
