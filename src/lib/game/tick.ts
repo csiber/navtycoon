@@ -374,8 +374,10 @@ export async function tickAllActivePlayers(
   idleCutoffSec: number = 7 * 24 * 3600,
 ): Promise<TickResult[]> {
   const cutoff = now - idleCutoffSec;
+  // Exclude NPCs — they live on the same table but use the archetype
+  // engine in npc-tick.ts, not the real-customer / ticket / churn loop.
   const players = await db.prepare(
-    'SELECT * FROM players WHERE last_active_at >= ?',
+    'SELECT * FROM players WHERE last_active_at >= ? AND is_npc = 0',
   ).bind(cutoff).all<Player>();
   const out: TickResult[] = [];
   for (const p of players.results ?? []) {

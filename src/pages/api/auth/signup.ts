@@ -22,6 +22,7 @@ import {
 } from '../../../lib/auth';
 import { createPlayer, getPlayer } from '../../../lib/game/db';
 import { spawnCustomer } from '../../../lib/game/customer-spawn';
+import { checkHostingNameBlacklist } from '../../../lib/auth/hosting-blacklist';
 import { SERVER_SPECS } from '../../../lib/game/server-types';
 import { computeAchievementInput } from '../../../lib/game/achievements-helper';
 import { checkAndUnlockAchievements } from '../../../lib/game/achievements';
@@ -60,6 +61,8 @@ export async function POST(context: APIContext): Promise<Response> {
   if (pwIssue) return jerr(400, pwIssue);
   const cnIssue = companyNameIssue(companyName);
   if (cnIssue) return jerr(400, cnIssue);
+  const blackcheck = checkHostingNameBlacklist(companyName);
+  if (blackcheck.blocked) return jerr(400, blackcheck.reason!);
 
   try {
     if (await isEmailTaken(pdb, email)) {
