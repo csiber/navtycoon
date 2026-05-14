@@ -430,13 +430,20 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     // (sibling of <div class="app">), which makes it visually orphaned at
     // the page bottom. Move it into the right grid-cell so it sits below
     // the Profile section like any other content card.
-    const editWrap = document.getElementById('settings-edit-wrap');
-    const rightCol = document.querySelector('.layout > div');
-    if (editWrap && rightCol) {
-      editWrap.style.maxWidth = '';        // remove 600px cap → match column width
-      editWrap.style.margin = '0 0 18px';  // align with .sec spacing
-      rightCol.appendChild(editWrap);
-    }
+    //
+    // The wrap is rendered AFTER this script in source-order, so it
+    // doesn't exist yet at this point in the synchronous parse. Defer
+    // with a microtask-equivalent setTimeout so the DOM is fully parsed
+    // when we reach for the node.
+    setTimeout(() => {
+      const editWrap = document.getElementById('settings-edit-wrap');
+      const rightCol = document.querySelector('.layout > div');
+      if (editWrap && rightCol) {
+        editWrap.style.maxWidth = '';        // remove 600px cap → match column width
+        editWrap.style.margin = '0 0 18px';  // align with .sec spacing
+        rightCol.appendChild(editWrap);
+      }
+    }, 0);
     // Profile-head "Share /rep page" + "Edit avatar" buttons aren't wired.
     // They live in .profile-head > .actions (not .prof-actions).
     document.querySelectorAll('.profile-head .actions').forEach((el) => el.remove());
