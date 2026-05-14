@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Offline · Hyperscales</title>
+<meta name="theme-color" content="#07090f" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: #07090f;
+    color: #e9ecf5;
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: grid; place-items: center;
+    padding: 24px;
+    line-height: 1.5;
+  }
+  .card {
+    max-width: 460px;
+    text-align: center;
+    border: 1px solid #1e2338;
+    background: linear-gradient(180deg, #0b0e17, #07090f);
+    border-radius: 18px;
+    padding: 40px 28px;
+  }
+  .mark {
+    width: 56px; height: 56px; border-radius: 12px;
+    background: #1a1f3a;
+    display: grid; place-items: center;
+    margin: 0 auto 18px;
+  }
+  .mark svg { width: 32px; height: 32px; }
+  h1 { font-family: "Space Grotesk", "Inter", sans-serif; font-size: 28px; margin: 0 0 8px; }
+  p  { color: #8b92ad; font-size: 15px; margin: 0 0 24px; }
+  .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  a, button {
+    font: inherit; cursor: pointer;
+    padding: 11px 18px;
+    border-radius: 10px;
+    text-decoration: none;
+    border: 1px solid #262c46;
+    background: rgba(99,102,241,0.12);
+    color: #e9ecf5;
+    transition: background 0.15s ease;
+  }
+  a:hover, button:hover { background: rgba(99,102,241,0.22); }
+  .ghost { background: transparent; }
+  .dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    background: #f43f5e; margin-right: 6px; vertical-align: middle;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+  small { color: #5d6483; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">
+      <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <g fill="none" stroke="#e9ecf5" stroke-width="3" stroke-linecap="round">
+          <line x1="14" y1="20" x2="50" y2="20"/>
+          <line x1="14" y1="32" x2="50" y2="32"/>
+          <line x1="14" y1="44" x2="50" y2="44"/>
+        </g>
+        <circle cx="48" cy="20" r="2.4" fill="#34d399"/>
+        <circle cx="48" cy="32" r="2.4" fill="#34d399"/>
+        <circle cx="48" cy="44" r="2.4" fill="#f59e0b"/>
+      </svg>
+    </div>
+    <h1><span class="dot"></span>You're offline</h1>
+    <p>The rack you're looking for needs the network. Reconnect and try again — your save is local, nothing is lost.</p>
+    <div class="actions">
+      <button onclick="location.reload()">Retry</button>
+      <a href="/" class="ghost">Home</a>
+    </div>
+    <p style="margin-top: 22px;"><small>Hyperscales · hyperscales.app</small></p>
+  </div>
+</body>
+</html>

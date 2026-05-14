@@ -8,16 +8,135 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Hyperscales — Run a hosting empire where every customer is AI</title>
+<meta name="description" content="A browser tycoon where every customer is a real LLM with memory and grudges. Start in a 2002 garage, scale to global edge — or burn out at 4 AM debugging a Karen." />
+<meta name="theme-color" content="#07090f" />
+<meta name="color-scheme" content="dark" />
+<link rel="canonical" href="https://hyperscales.app/" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Hyperscales" />
+<meta name="application-name" content="Hyperscales" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="msapplication-TileColor" content="#07090f" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://hyperscales.app/" />
+<meta property="og:title" content="Hyperscales — Your customers are AI" />
+<meta property="og:description" content="A browser tycoon where every customer is a real LLM with memory and grudges. Start in a 2002 garage, scale to global edge." />
+<meta property="og:image" content="https://hyperscales.app/og.webp" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:site_name" content="Hyperscales" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:locale:alternate" content="hu_HU" />
+<meta property="og:locale:alternate" content="de_DE" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Hyperscales — Your customers are AI" />
+<meta name="twitter:description" content="Run a hosting empire. Every angry customer is a real LLM that remembers your past 90 days." />
+<meta name="twitter:image" content="https://hyperscales.app/og.webp" />
+<meta name="robots" content="index,follow,max-image-preview:large" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"VideoGame",
+  "name":"Hyperscales",
+  "url":"https://hyperscales.app/",
+  "image":"https://hyperscales.app/og.webp",
+  "applicationCategory":"Game",
+  "operatingSystem":"Web",
+  "genre":"Business simulation, Tycoon",
+  "playMode":"SinglePlayer, Multiplayer",
+  "gamePlatform":"Web browser",
+  "description":"Browser tycoon where every customer is a real LLM with memory and grudges."
+}
+</script>
+<script is:inline>
+  // PWA: register service worker (best-effort; silent on no-SW environments).
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => { /* silent */ });
+    });
+  }
+</script>
 
 <style is:global set:html={pageCss}></style>
 <style is:inline>
   body { transition: opacity 200ms ease-out; }
   body.preload { opacity: 0; }
+
+  /* Safe-area padding for notched devices */
+  @supports (padding: max(0px)) {
+    nav.top .wrap { padding-left: max(16px, env(safe-area-inset-left));
+                    padding-right: max(16px, env(safe-area-inset-right)); }
+    footer .wrap, section.section .wrap, header.hero .wrap {
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+    }
+    #music-toggle { bottom: max(18px, env(safe-area-inset-bottom));
+                    right:  max(18px, env(safe-area-inset-right)); }
+  }
+
+  /* PWA install pill — hidden until beforeinstallprompt fires */
+  #pwa-install {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: max(18px, env(safe-area-inset-bottom));
+    z-index: 79;
+    display: none;
+    align-items: center; gap: 8px;
+    background: rgba(99,102,241,0.92);
+    color: #fff;
+    border: 0; border-radius: 999px;
+    padding: 10px 18px;
+    font: 600 13px/1 "Inter", system-ui, sans-serif;
+    box-shadow: 0 10px 30px -8px rgba(99,102,241,.6);
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+  }
+  #pwa-install.show { display: inline-flex; }
+  #pwa-install:hover { background: #6366f1; }
+
+  /* Standalone (installed-PWA) tweaks: hide the install pill, give the
+     status-bar area some breathing room on iOS */
+  @media (display-mode: standalone) {
+    #pwa-install { display: none !important; }
+    nav.top { padding-top: env(safe-area-inset-top); }
+  }
+
+  /* Smaller-phone hardening: <420px (iPhone SE, fold) */
+  @media (max-width: 420px) {
+    .nav-cta { padding: 7px 10px; font-size: 11px; }
+    .brand { font-size: 16px; }
+    .brand-mark { width: 22px !important; height: 22px !important; }
+    .hero { padding: 28px 0 36px; }
+    h1.hero-title { font-size: clamp(28px, 9.5vw, 38px); }
+    .hero-sub { font-size: 14px; }
+    .meta-row { font-size: 12px; }
+    section.section { padding: 40px 0; }
+    h2 { font-size: clamp(22px, 7.5vw, 28px); line-height: 1.15; }
+    .shot-cap h4 { font-size: 15px; }
+    .shot-cap p { font-size: 13px; }
+    .cta-final { padding: 24px 18px; }
+    .cta-final h2 { font-size: 24px; }
+    .foot { grid-template-columns: 1fr; gap: 20px; }
+    .pw-bar .tab { font-size: 11px; padding: 4px 8px; }
+    #music-toggle button { padding: 8px 12px; font-size: 11px; }
+    #music-toggle .eq i { height: auto; }
+  }
+
+  /* Tap-target floor: anything tappable should be >= 44px high */
+  @media (pointer: coarse) {
+    .lang-btn, .nav-cta, .btn-primary, .btn-ghost, .tab,
+    #music-btn, #pwa-install { min-height: 40px; }
+  }
 </style>
 </head>
 <body class="preload">
@@ -100,9 +219,9 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
   }, 1800);
 </script>
 <script is:inline define:vars={{ TRANSLATIONS_INLINE: TRANSLATIONS }}>
-    // Locale resolution: ?lang=… → localStorage → navigator.language → 'en'.
-    // Applied client-side; server-rendered text is the EN fallback (good for
-    // SEO + crawler-safe no-JS rendering).
+    // Locale resolution: ?lang=… → localStorage → 'en' (global default, since
+    // hyperscales.app targets a global audience — explicit opt-in for HU/DE,
+    // do NOT auto-pick by navigator.language).
     (function () {
       const SUPPORTED = ['en', 'hu', 'de'];
       function resolveLocale() {
@@ -113,8 +232,6 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
           const saved = localStorage.getItem('hs_lang');
           if (saved && SUPPORTED.includes(saved)) return saved;
         } catch { /* sandboxed */ }
-        const nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
-        if (SUPPORTED.includes(nav)) return nav;
         return 'en';
       }
       function applyI18n(locale) {
@@ -700,6 +817,38 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
     // Refresh ScrollTrigger after fonts/images load (heights can shift)
     window.addEventListener('load', () => {
       setTimeout(() => ScrollTrigger.refresh(), 200);
+    });
+  })();
+</script>
+
+<!-- ─── PWA install pill (beforeinstallprompt) ─── -->
+<button id="pwa-install" type="button" aria-label="Install Hyperscales as an app">
+  <span aria-hidden="true">⬇</span><span>Install app</span>
+</button>
+<script is:inline>
+  (function () {
+    let deferred = null;
+    const pill = document.getElementById('pwa-install');
+    if (!pill) return;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferred = e;
+      try {
+        if (localStorage.getItem('hs_pwa_dismissed') === '1') return;
+      } catch { /* sandboxed */ }
+      pill.classList.add('show');
+    });
+    pill.addEventListener('click', async () => {
+      if (!deferred) { pill.classList.remove('show'); return; }
+      pill.classList.remove('show');
+      deferred.prompt();
+      try { await deferred.userChoice; } catch { /* dismiss */ }
+      deferred = null;
+      try { localStorage.setItem('hs_pwa_dismissed', '1'); } catch { /* sandboxed */ }
+    });
+    window.addEventListener('appinstalled', () => {
+      pill.classList.remove('show');
+      try { localStorage.setItem('hs_pwa_dismissed', '1'); } catch { /* sandboxed */ }
     });
   })();
 </script>
