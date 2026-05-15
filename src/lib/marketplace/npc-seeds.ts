@@ -16,6 +16,8 @@ export interface MarketplaceSeed {
   price_cents: number;
   price_unit: PriceUnit;
   hours_ago: number;             // for staggered posted_at
+  effect_type?: 'spawn_customer';
+  effect_payload?: string;       // JSON string
 }
 
 export const MARKETPLACE_SEEDS: readonly MarketplaceSeed[] = [
@@ -96,5 +98,46 @@ export const MARKETPLACE_SEEDS: readonly MarketplaceSeed[] = [
     title: 'Acquiring failed/quitting hosts — we will assume your customers',
     body: 'If you are burning out and want a soft landing, we will take over your account list at 0.6× ARR. No drama, fast close, your customers get migration support. We have done this 3 times. Yes, we will pivot again. They will be fine.',
     price_cents: 0, price_unit: 'one_time', hours_ago: 49,
+  },
+  // ─── Phase 2 leads — buyable spawn_customer listings ───────────────
+  {
+    author_id: 'npc-pixelforge', category: 'leads',
+    title: 'Sarah Chen wants stable hobby hosting — referral $200',
+    body: 'Sarah runs a small DTC skincare shop on Squarespace. Wants a real $5-15/mo VPS for her staging environment. Loyal type — pays on time, asks once a quarter if everything\'s fine. We are full, sending her your way for a flat $200 referral. She picks the host.',
+    price_cents: 20000, price_unit: 'one_time', hours_ago: 6,
+    effect_type: 'spawn_customer',
+    effect_payload: JSON.stringify({ archetype: 'loyalist', name: 'Sarah Chen', plan_tier: 'hobby', starting_satisfaction: 75 }),
+  },
+  {
+    author_id: 'npc-riverside', category: 'leads',
+    title: 'Tomás López — first-time founder needs hand-holding',
+    body: 'Tomás just left his sysadmin job to launch a local-business directory. Doesn\'t know what a CNAME is yet but is patient and pays in advance. Cheap hobby tier, lots of support tickets but kind. $150 finder.',
+    price_cents: 15000, price_unit: 'one_time', hours_ago: 12,
+    effect_type: 'spawn_customer',
+    effect_payload: JSON.stringify({ archetype: 'newbie', name: 'Tomás López', plan_tier: 'hobby', starting_satisfaction: 60 }),
+  },
+  {
+    author_id: 'npc-aurora-data', category: 'leads',
+    title: 'Avery Tran — business-tier, RFC-quoting senior engineer',
+    body: 'Avery is a principal engineer at a fintech. Wants a business-tier setup for his side project. Will read your status page, will email you about IPv6, will pay on time, will not blink at $30/mo. Worth $400 to introduce. He picks the host.',
+    price_cents: 40000, price_unit: 'one_time', hours_ago: 2,
+    effect_type: 'spawn_customer',
+    effect_payload: JSON.stringify({ archetype: 'pro', name: 'Avery Tran', plan_tier: 'business', starting_satisfaction: 60 }),
+  },
+  {
+    author_id: 'npc-belvedere', category: 'leads',
+    title: 'Jordan Smith — bargain-hunter, hobby-tier',
+    body: 'Jordan emails three hosts every renewal cycle asking for a discount. They will pay, eventually, on the cheap plan. They will also open a refund ticket once a quarter. We charged a flat $80 to get rid of them — your funeral.',
+    price_cents: 8000, price_unit: 'one_time', hours_ago: 30,
+    effect_type: 'spawn_customer',
+    effect_payload: JSON.stringify({ archetype: 'cheapskate', name: 'Jordan Smith', plan_tier: 'hobby', starting_satisfaction: 45 }),
+  },
+  {
+    author_id: 'npc-maelstrom', category: 'leads',
+    title: 'Beth Park — $50 fire-sale, do not say we didn\'t warn you',
+    body: 'Beth is a "Karen". She has filed three P1 tickets at us in two weeks. Hates her current host. Will hate her next host. We are charging $50 to make her someone else\'s problem. Hobby tier, sat starts at 25, you have been warned.',
+    price_cents: 5000, price_unit: 'one_time', hours_ago: 1,
+    effect_type: 'spawn_customer',
+    effect_payload: JSON.stringify({ archetype: 'karen', name: 'Beth Park', plan_tier: 'hobby', starting_satisfaction: 25 }),
   },
 ] as const;
