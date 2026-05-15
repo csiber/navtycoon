@@ -2,14 +2,23 @@ import { generateChatResponse, type WorkersAIBinding } from './workers-ai';
 import { buildReplyPrompt, type ReplyPromptInput } from './persona-prompts';
 import type { PersonaArchetype } from '../game/types';
 
+export type ReplyLang = 'en' | 'hu' | 'de';
+
+function languageDirective(lang: ReplyLang): string {
+  if (lang === 'hu') return ' Reply in Hungarian (magyarul).';
+  if (lang === 'de') return ' Reply in German (auf Deutsch).';
+  return '';
+}
+
 export async function generateAiReply(
   ai: WorkersAIBinding,
-  input: ReplyPromptInput,
+  input: ReplyPromptInput & { lang?: ReplyLang },
 ): Promise<string> {
   const prompt = buildReplyPrompt(input);
+  const lang: ReplyLang = (input.lang as ReplyLang) ?? 'en';
   const text = await generateChatResponse(
     ai,
-    'You are role-playing as a customer responding to support. Stay in character. 1-2 sentences. Output the reply text ONLY.',
+    'You are role-playing as a customer responding to support. Stay in character. 1-2 sentences. Output the reply text ONLY.' + languageDirective(lang),
     prompt,
     { max_tokens: 150, temperature: 0.9 },
   );

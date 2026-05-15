@@ -171,6 +171,10 @@ export async function tickPlayer(
             customer_name: c.name,
             archetype: c.persona_archetype as PersonaArchetype,
             satisfaction: c.satisfaction,
+            // If the player set a UI language, the LLM-generated ticket
+            // should match — "HU felület = HU ticket" was the explicit
+            // user request.
+            lang: ((player as { preferred_lang?: string }).preferred_lang as 'en' | 'hu' | 'de' | undefined) ?? 'en',
           });
           summary = t.summary;
           fullText = t.full_text;
