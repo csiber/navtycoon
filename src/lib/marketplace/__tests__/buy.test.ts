@@ -44,6 +44,17 @@ describe('validateBuy', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('not_buyable');
   });
+
+  it('rejects when effect_payload is malformed JSON', () => {
+    const r = validateBuy({ ...baseListing, effect_payload: 'not json' }, 25000);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toBe('bad_payload');
+  });
+
+  it('accepts when cash exactly equals price', () => {
+    const r = validateBuy(baseListing, baseListing.price_cents);
+    expect(r.ok).toBe(true);
+  });
 });
 
 describe('parseEffect', () => {
@@ -67,5 +78,17 @@ describe('parseEffect', () => {
 
   it('returns null when archetype is not a known persona', () => {
     expect(parseEffect('{"archetype":"alien","name":"x","plan_tier":"hobby","starting_satisfaction":50}')).toBeNull();
+  });
+
+  it('accepts boundary satisfaction values 0 and 100', () => {
+    const lo = parseEffect(JSON.stringify({ archetype: 'pro', name: 'X', plan_tier: 'hobby', starting_satisfaction: 0 }));
+    const hi = parseEffect(JSON.stringify({ archetype: 'pro', name: 'X', plan_tier: 'hobby', starting_satisfaction: 100 }));
+    expect(lo?.starting_satisfaction).toBe(0);
+    expect(hi?.starting_satisfaction).toBe(100);
+  });
+
+  it('rejects out-of-range satisfaction (-1 and 101)', () => {
+    expect(parseEffect(JSON.stringify({ archetype: 'pro', name: 'X', plan_tier: 'hobby', starting_satisfaction: -1 }))).toBeNull();
+    expect(parseEffect(JSON.stringify({ archetype: 'pro', name: 'X', plan_tier: 'hobby', starting_satisfaction: 101 }))).toBeNull();
   });
 });

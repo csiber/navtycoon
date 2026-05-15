@@ -34,6 +34,7 @@ const KNOWN_ARCHETYPES: readonly PersonaArchetype[] = [
 const KNOWN_TIERS: readonly PlanTier[] = ['hobby', 'business', 'vps', 'dedicated'];
 
 export function validateBuy(listing: BuyableListing, cashCents: number): BuyResult {
+  // Order: schema gates first (category, effect_type), then state (sold), then funds, then payload.
   if (listing.category !== 'leads') return { ok: false, error: 'not_buyable' };
   if (listing.effect_type !== 'spawn_customer') return { ok: false, error: 'not_buyable' };
   if (listing.sold_at !== null) return { ok: false, error: 'sold' };
