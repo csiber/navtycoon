@@ -104,6 +104,68 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
       if (tabs[1]) { const n = tabs[1].querySelector('.n'); if (n) n.textContent = String(s.tickets.length); }
       // Inbox list
       const inboxPanel = document.querySelector('.layout > .panel:first-child');
+      const detailPanel = document.querySelectorAll('.layout > .panel')[1];
+      const crumb = document.querySelector('.crumbs span:last-child');
+
+      // Render the detail-panel for a specific ticket. Re-runnable so the
+      // inbox click-handler can swap which ticket is shown without
+      // touching the inbox list itself.
+      function renderDetail(t) {
+        if (!detailPanel) return;
+        detailPanel.replaceChildren();
+        if (!t) {
+          const empty = document.createElement('div');
+          empty.style.cssText = 'padding:40px;text-align:center;color:var(--dim);';
+          empty.textContent = '✓ All caught up. Wait for the next cron-tick to spawn new tickets, or start a shift.';
+          detailPanel.appendChild(empty);
+          if (crumb) crumb.textContent = 'inbox';
+          return;
+        }
+        if (crumb) crumb.textContent = '#' + t.id + ' — ' + t.customer;
+
+        const head = document.createElement('div'); head.className = 'tk-head';
+        const h2 = document.createElement('h2'); h2.textContent = t.summary + ' ';
+        const idSpan = document.createElement('span'); idSpan.className = 'id'; idSpan.textContent = '#' + t.id;
+        h2.appendChild(idSpan);
+        const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = '⚡ open';
+        head.append(h2, pill);
+        detailPanel.appendChild(head);
+
+        const subRow = document.createElement('div'); subRow.className = 'tk-sub';
+        const fromSp = document.createElement('span');
+        fromSp.append(document.createTextNode('From '));
+        const fromB = document.createElement('b'); fromB.textContent = t.customer;
+        fromSp.appendChild(fromB);
+        const personaSp = document.createElement('span'); personaSp.textContent = 'Persona: ' + t.persona;
+        const ageSp = document.createElement('span'); ageSp.textContent = 'Age: ' + t.age;
+        subRow.append(fromSp, personaSp, ageSp);
+        detailPanel.appendChild(subRow);
+
+        const thread = document.createElement('div'); thread.className = 'thread';
+        const tm = document.createElement('div'); tm.className = 'tmsg';
+        const tmAv = document.createElement('div'); tmAv.className = 'av av-' + (t.customer[0] || '?').toUpperCase();
+        tmAv.textContent = (t.customer[0] || '?').toUpperCase();
+        const tmRight = document.createElement('div');
+        const tmHead = document.createElement('div'); tmHead.className = 'head';
+        const who = document.createElement('span'); who.className = 'who'; who.textContent = t.customer;
+        const ts2 = document.createElement('span'); ts2.className = 'ts'; ts2.textContent = t.age + ' ago';
+        tmHead.append(who, ts2);
+        const body = document.createElement('div'); body.className = 'body';
+        const para = document.createElement('p'); para.textContent = t.body || t.summary;
+        body.appendChild(para);
+        tmRight.append(tmHead, body);
+        tm.append(tmAv, tmRight);
+        thread.appendChild(tm);
+        detailPanel.appendChild(thread);
+
+        const composer = document.createElement('div'); composer.className = 'composer';
+        const note = document.createElement('div');
+        note.style.cssText = 'padding:12px;color:var(--dim);font-family:var(--mono);font-size:11px;text-align:center;border:1px dashed var(--line-2);border-radius:8px;';
+        note.textContent = 'To reply with a live LLM, start a shift at /play/shift.';
+        composer.appendChild(note);
+        detailPanel.appendChild(composer);
+      }
+
       if (inboxPanel) {
         inboxPanel.querySelectorAll('.ticket-row').forEach((r) => r.remove());
         if (s.tickets.length === 0) {
@@ -133,69 +195,20 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
             meta.appendChild(persona);
             info.append(row1, subj, meta);
             row.append(av, info);
+            // Click to select — fixes "dísz?" bug where pointer:cursor
+            // suggested clickability but no handler was attached.
+            row.addEventListener('click', () => {
+              inboxPanel.querySelectorAll('.ticket-row').forEach((r) => r.classList.remove('selected'));
+              row.classList.add('selected');
+              renderDetail(t);
+            });
             inboxPanel.appendChild(row);
           });
         }
       }
 
-      // Detail panel: render first ticket
-      const first = s.tickets[0];
-      const crumb = document.querySelector('.crumbs span:last-child');
-      if (first && crumb) crumb.textContent = '#' + first.id + ' — ' + first.customer;
-      else if (crumb) crumb.textContent = 'inbox';
-
-      const detailPanel = document.querySelectorAll('.layout > .panel')[1];
-      if (detailPanel) {
-        detailPanel.replaceChildren();
-        if (!first) {
-          const empty = document.createElement('div');
-          empty.style.cssText = 'padding:40px;text-align:center;color:var(--dim);';
-          empty.textContent = '✓ All caught up. Wait for the next cron-tick to spawn new tickets, or start a shift.';
-          detailPanel.appendChild(empty);
-        } else {
-          const head = document.createElement('div'); head.className = 'tk-head';
-          const h2 = document.createElement('h2'); h2.textContent = first.summary + ' ';
-          const idSpan = document.createElement('span'); idSpan.className = 'id'; idSpan.textContent = '#' + first.id;
-          h2.appendChild(idSpan);
-          const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = '⚡ open';
-          head.append(h2, pill);
-          detailPanel.appendChild(head);
-
-          const subRow = document.createElement('div'); subRow.className = 'tk-sub';
-          const fromSp = document.createElement('span');
-          fromSp.append(document.createTextNode('From '));
-          const fromB = document.createElement('b'); fromB.textContent = first.customer;
-          fromSp.appendChild(fromB);
-          const personaSp = document.createElement('span'); personaSp.textContent = 'Persona: ' + first.persona;
-          const ageSp = document.createElement('span'); ageSp.textContent = 'Age: ' + first.age;
-          subRow.append(fromSp, personaSp, ageSp);
-          detailPanel.appendChild(subRow);
-
-          const thread = document.createElement('div'); thread.className = 'thread';
-          const tm = document.createElement('div'); tm.className = 'tmsg';
-          const tmAv = document.createElement('div'); tmAv.className = 'av av-' + (first.customer[0] || '?').toUpperCase();
-          tmAv.textContent = (first.customer[0] || '?').toUpperCase();
-          const tmRight = document.createElement('div');
-          const tmHead = document.createElement('div'); tmHead.className = 'head';
-          const who = document.createElement('span'); who.className = 'who'; who.textContent = first.customer;
-          const ts2 = document.createElement('span'); ts2.className = 'ts'; ts2.textContent = first.age + ' ago';
-          tmHead.append(who, ts2);
-          const body = document.createElement('div'); body.className = 'body';
-          const para = document.createElement('p'); para.textContent = first.body || first.summary;
-          body.appendChild(para);
-          tmRight.append(tmHead, body);
-          tm.append(tmAv, tmRight);
-          thread.appendChild(tm);
-          detailPanel.appendChild(thread);
-
-          const composer = document.createElement('div'); composer.className = 'composer';
-          const note = document.createElement('div');
-          note.style.cssText = 'padding:12px;color:var(--dim);font-family:var(--mono);font-size:11px;text-align:center;border:1px dashed var(--line-2);border-radius:8px;';
-          note.textContent = 'To reply with a live LLM, start a shift at /play/shift.';
-          composer.appendChild(note);
-          detailPanel.appendChild(composer);
-        }
-      }
+      // Detail panel: render first ticket on initial paint
+      renderDetail(s.tickets[0]);
 
       // Hide right context aside (mock customer / runbook / impact / related)
       const ctxAside = document.querySelectorAll('.layout > .panel')[2];

@@ -171,12 +171,22 @@ export class ShiftRoomDO {
     c.current_satisfaction = Math.max(-100, Math.min(100, c.current_satisfaction + delta));
     c.satisfaction_delta_total += delta;
 
+    // Resolve player's preferred UI language so the AI customer replies
+    // in the same language the player is reading the UI in. "Magyar
+    // felület = magyar LLM-beszéd" was the explicit user request.
+    const langRow = await this.env.DB
+      .prepare('SELECT preferred_lang FROM players WHERE user_id = ? LIMIT 1')
+      .bind(this.shift.player_id)
+      .first<{ preferred_lang?: string }>();
+    const lang = (langRow?.preferred_lang as 'en' | 'hu' | 'de' | undefined) ?? 'en';
+
     const reply = await generateAiReply(this.env.AI, {
       archetype: c.archetype,
       customer_name: c.customer_name,
       satisfaction: c.current_satisfaction,
       ticket_subject: c.ticket_subject,
       conversation: c.conversation.map(m => ({ role: m.role, text: m.text })),
+      lang,
     }).catch(() => 'I... I do not know what to say.');
 
     c.conversation.push({ role: 'customer', text: reply, ts: now });
