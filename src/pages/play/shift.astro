@@ -23,7 +23,13 @@ if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
 if (!player) return Astro.redirect('/signup');
 
-const open = await listTickets(db, user.id, 'open');
+// Mirror /api/shift/start: both 'open' AND 'in_progress' count toward
+// the shift-ready check. Otherwise abandoned in_progress tickets leave
+// the user staring at "Inbox-empty" while the dashboard CTA still
+// reads "9 open tickets waiting".
+const openTickets = await listTickets(db, user.id, 'open');
+const inProgress = await listTickets(db, user.id, 'in_progress');
+const open = [...openTickets, ...inProgress];
 const used = await getLlmUsageToday(db, user.id);
 const cap = getDailyCap(player.is_pro === 1);
 const cap_remaining = cap - used;
