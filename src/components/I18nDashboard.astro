@@ -821,6 +821,9 @@ import SidebarUser from './SidebarUser.astro';
           [/(\d+)m ago\b/g, '$1p'],
           // Ticket thread-head triple "From X · Persona: y · Age: 18h"
           [/^From /g, 'Feladó: '],
+          [/^Persona: /g, 'Persona: '],
+          [/^Age: /g, 'Kor: '],
+          // Composite variants (older templates use ` · ` separators)
           [/ · Persona: /g, ' · persona: '],
           [/ · Age: /g, ' · kor: '],
           // Finance card units
@@ -853,6 +856,8 @@ import SidebarUser from './SidebarUser.astro';
           [/(\d+)d ago\b/g, 'vor $1d'],
           [/(\d+)m ago\b/g, 'vor $1m'],
           [/^From /g, 'Von: '],
+          [/^Persona: /g, 'Persona: '],
+          [/^Age: /g, 'Alter: '],
           [/ · Persona: /g, ' · Persona: '],
           [/ · Age: /g, ' · Alter: '],
           [/Runway (\d+) days?\b/g, 'Laufzeit $1 Tage'],
