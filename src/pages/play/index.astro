@@ -741,7 +741,19 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
           }
           dlg = document.createElement('dialog');
           dlg.id = 'shift-modal';
-          dlg.style.cssText = 'padding:0;border:1px solid var(--line-2);border-radius:14px;background:var(--panel);width:min(1100px,92vw);height:min(720px,86vh);max-width:none;overflow:hidden;position:relative;';
+          // Height starts compact and grows to fit content via postMessage
+          // from the iframe (see shift.astro embed-mode auto-resize block).
+          // Width stays generous since the active-shift queue+chat layout
+          // needs ~960px to breathe; modal caps at 92vw on small screens.
+          dlg.style.cssText = 'padding:0;border:1px solid var(--line-2);border-radius:14px;background:var(--panel);width:min(960px,92vw);height:240px;max-width:none;max-height:86vh;overflow:hidden;position:relative;transition:height .25s ease;';
+          // Receive height updates from the iframe content.
+          const onShiftResize = (e) => {
+            if (!e.data || e.data.type !== 'shift-resize') return;
+            const h = Math.max(200, Math.min(window.innerHeight * 0.86, e.data.height || 240));
+            dlg.style.height = h + 'px';
+          };
+          window.addEventListener('message', onShiftResize);
+          dlg.addEventListener('close', () => window.removeEventListener('message', onShiftResize), { once: true });
           // Close button — fixed top-right, never collides with iframe content.
           const closeBtn = document.createElement('button');
           closeBtn.textContent = '✕';

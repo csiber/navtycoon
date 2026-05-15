@@ -47,7 +47,41 @@ const locale: Locale = detectLocale();
 ---
 <Base title={t(locale, 'shift.title')}>
   {isEmbed && (
-    <style is:global set:html={'header { display: none !important; } footer { display: none !important; } main { padding: 14px !important; max-width: none !important; } body { background: transparent !important; }'}></style>
+    <style is:global set:html={'header { display: none !important; } footer { display: none !important; } main { padding: 14px !important; max-width: none !important; } body { background: transparent !important; margin: 0 !important; }'}></style>
+  )}
+  {isEmbed && (
+    <script is:inline set:html={`
+      // Embed mode auto-resize: post our rendered content height to the
+      // parent dialog so the modal shrinks for inbox-zero / pre-shift state
+      // and grows when the shift area mounts. Debounced via rAF.
+      (function () {
+        if (window.parent === window) return;
+        var lastH = 0;
+        var raf = 0;
+        function report() {
+          raf = 0;
+          // measure outer-padded main + small buffer, ignore overflow:hidden
+          var main = document.querySelector('main');
+          var h = main ? main.scrollHeight + 28 : document.body.scrollHeight;
+          if (h === lastH) return;
+          lastH = h;
+          try {
+            window.parent.postMessage({ type: 'shift-resize', height: h }, '*');
+          } catch (e) { /* cross-origin guard */ }
+        }
+        function schedule() {
+          if (raf) return;
+          raf = requestAnimationFrame(report);
+        }
+        var ro = new ResizeObserver(schedule);
+        ro.observe(document.body);
+        // Re-measure when the hidden shift-area un-hides (class toggle by shift-app).
+        var mo = new MutationObserver(schedule);
+        mo.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+        window.addEventListener('load', schedule);
+        schedule();
+      })();
+    `}></script>
   )}
   <h1 class="text-2xl font-bold mb-2">{t(locale, 'shift.title')}</h1>
   <p class="text-nt-text-dim mb-4 text-sm">
