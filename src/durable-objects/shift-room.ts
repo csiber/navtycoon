@@ -28,7 +28,8 @@ interface InitMessage {
 
 type WsInbound =
   | { type: 'msg'; text: string }
-  | { type: 'action'; action: ShiftAction };
+  | { type: 'action'; action: ShiftAction }
+  | { type: 'switch_ticket'; index: number };
 
 type WsOutbound =
   | { type: 'state'; state: ShiftState }
@@ -122,6 +123,23 @@ export class ShiftRoomDO {
     let m: WsInbound;
     try { m = JSON.parse(raw) as WsInbound; }
     catch { this.send({ type: 'error', error: 'bad json' }); return; }
+
+    // Manual ticket-switch happens BEFORE the active-customer guard:
+    // the player can jump to any pending ticket in the queue without
+    // resolving the current one first. Resolved/abandoned tickets are
+    // skipped server-side so a stale click can't desync the queue.
+    if (m.type === 'switch_ticket') {
+      const i = m.index;
+      if (i >= 0 && i < this.shift.queue.length) {
+        const target = this.shift.queue[i];
+        if (target.status === 'pending' || target.status === 'active') {
+          this.shift.active_index = i;
+          await this.state.storage.put('shift', this.shift);
+          this.send({ type: 'state', state: this.shift });
+        }
+      }
+      return;
+    }
 
     const active = this.shift.queue[this.shift.active_index];
     if (!active) {

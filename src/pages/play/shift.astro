@@ -44,6 +44,34 @@ function detectLocale(): Locale {
   return 'en';
 }
 const locale: Locale = detectLocale();
+
+// Labels consumed by shift-app.ts at runtime. Emitted as a JSON
+// <script type="application/json"> block below so the bundled TS can
+// read them via document.getElementById('shift-labels').
+const shiftLabels = {
+  status_pending: t(locale, 'shift.queue.status.pending'),
+  status_active: t(locale, 'shift.queue.status.active'),
+  status_resolved: t(locale, 'shift.queue.status.resolved'),
+  status_abandoned: t(locale, 'shift.queue.status.abandoned'),
+  sat: t(locale, 'shift.queue.sat'),
+  active_subject: t(locale, 'shift.active.subject'),
+  active_sat: t(locale, 'shift.active.sat'),
+  end_tickets: t(locale, 'shift.end.tickets'),
+  end_total_sat: t(locale, 'shift.end.total_sat'),
+  end_refunds: t(locale, 'shift.end.refunds'),
+  end_rep: t(locale, 'shift.end.rep'),
+  end_unlocked: t(locale, 'shift.end.unlocked'),
+  err_could_not_start: t(locale, 'shift.error.could_not_start'),
+  err_generic: t(locale, 'shift.error.generic'),
+  arch_newbie: t(locale, 'shift.archetype.newbie'),
+  arch_pro: t(locale, 'shift.archetype.pro'),
+  arch_cheapskate: t(locale, 'shift.archetype.cheapskate'),
+  arch_karen: t(locale, 'shift.archetype.karen'),
+  arch_loyalist: t(locale, 'shift.archetype.loyalist'),
+  arch_ghost: t(locale, 'shift.archetype.ghost'),
+  arch_drama: t(locale, 'shift.archetype.drama'),
+  arch_crypto: t(locale, 'shift.archetype.crypto'),
+};
 ---
 <Base title={t(locale, 'shift.title')}>
   {isEmbed && (
@@ -144,6 +172,7 @@ const locale: Locale = detectLocale();
     </div>
   </div>
 
+  <script type="application/json" id="shift-labels" set:html={JSON.stringify(shiftLabels)}></script>
   <script>
     // Vite/Astro bundles this import into a hashed asset at build time —
     // unlike `<script src="/src/scripts/...">` which 404s in production.
