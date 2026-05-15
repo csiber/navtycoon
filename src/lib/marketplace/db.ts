@@ -22,6 +22,11 @@ export interface MarketplaceListing {
   price_unit: PriceUnit;
   posted_at: number;
   is_active: number;
+  // New for buy-flow (migration 0010):
+  effect_type: string | null;          // 'spawn_customer' | null
+  effect_payload: string | null;       // JSON string
+  sold_at: number | null;              // unix sec
+  sold_to_player_id: string | null;
 }
 
 export async function listListings(
@@ -30,6 +35,9 @@ export async function listListings(
 ): Promise<MarketplaceListing[]> {
   const limit = Math.min(100, Math.max(1, opts.limit ?? 50));
   const offset = Math.max(0, opts.offset ?? 0);
+  // m.* now includes effect_type, effect_payload, sold_at, sold_to_player_id
+  // since migration 0010. Add columns to the alias-projection if we
+  // ever swap m.* for an explicit list.
   let sql =
     'SELECT m.*, p.company_name AS author_name, p.city AS author_city, p.npc_archetype ' +
     'FROM marketplace_listings m ' +
@@ -66,4 +74,18 @@ export async function createListing(
     .bind(authorId, category, title, body, priceCents, priceUnit, now, isNpc ? 1 : 0)
     .first<{ id: number }>();
   return { id: res?.id ?? 0 };
+}
+
+/** Fetch a single listing by id, joining the author player row.
+ *  Used by the buy-flow endpoint to validate before purchase. */
+export async function getListing(
+  db: D1Database, id: number,
+): Promise<MarketplaceListing | null> {
+  const row = await db.prepare(
+    'SELECT m.*, p.company_name AS author_name, p.city AS author_city, p.npc_archetype ' +
+    'FROM marketplace_listings m ' +
+    'LEFT JOIN players p ON p.user_id = m.author_id ' +
+    'WHERE m.id = ? LIMIT 1',
+  ).bind(id).first<MarketplaceListing>();
+  return row ?? null;
 }

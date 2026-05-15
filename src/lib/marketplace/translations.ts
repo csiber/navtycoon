@@ -66,6 +66,26 @@ const HU: Record<string, Translation> = {
     title: 'Csődbe ment / kilépő hostok felvásárlása — átvesszük az ügyfeleket',
     body: 'Ha kiégtél és puha landolást akarsz, átvesszük az account-listádat 0.6× ARR-ért. Drámamentes, gyors close, az ügyfeleid migrációs supportot kapnak. Csináltuk ezt 3-szor. Igen, megint pivotálni fogunk. De az ügyfeleid jól lesznek.',
   },
+  'Sarah Chen wants stable hobby hosting — referral $200': {
+    title: 'Sarah Chen stabil hobby-tier hosting-ot keres — közvetítés $200',
+    body: 'Sarah egy kis DTC kozmetikai webshopot visz Squarespace-en. Igazi $5-15/hó VPS-t akar staging-re. Hűséges típus — időben fizet, negyedévente kérdezi meg hogy minden OK. Mi tele vagyunk, $200-ért átküldjük hozzád. Ő választ szolgáltatót.',
+  },
+  'Tomás López — first-time founder needs hand-holding': {
+    title: 'Tomás López — első vállalkozó, kézfogásra szorul',
+    body: 'Tomás most lépett ki a sysadmin állásából helyi-vállalkozói katalógust indít. Nem tudja még mi az a CNAME, de türelmes és előre fizet. Olcsó hobby-tier, sok support-ticket de kedves. $150 a közvetítés.',
+  },
+  'Avery Tran — business-tier, RFC-quoting senior engineer': {
+    title: 'Avery Tran — business-tier, RFC-idéző senior fejlesztő',
+    body: 'Avery egy fintech principal engineer. Business-tier setup-ot akar a side projectjéhez. Olvasni fogja a status-oldalad, írni fog IPv6-ról, időben fizet, $30/hó-ért nem fog megrezzenni. $400-ért éri megismerni. Ő választ szolgáltatót.',
+  },
+  'Jordan Smith — bargain-hunter, hobby-tier': {
+    title: 'Jordan Smith — alku-vadász, hobby-tier',
+    body: 'Jordan minden megújításkor három szolgáltatónak küld kedvezmény-kérő levelet. Végül fizetni fog az olcsó csomagon. Negyedévente nyit egy refund-ticketet is. $80-ért adtuk át — a te dolgod most.',
+  },
+  'Beth Park — $50 fire-sale, do not say we didn\'t warn you': {
+    title: 'Beth Park — $50 tűzosztó, ne mondd hogy nem szóltunk',
+    body: 'Beth egy "Karen". Két hét alatt három P1-et nyitott nálunk. Utálja a jelenlegi szolgáltatóját. Utálni fogja a következőt is. $50-ért átpasszoljuk valaki másnak. Hobby tier, sat 25-ön indul, figyelmeztettünk.',
+  },
 };
 
 const DE: Record<string, Translation> = {
@@ -120,6 +140,26 @@ const DE: Record<string, Translation> = {
   'Acquiring failed/quitting hosts — we will assume your customers': {
     title: 'Übernahme gescheiterter/aussteigender Hoster — wir übernehmen die Kunden',
     body: 'Wenn du ausgebrannt bist und eine sanfte Landung willst, übernehmen wir deine Account-Liste für 0,6× ARR. Drama-frei, schneller Abschluss, Migrations-Support für deine Kunden. Wir haben das 3-mal gemacht. Ja, wir werden wieder pivoten. Aber deine Kunden werden okay sein.',
+  },
+  'Sarah Chen wants stable hobby hosting — referral $200': {
+    title: 'Sarah Chen sucht stabiles Hobby-Tier-Hosting — Vermittlung $200',
+    body: 'Sarah betreibt einen kleinen DTC-Kosmetik-Webshop auf Squarespace. Will einen echten $5-15/Mon VPS für Staging. Loyaler Typ — zahlt pünktlich, fragt einmal pro Quartal, ob alles OK ist. Wir sind voll, schicken sie für $200 zu dir. Sie wählt den Anbieter.',
+  },
+  'Tomás López — first-time founder needs hand-holding': {
+    title: 'Tomás López — Erstgründer, braucht Handhalten',
+    body: 'Tomás hat gerade seinen Sysadmin-Job verlassen, um ein lokales Geschäftsverzeichnis zu starten. Weiß noch nicht, was ein CNAME ist, ist aber geduldig und zahlt im Voraus. Günstiger Hobby-Tier, viele Support-Tickets, aber nett. $150 Vermittlung.',
+  },
+  'Avery Tran — business-tier, RFC-quoting senior engineer': {
+    title: 'Avery Tran — Business-Tier, RFC-zitierender Senior-Engineer',
+    body: 'Avery ist Principal Engineer bei einem Fintech. Will ein Business-Tier-Setup für sein Side-Projekt. Wird deine Status-Seite lesen, wird über IPv6 schreiben, zahlt pünktlich, $30/Mon ist für ihn nichts. $400, um ihn vorzustellen. Er wählt den Anbieter.',
+  },
+  'Jordan Smith — bargain-hunter, hobby-tier': {
+    title: 'Jordan Smith — Schnäppchenjäger, Hobby-Tier',
+    body: 'Jordan schreibt zur Verlängerung drei Hostern eine Rabattanfrage. Wird letztlich auf dem günstigen Plan zahlen. Wird auch pro Quartal ein Refund-Ticket öffnen. Wir berechnen pauschal $80, um sie loszuwerden — dein Problem.',
+  },
+  'Beth Park — $50 fire-sale, do not say we didn\'t warn you': {
+    title: 'Beth Park — $50 Ausverkauf, sag nicht, wir hätten dich nicht gewarnt',
+    body: 'Beth ist eine "Karen". Hat bei uns in zwei Wochen drei P1-Tickets eingereicht. Hasst ihren aktuellen Hoster. Wird ihren nächsten auch hassen. Wir verlangen $50, um sie jemand anderem aufzudrücken. Hobby-Tier, Zufriedenheit startet bei 25, du wurdest gewarnt.',
   },
 };
 

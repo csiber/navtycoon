@@ -74,6 +74,16 @@ function initial(name: string | null): string {
 const errorPrefix = t(viewerLang, 'marketplace.error.prefix');
 const errorUnknown = t(viewerLang, 'marketplace.error.unknown');
 const postingLabel = t(viewerLang, 'marketplace.form.posting');
+
+const BUY_CTA_TEMPLATE = t(viewerLang, 'marketplace.buy_cta');
+const SOLD_BADGE = t(viewerLang, 'marketplace.sold_badge');
+const CONFIRM_TITLE = t(viewerLang, 'marketplace.buy_confirm_title');
+const CONFIRM_BODY_TEMPLATE = t(viewerLang, 'marketplace.buy_confirm_body');
+const CONFIRM_OK = t(viewerLang, 'marketplace.buy_confirm_ok');
+const CONFIRM_CANCEL = t(viewerLang, 'marketplace.buy_confirm_cancel');
+const BUY_SUCCESS_TEMPLATE = t(viewerLang, 'marketplace.buy_success');
+const ERR_INSUFFICIENT = t(viewerLang, 'marketplace.err.insufficient_cash');
+const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
 ---
 <Base title={t(viewerLang, 'marketplace.page_title')}>
   <div class="max-w-5xl mx-auto">
@@ -184,6 +194,21 @@ const postingLabel = t(viewerLang, 'marketplace.form.posting');
                 <div class="mt-2 flex items-center gap-2 text-xs">
                   <span class="px-1.5 py-0.5 bg-nt-bg rounded text-nt-text-dim">{CAT_LABELS[l.category]}</span>
                 </div>
+                {l.category === 'leads' && l.effect_type === 'spawn_customer' && (
+                  l.sold_at !== null ? (
+                    <span class="inline-block mt-2 px-2 py-1 text-[10px] uppercase tracking-wide bg-nt-bg rounded text-nt-text-dim">{SOLD_BADGE}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      class="mt-2 px-3 py-1.5 bg-nt-accent rounded text-sm font-semibold hover:opacity-90 transition buy-btn"
+                      data-listing-id={l.id}
+                      data-payload={l.effect_payload ?? ''}
+                      data-price-cents={l.price_cents}
+                    >
+                      {BUY_CTA_TEMPLATE.replace('${price}', formatPrice(l.price_cents, 'one_time'))}
+                    </button>
+                  )
+                )}
               </div>
             </div>
           </article>
@@ -192,7 +217,36 @@ const postingLabel = t(viewerLang, 'marketplace.form.posting');
     )}
   </div>
 
-  <script define:vars={{ postingLabel, errorPrefix, errorUnknown }}>
+  <div id="buy-confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div class="bg-nt-bg-2 border border-nt-border rounded-lg p-6 max-w-md w-full mx-4 space-y-3">
+      <h3 class="text-lg font-bold">{CONFIRM_TITLE}</h3>
+      <p id="buy-confirm-body" class="text-sm text-nt-text-dim whitespace-pre-line"></p>
+      <div class="flex items-center gap-2 mt-4">
+        <button id="buy-confirm-ok" type="button" class="px-4 py-2 bg-nt-accent rounded font-semibold text-sm hover:opacity-90 transition">{CONFIRM_OK}</button>
+        <button id="buy-confirm-cancel" type="button" class="px-4 py-2 text-nt-text-dim hover:text-nt-text text-sm transition">{CONFIRM_CANCEL}</button>
+        <p id="buy-confirm-status" class="text-sm ml-auto" aria-live="polite"></p>
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{
+    postingLabel, errorPrefix, errorUnknown,
+    CONFIRM_BODY: CONFIRM_BODY_TEMPLATE,
+    BUY_SUCCESS: BUY_SUCCESS_TEMPLATE,
+    ERR_INSUFFICIENT_CASH: ERR_INSUFFICIENT,
+    ERR_SOLD: ERR_SOLD_LABEL,
+    ERR_PREFIX: errorPrefix,
+    ARCHETYPE_LABELS: {
+      newbie: t(viewerLang, 'shift.archetype.newbie'),
+      pro: t(viewerLang, 'shift.archetype.pro'),
+      cheapskate: t(viewerLang, 'shift.archetype.cheapskate'),
+      karen: t(viewerLang, 'shift.archetype.karen'),
+      loyalist: t(viewerLang, 'shift.archetype.loyalist'),
+      ghost: t(viewerLang, 'shift.archetype.ghost'),
+      drama: t(viewerLang, 'shift.archetype.drama'),
+      crypto: t(viewerLang, 'shift.archetype.crypto'),
+    },
+  }}>
     const btn = document.getElementById('new-listing-btn');
     const form = document.getElementById('new-listing-form');
     const cancel = document.getElementById('new-listing-cancel');
@@ -236,6 +290,78 @@ const postingLabel = t(viewerLang, 'marketplace.form.posting');
         return;
       }
       location.reload();
+    });
+
+    // ─── Buy-flow (leads category) ────────────────────────────────────
+    const archetypeLabels = ARCHETYPE_LABELS;
+    const tierLabels = { hobby: 'hobby', business: 'business', vps: 'vps', dedicated: 'dedicated' };
+
+    const buyModal = document.getElementById('buy-confirm-modal');
+    const buyBody = document.getElementById('buy-confirm-body');
+    const buyOk = document.getElementById('buy-confirm-ok');
+    const buyCancel = document.getElementById('buy-confirm-cancel');
+    const buyStatus = document.getElementById('buy-confirm-status');
+
+    let pendingBuy = null; // { id, payload, priceCents }
+
+    function openBuyModal(listingId, payloadStr, priceCents) {
+      let p;
+      try { p = JSON.parse(payloadStr); } catch { return; }
+      pendingBuy = { id: listingId, payload: p, priceCents };
+      const archLabel = archetypeLabels[p.archetype] ?? p.archetype;
+      const tierLabel = tierLabels[p.plan_tier] ?? p.plan_tier;
+      const priceStr = '$' + (priceCents / 100).toFixed(0);
+      const body = CONFIRM_BODY.replace('{name}', p.name)
+        .replace('{archetype}', archLabel)
+        .replaceAll('{tier}', tierLabel)
+        .replace('${price}', priceStr);
+      if (buyBody) buyBody.textContent = body;
+      if (buyStatus) { buyStatus.textContent = ''; buyStatus.className = 'text-sm ml-auto'; }
+      buyModal?.classList.remove('hidden');
+    }
+    function closeBuyModal() {
+      buyModal?.classList.add('hidden');
+      pendingBuy = null;
+      if (buyOk) buyOk.removeAttribute('disabled');
+    }
+    buyCancel?.addEventListener('click', closeBuyModal);
+    buyModal?.addEventListener('click', (e) => { if (e.target === buyModal) closeBuyModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && buyModal && !buyModal.classList.contains('hidden')) closeBuyModal(); });
+
+    document.querySelectorAll('.buy-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.getAttribute('data-listing-id') ?? '0', 10);
+        const payload = btn.getAttribute('data-payload') ?? '';
+        const price = parseInt(btn.getAttribute('data-price-cents') ?? '0', 10);
+        if (id && payload) openBuyModal(id, payload, price);
+      });
+    });
+
+    buyOk?.addEventListener('click', async () => {
+      if (!pendingBuy) return;
+      if (buyOk.hasAttribute('disabled')) return;
+      buyOk.setAttribute('disabled', '');
+      if (buyStatus) { buyStatus.textContent = '...'; buyStatus.className = 'text-sm text-nt-text-dim ml-auto'; }
+      const r = await fetch(`/api/marketplace/purchase/${pendingBuy.id}`, { method: 'POST', headers: { 'content-type': 'application/json' } });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        const code = j.error ?? 'unknown';
+        const msg = code === 'insufficient_cash' ? ERR_INSUFFICIENT_CASH
+          : code === 'sold' ? ERR_SOLD
+          : (ERR_PREFIX + code);
+        if (buyStatus) { buyStatus.textContent = msg; buyStatus.className = 'text-sm text-red-400 ml-auto'; }
+        buyOk.removeAttribute('disabled');
+        return;
+      }
+      const fallbackName = pendingBuy?.payload?.name ?? '';
+      const successMsg = BUY_SUCCESS.replace('{name}', j.customer_name ?? fallbackName);
+      closeBuyModal();
+      const t = document.createElement('div');
+      t.textContent = successMsg;
+      t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--panel,#121626);border:1px solid var(--mint,#34d399);color:var(--mint,#34d399);padding:12px 18px;border-radius:8px;font-size:14px;font-weight:600;z-index:60;box-shadow:0 12px 32px -8px rgba(52,211,153,.4);';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2400);
+      setTimeout(() => location.reload(), 600);
     });
   </script>
 </Base>
