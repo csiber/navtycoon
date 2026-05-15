@@ -5,21 +5,17 @@ import Base from '../../layouts/Base.astro';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { listThreads } from '../../lib/forum/db';
 import { translateThread, type ForumLang } from '../../lib/forum/translations';
-import { getPlayer } from '../../lib/game/db';
+import { resolveLocale } from '../../lib/i18n/server';
 
 const user = await getCurrentUser(Astro);
 if (!user) return Astro.redirect('/login?next=/play/community');
 const db = getDB(Astro);
 
-// Resolve UI language for translating NPC seed threads
-let viewerLang: ForumLang = 'en';
-const qLang = new URL(Astro.request.url).searchParams.get('lang');
-if (qLang === 'hu' || qLang === 'de' || qLang === 'en') viewerLang = qLang;
-else if (db) {
-  const player = await getPlayer(db, user.id);
-  const pl = (player as { preferred_lang?: string } | null)?.preferred_lang;
-  if (pl === 'hu' || pl === 'de' || pl === 'en') viewerLang = pl;
-}
+const viewerLang: ForumLang = await resolveLocale({
+  request: Astro.request,
+  db,
+  userId: user.id,
+});
 
 const rawThreads = db ? await listThreads(db, 50, 0) : [];
 const threads = rawThreads.map((t) => {

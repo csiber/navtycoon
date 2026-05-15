@@ -5,7 +5,7 @@ import Base from '../../layouts/Base.astro';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { listListings } from '../../lib/marketplace/db';
 import { translateListing, type ListingLang } from '../../lib/marketplace/translations';
-import { getPlayer } from '../../lib/game/db';
+import { resolveLocale } from '../../lib/i18n/server';
 
 const user = await getCurrentUser(Astro);
 if (!user) return Astro.redirect('/login?next=/play/marketplace');
@@ -17,19 +17,12 @@ const filter = (validCats as readonly string[]).includes(cat ?? '')
   ? (cat as typeof validCats[number])
   : undefined;
 
-// Resolve viewer's UI language so NPC listings render in the right
-// language. Player-posted listings keep whatever language the author
-// typed in — we only translate the hand-written seed-titles via a
-// keyed map (lib/marketplace/translations.ts).
-let viewerLang: ListingLang = 'en';
-const qLang = url.searchParams.get('lang');
-if (qLang === 'hu' || qLang === 'de' || qLang === 'en') {
-  viewerLang = qLang;
-} else if (db) {
-  const player = await getPlayer(db, user.id);
-  const pl = (player as { preferred_lang?: string } | null)?.preferred_lang;
-  if (pl === 'hu' || pl === 'de' || pl === 'en') viewerLang = pl;
-}
+// Shared resolver: ?lang → hs_lang cookie → DB preferred_lang → header.
+const viewerLang: ListingLang = await resolveLocale({
+  request: Astro.request,
+  db,
+  userId: user.id,
+});
 
 const rawListings = db ? await listListings(db, { category: filter, limit: 50 }) : [];
 // Apply translation only to NPC listings. Player posts (is_npc=0) stay
