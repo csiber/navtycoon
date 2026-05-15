@@ -772,6 +772,9 @@ import SidebarUser from './SidebarUser.astro';
           [/(\d+) players · /g, '$1 játékos · '],
           [/🎉 unlocked Era (\d+)/g, '🎉 feloldva: $1. korszak'],
           [/\bEra (\d+) · /g, '$1. korszak · '],
+          // Generic plural form for "N open tickets waiting" so the
+          // sticky CTA stays in HU for any N (not just 1-4).
+          [/^(\d+) open tickets? waiting$/g, '$1 nyitott ticket várakozik'],
         ],
       },
       de: {
@@ -792,6 +795,7 @@ import SidebarUser from './SidebarUser.astro';
           [/(\d+) players · /g, '$1 Spieler · '],
           [/🎉 unlocked Era (\d+)/g, '🎉 freigeschaltet: Ära $1'],
           [/\bEra (\d+) · /g, 'Ära $1 · '],
+          [/^(\d+) open tickets? waiting$/g, '$1 offene Tickets warten'],
         ],
       },
     };
@@ -848,6 +852,36 @@ import SidebarUser from './SidebarUser.astro';
     // are already in place and the walker skips them).
     applyI18nAttrs();
     applyStatic();
+
+    // ─── Re-translate async-injected DOM (event modals, toasts, …) ───
+    // The events-overlay div is filled by a fetch-then-DOM-inject script
+    // that runs AFTER applyStatic, so the first pass misses the event-
+    // modal labels ("Pay $300 for Cloudflare mitigation", "Tough it out",
+    // etc.). A MutationObserver re-walks any new subtree once. Debounced
+    // with a microtask so a burst of inserts only triggers one pass.
+    if (locale !== 'en') {
+      const dict = STATIC[locale];
+      const pat = PATTERNS[locale];
+      let queued = false;
+      const pending = [];
+      function flush() {
+        queued = false;
+        const batch = pending.splice(0);
+        for (const node of batch) walkText(node, dict, pat);
+      }
+      const obs = new MutationObserver((records) => {
+        for (const rec of records) {
+          for (const added of rec.addedNodes) {
+            if (added.nodeType === 1 || added.nodeType === 3) pending.push(added);
+          }
+        }
+        if (!queued && pending.length) {
+          queued = true;
+          queueMicrotask(flush);
+        }
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+    }
 
     // ─── Topbar notification bell ────────────────────────────────────
     // Every dashboard template ships <button class="bell" data-count="…">
