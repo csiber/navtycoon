@@ -322,6 +322,7 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
     function closeBuyModal() {
       buyModal?.classList.add('hidden');
       pendingBuy = null;
+      if (buyOk) buyOk.removeAttribute('disabled');
     }
     buyCancel?.addEventListener('click', closeBuyModal);
     buyModal?.addEventListener('click', (e) => { if (e.target === buyModal) closeBuyModal(); });
@@ -338,6 +339,8 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
 
     buyOk?.addEventListener('click', async () => {
       if (!pendingBuy) return;
+      if (buyOk.hasAttribute('disabled')) return;
+      buyOk.setAttribute('disabled', '');
       if (buyStatus) { buyStatus.textContent = '...'; buyStatus.className = 'text-sm text-nt-text-dim ml-auto'; }
       const r = await fetch(`/api/marketplace/purchase/${pendingBuy.id}`, { method: 'POST', headers: { 'content-type': 'application/json' } });
       const j = await r.json().catch(() => ({}));
@@ -347,9 +350,11 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
           : code === 'sold' ? ERR_SOLD
           : (ERR_PREFIX + code);
         if (buyStatus) { buyStatus.textContent = msg; buyStatus.className = 'text-sm text-red-400 ml-auto'; }
+        buyOk.removeAttribute('disabled');
         return;
       }
-      const successMsg = BUY_SUCCESS.replace('{name}', j.customer_name ?? '');
+      const fallbackName = pendingBuy?.payload?.name ?? '';
+      const successMsg = BUY_SUCCESS.replace('{name}', j.customer_name ?? fallbackName);
       closeBuyModal();
       const t = document.createElement('div');
       t.textContent = successMsg;
