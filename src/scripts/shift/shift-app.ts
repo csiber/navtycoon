@@ -34,6 +34,60 @@ let lastState: ShiftStateMsg | null = null;
 let wsUrl: string | null = null;
 let reconnecting = false;
 
+// Locale labels emitted by shift.astro frontmatter as a JSON script-tag.
+// EN defaults so the script still works if the block is missing (e.g.
+// /play/shift opened outside the embed-modal during dev).
+interface ShiftLabels {
+  status_pending: string; status_active: string;
+  status_resolved: string; status_abandoned: string;
+  sat: string; active_subject: string; active_sat: string;
+  end_tickets: string; end_total_sat: string; end_refunds: string;
+  end_rep: string; end_unlocked: string;
+  err_could_not_start: string; err_generic: string;
+  arch_newbie: string; arch_pro: string; arch_cheapskate: string;
+  arch_karen: string; arch_loyalist: string; arch_ghost: string;
+  arch_drama: string; arch_crypto: string;
+}
+const LABELS: ShiftLabels = (() => {
+  const node = document.getElementById('shift-labels');
+  if (node?.textContent) {
+    try { return JSON.parse(node.textContent) as ShiftLabels; } catch { /* fall through */ }
+  }
+  return {
+    status_pending: 'pending', status_active: 'active',
+    status_resolved: 'resolved', status_abandoned: 'abandoned',
+    sat: 'sat', active_subject: 'Subject', active_sat: 'Sat',
+    end_tickets: 'Tickets handled', end_total_sat: 'Total satisfaction',
+    end_refunds: 'Refunds', end_rep: 'Reputation', end_unlocked: '🎉 Unlocked',
+    err_could_not_start: 'Could not start shift', err_generic: 'Error',
+    arch_newbie: 'newbie', arch_pro: 'pro', arch_cheapskate: 'cheapskate',
+    arch_karen: 'karen', arch_loyalist: 'loyalist', arch_ghost: 'ghost',
+    arch_drama: 'drama', arch_crypto: 'crypto-bro',
+  };
+})();
+function statusLabel(s: string): string {
+  switch (s) {
+    case 'pending': return LABELS.status_pending;
+    case 'active': return LABELS.status_active;
+    case 'resolved': return LABELS.status_resolved;
+    case 'abandoned': return LABELS.status_abandoned;
+    default: return s;
+  }
+}
+function archetypeLabel(a: string): string {
+  switch (a) {
+    case 'newbie': return LABELS.arch_newbie;
+    case 'pro': return LABELS.arch_pro;
+    case 'cheapskate': return LABELS.arch_cheapskate;
+    case 'karen': return LABELS.arch_karen;
+    case 'loyalist': return LABELS.arch_loyalist;
+    case 'ghost': return LABELS.arch_ghost;
+    case 'drama': return LABELS.arch_drama;
+    case 'crypto': return LABELS.arch_crypto;
+    default: return a;
+  }
+}
+
 function wsReady(): boolean {
   return ws !== null && ws.readyState === WebSocket.OPEN;
 }
@@ -83,7 +137,7 @@ function attachWs(sock: WebSocket) {
     } else if (msg.type === 'shift_end') showShiftEnd(msg.summary, msg.newly_unlocked);
     else if (msg.type === 'error') {
       console.error('shift error', msg.error);
-      alert('Error: ' + msg.error);
+      alert(LABELS.err_generic + ': ' + msg.error);
     }
   };
   sock.onclose = () => {
@@ -105,14 +159,20 @@ function renderQueue(state: ShiftStateMsg) {
   const list = $('queue-list');
   while (list.firstChild) list.removeChild(list.firstChild);
   state.queue.forEach((c, i) => {
+    const switchable = c.status === 'pending' || c.status === 'active';
     const li = el(
       'li',
-      `p-2 rounded ${i === state.active_index ? 'bg-nt-accent-l border border-nt-accent' : 'bg-nt-bg-3'}`,
+      `p-2 rounded ${i === state.active_index ? 'bg-nt-accent-l border border-nt-accent' : 'bg-nt-bg-3'} ${switchable ? 'cursor-pointer hover:border hover:border-nt-accent transition' : 'opacity-60'}`,
     );
+    if (switchable && i !== state.active_index) {
+      li.addEventListener('click', () => {
+        safeSend({ type: 'switch_ticket', index: i });
+      });
+    }
     const name = el('div', 'font-semibold text-sm');
     name.textContent = c.customer_name;
     const meta = el('div', 'text-xs text-nt-text-dim');
-    meta.textContent = `${c.archetype} · sat ${c.current_satisfaction} · ${c.status}`;
+    meta.textContent = `${archetypeLabel(c.archetype)} · ${LABELS.sat} ${c.current_satisfaction} · ${statusLabel(c.status)}`;
     li.appendChild(name);
     li.appendChild(meta);
     list.appendChild(li);
@@ -127,8 +187,8 @@ function renderActive(state: ShiftStateMsg) {
     return;
   }
   const c = state.queue[idx];
-  $('active-customer').textContent = `${c.customer_name} (${c.archetype})`;
-  $('active-meta').textContent = `Subject: ${c.ticket_subject} · Sat: ${c.current_satisfaction}/100`;
+  $('active-customer').textContent = `${c.customer_name} (${archetypeLabel(c.archetype)})`;
+  $('active-meta').textContent = `${LABELS.active_subject}: ${c.ticket_subject} · ${LABELS.active_sat}: ${c.current_satisfaction}/100`;
 
   const msgs = $('messages');
   while (msgs.firstChild) msgs.removeChild(msgs.firstChild);
@@ -162,14 +222,14 @@ function showShiftEnd(
 ) {
   $('shift-end').classList.remove('hidden');
   const repPart = summary.rep_delta && summary.rep_delta !== 0
-    ? ` · Reputation: ${summary.rep_delta > 0 ? '+' : ''}${summary.rep_delta}`
+    ? ` · ${LABELS.end_rep}: ${summary.rep_delta > 0 ? '+' : ''}${summary.rep_delta}`
     : '';
   $('end-summary').textContent =
-    `Tickets handled: ${summary.tickets_handled} · Total satisfaction: ${summary.satisfaction_total >= 0 ? '+' : ''}${summary.satisfaction_total} · Refunds: $${(summary.refunds_cents / 100).toFixed(2)}${repPart}`;
+    `${LABELS.end_tickets}: ${summary.tickets_handled} · ${LABELS.end_total_sat}: ${summary.satisfaction_total >= 0 ? '+' : ''}${summary.satisfaction_total} · ${LABELS.end_refunds}: $${(summary.refunds_cents / 100).toFixed(2)}${repPart}`;
   if (newlyUnlocked && newlyUnlocked.length > 0) {
     const ach = document.createElement('p');
     ach.style.cssText = 'margin-top:12px;color:var(--mint,#34d399);font-weight:600;';
-    ach.textContent = '🎉 Unlocked: ' + newlyUnlocked.join(', ');
+    ach.textContent = LABELS.end_unlocked + ': ' + newlyUnlocked.join(', ');
     $('end-summary').after(ach);
   }
   ws?.close();
@@ -184,7 +244,7 @@ async function startShift() {
     body: '{}',
   });
   if (!r.ok) {
-    alert('Could not start shift: ' + (await r.text()));
+    alert(LABELS.err_could_not_start + ': ' + (await r.text()));
     location.reload();
     return;
   }
