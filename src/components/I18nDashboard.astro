@@ -974,26 +974,125 @@ import SidebarUser from './SidebarUser.astro';
     // ─── Topbar notification bell ────────────────────────────────────
     // Every dashboard template ships <button class="bell" data-count="…">
     // with no click handler. Wire it to a lightweight popover with
-    // recent in-game events: open tickets + recent forum threads.
+    // recent in-game events: NEW open tickets + UNSEEN forum threads.
+    //
+    // Read-state lives in localStorage per-browser:
+    //   hs_bell_seen_tickets_count → last open-ticket count the user
+    //     dismissed; only ticket-count > this surfaces a notification.
+    //   hs_bell_seen_threads → array of thread ids already viewed.
+    // Click on an item marks it seen; "Mark all read" header button
+    // marks everything currently shown.
     (function wireBell() {
       const bells = document.querySelectorAll('button.bell');
       if (!bells.length) return;
+
+      // Per-locale labels for the popover chrome.
+      const L = (() => {
+        if (locale === 'hu') return {
+          inbox: 'Postaláda', empty: 'Nincs új esemény.', loading: 'Betöltés…',
+          markAll: 'Mind olvasottnak',
+          ticketsTitle: function (n) { return n + ' nyitott ticket'; },
+          ticketsNew: function (n) { return '+' + n + ' új ticket'; },
+          ticketsSub: 'Triage egy shift-tel',
+          threadFrom: function (name) { return 'tőle: ' + name; },
+          unknownAuthor: 'ismeretlen',
+        };
+        if (locale === 'de') return {
+          inbox: 'Posteingang', empty: 'Keine neuen Ereignisse.', loading: 'Lädt…',
+          markAll: 'Alle als gelesen markieren',
+          ticketsTitle: function (n) { return n + ' offene Tickets'; },
+          ticketsNew: function (n) { return '+' + n + ' neue Tickets'; },
+          ticketsSub: 'Mit einer Schicht abarbeiten',
+          threadFrom: function (name) { return 'von: ' + name; },
+          unknownAuthor: 'unbekannt',
+        };
+        return {
+          inbox: 'Inbox', empty: 'No new activity.', loading: 'Loading…',
+          markAll: 'Mark all read',
+          ticketsTitle: function (n) { return n + ' open tickets'; },
+          ticketsNew: function (n) { return '+' + n + ' new tickets'; },
+          ticketsSub: 'Clear them with a shift',
+          threadFrom: function (name) { return 'from: ' + name; },
+          unknownAuthor: 'unknown',
+        };
+      })();
+
+      function getSeenThreads() {
+        try { return JSON.parse(localStorage.getItem('hs_bell_seen_threads') || '[]'); }
+        catch { return []; }
+      }
+      function setSeenThreads(ids) {
+        try { localStorage.setItem('hs_bell_seen_threads', JSON.stringify(ids.slice(-200))); }
+        catch {}
+      }
+      function markThreadSeen(id) {
+        const arr = getSeenThreads();
+        if (!arr.includes(id)) { arr.push(id); setSeenThreads(arr); }
+      }
+      function getSeenTicketCount() {
+        try { return parseInt(localStorage.getItem('hs_bell_seen_tickets_count') || '0', 10) || 0; }
+        catch { return 0; }
+      }
+      function setSeenTicketCount(n) {
+        try { localStorage.setItem('hs_bell_seen_tickets_count', String(n)); } catch {}
+      }
+
+      // The template CSS unconditionally renders a pink badge via
+      // .bell::after { content: attr(data-count); }. Without this rule
+      // a missing/empty data-count would still draw an empty pink dot
+      // (padding+bg from the ::after rule). Suppress it when there's
+      // nothing to show.
+      if (!document.getElementById('bell-empty-style')) {
+        const st = document.createElement('style');
+        st.id = 'bell-empty-style';
+        st.textContent = '.bell:not([data-count])::after,.bell[data-count=""]::after,.bell[data-count="0"]::after{display:none!important;}';
+        document.head.appendChild(st);
+      }
+
+      function updateBadges(n) {
+        bells.forEach((bell) => {
+          if (n > 0) bell.setAttribute('data-count', String(n));
+          else bell.removeAttribute('data-count');
+        });
+      }
+
       let popover = null;
       let listEl = null;
+      let headRight = null;
+      let lastItems = []; // snapshot for "Mark all read"
+
       function build() {
         if (popover) return popover;
         popover = document.createElement('div');
         popover.id = 'bell-popover';
         popover.style.cssText = 'position:fixed;top:64px;right:18px;width:320px;max-height:70vh;overflow-y:auto;background:var(--panel,#121626);border:1px solid var(--line-2,#262c46);border-radius:12px;box-shadow:0 18px 40px -10px rgba(0,0,0,.6);z-index:60;padding:8px;font-family:var(--body,sans-serif);font-size:13px;display:none;';
         const head = document.createElement('div');
-        head.style.cssText = 'padding:10px 12px;font-family:var(--mono,monospace);font-size:11px;color:var(--muted,#8b92ad);text-transform:uppercase;letter-spacing:0.08em;';
-        head.textContent = 'Inbox';
+        head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 12px;font-family:var(--mono,monospace);font-size:11px;color:var(--muted,#8b92ad);text-transform:uppercase;letter-spacing:0.08em;';
+        const headTitle = document.createElement('span');
+        headTitle.textContent = L.inbox;
+        headTitle.style.cssText = 'flex:1;';
+        headRight = document.createElement('button');
+        headRight.type = 'button';
+        headRight.textContent = L.markAll;
+        headRight.style.cssText = 'background:transparent;border:0;color:var(--indigo,#818cf8);font-family:var(--mono,monospace);font-size:10px;letter-spacing:0.06em;cursor:pointer;padding:2px 4px;text-transform:uppercase;';
+        headRight.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          // Mark every currently-listed item as seen.
+          for (const it of lastItems) {
+            if (it.onMark) it.onMark();
+          }
+          // Re-render to reflect the new empty state.
+          void load();
+        });
+        head.appendChild(headTitle);
+        head.appendChild(headRight);
         listEl = document.createElement('div');
         listEl.id = 'bell-list';
         listEl.style.cssText = 'padding:0 4px 4px;';
         const placeholder = document.createElement('div');
         placeholder.style.cssText = 'padding:14px 12px;color:var(--muted,#8b92ad);font-size:12px;';
-        placeholder.textContent = 'Loading…';
+        placeholder.textContent = L.loading;
         listEl.appendChild(placeholder);
         popover.appendChild(head);
         popover.appendChild(listEl);
@@ -1006,31 +1105,60 @@ import SidebarUser from './SidebarUser.astro';
         });
         return popover;
       }
+
       async function load() {
         while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
         const items = [];
+        const seenTickets = getSeenTicketCount();
+        const seenThreads = getSeenThreads();
+
+        // ── Tickets: only surface if count grew past last-seen ──
+        let currentOpen = 0;
         try {
           const r = await fetch('/api/game/state', { cache: 'no-store' });
           if (r.ok) {
             const j = await r.json();
-            const open = j && j.counts && j.counts.openTickets ? j.counts.openTickets : 0;
-            if (open > 0) items.push({ icon: '✉', title: open + ' nyitott ticket', sub: 'Triage egy shift-tel', href: '/play/tickets' });
+            currentOpen = (j && j.counts && j.counts.openTickets) || 0;
           }
         } catch {}
+        if (currentOpen > seenTickets) {
+          const delta = currentOpen - seenTickets;
+          // First-ever view: show full count. Subsequent: show delta.
+          const title = seenTickets === 0 ? L.ticketsTitle(currentOpen) : L.ticketsNew(delta);
+          const snapshotOpen = currentOpen;
+          items.push({
+            icon: '✉', title, sub: L.ticketsSub, href: '/play/tickets',
+            onMark: () => setSeenTicketCount(snapshotOpen),
+          });
+        }
+
+        // ── Threads: only un-seen ids ──
         try {
-          const r = await fetch('/api/forum/threads?limit=3', { cache: 'no-store' });
+          const r = await fetch('/api/forum/threads?limit=10', { cache: 'no-store' });
           if (r.ok) {
             const j = await r.json();
             const threads = (j && j.threads) || [];
-            for (const t of threads.slice(0, 2)) {
-              items.push({ icon: '💬', title: String(t.title || '').slice(0, 50), sub: 'tőle: ' + (t.author_name || 'unknown'), href: '/play/community/' + t.id });
+            for (const t of threads) {
+              if (seenThreads.includes(t.id)) continue;
+              items.push({
+                icon: '💬',
+                title: String(t.title || '').slice(0, 50),
+                sub: L.threadFrom(t.author_name || L.unknownAuthor),
+                href: '/play/community/' + t.id,
+                onMark: ((id) => () => markThreadSeen(id))(t.id),
+              });
+              if (items.length >= 6) break;
             }
           }
         } catch {}
+
+        lastItems = items;
+        updateBadges(items.length);
+
         if (!items.length) {
           const empty = document.createElement('div');
           empty.style.cssText = 'padding:14px 12px;color:var(--muted,#8b92ad);font-size:12px;';
-          empty.textContent = 'Nincs új esemény.';
+          empty.textContent = L.empty;
           listEl.appendChild(empty);
           return;
         }
@@ -1040,6 +1168,12 @@ import SidebarUser from './SidebarUser.astro';
           a.style.cssText = 'display:flex;gap:10px;padding:10px 12px;border-radius:8px;text-decoration:none;color:var(--text,#e9ecf5);align-items:flex-start;';
           a.onmouseenter = () => { a.style.background = 'var(--panel-2,#161a2c)'; };
           a.onmouseleave = () => { a.style.background = ''; };
+          // Click marks seen + closes popover. The browser navigation
+          // still fires from the <a href>, no need to preventDefault.
+          a.addEventListener('click', () => {
+            if (it.onMark) it.onMark();
+            if (popover) popover.style.display = 'none';
+          });
           const icon = document.createElement('span');
           icon.style.cssText = 'font-size:16px;line-height:1.1;flex:none;';
           icon.textContent = it.icon;
@@ -1058,6 +1192,7 @@ import SidebarUser from './SidebarUser.astro';
           listEl.appendChild(a);
         }
       }
+
       bells.forEach((bell) => {
         bell.addEventListener('click', (e) => {
           e.preventDefault();
@@ -1068,6 +1203,13 @@ import SidebarUser from './SidebarUser.astro';
           void load();
         });
       });
+
+      // Initial badge: silently fetch counts so the bell shows N right
+      // away without waiting for a click. build() pre-initializes the
+      // popover DOM (hidden) so load() has a valid listEl to clear.
+      // Failure stays silent — badge just remains 0 / hidden.
+      build();
+      void load();
     })();
   })();
 </script>
