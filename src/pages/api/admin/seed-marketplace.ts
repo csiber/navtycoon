@@ -39,10 +39,14 @@ export const POST = async (c: APIContext): Promise<Response> => {
     await db
       .prepare(
         'INSERT INTO marketplace_listings (author_id, category, title, body, ' +
-        'price_cents, price_unit, posted_at, is_npc) ' +
-        'VALUES (?, ?, ?, ?, ?, ?, ?, 1)',
+        'price_cents, price_unit, posted_at, is_npc, effect_type, effect_payload) ' +
+        'VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)',
       )
-      .bind(seed.author_id, seed.category, seed.title, seed.body, seed.price_cents, seed.price_unit, postedAt)
+      .bind(
+        seed.author_id, seed.category, seed.title, seed.body,
+        seed.price_cents, seed.price_unit, postedAt,
+        seed.effect_type ?? null, seed.effect_payload ?? null,
+      )
       .run();
     inserted++;
   }
