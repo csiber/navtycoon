@@ -2,6 +2,10 @@
 // /play/shift — Shift-mode page. Auth-required.
 // Plan 2 Task 13: pre-shift gate (open tickets + LLM-cap), then WS-driven chat UI.
 // XSS-safe: customer/AI text is user-supplied → DOM via textContent only, NEVER innerHTML.
+//
+// Embed mode (`?embed=1`): hides the Base layout chrome (header nav,
+// footer) so the page can be rendered inside an <iframe> modal on /play
+// without the redundant outer header.
 import Base from '../../layouts/Base.astro';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer, listTickets } from '../../lib/game/db';
@@ -23,8 +27,12 @@ const used = await getLlmUsageToday(db, user.id);
 const cap = getDailyCap(player.is_pro === 1);
 const cap_remaining = cap - used;
 const ready = open.length > 0 && cap_remaining >= 5;
+const isEmbed = new URL(Astro.request.url).searchParams.get('embed') === '1';
 ---
 <Base title="Shift Mode">
+  {isEmbed && (
+    <style is:global set:html={'header { display: none !important; } footer { display: none !important; } main { padding: 14px !important; max-width: none !important; } body { background: transparent !important; }'}></style>
+  )}
   <h1 class="text-2xl font-bold mb-2">Shift Mode</h1>
   <p class="text-nt-text-dim mb-4 text-sm">
     {open.length} open tickets · {cap_remaining}/{cap} LLM-budget remaining today · {player.free_shifts_today + player.paid_shifts_today} shifts used today
