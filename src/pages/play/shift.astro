@@ -11,6 +11,7 @@ import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer, listTickets } from '../../lib/game/db';
 import { getLlmUsageToday, getDailyCap } from '../../lib/game/llm-cap';
 import I18nDashboard from '../../components/I18nDashboard.astro';
+import { t, type Locale, LOCALES } from '../../lib/i18n';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -28,39 +29,58 @@ const cap = getDailyCap(player.is_pro === 1);
 const cap_remaining = cap - used;
 const ready = open.length > 0 && cap_remaining >= 5;
 const isEmbed = new URL(Astro.request.url).searchParams.get('embed') === '1';
+
+// Locale resolution mirrors signup/login: ?lang= URL param wins, then the
+// player's saved preferred_lang, then Accept-Language header. Drives the
+// HU/DE labels below so the shift screen doesn't read EN inside a HU UI.
+function detectLocale(): Locale {
+  const qLang = new URL(Astro.request.url).searchParams.get('lang');
+  if (qLang && (LOCALES as readonly string[]).includes(qLang)) return qLang as Locale;
+  const saved = (player as { preferred_lang?: string }).preferred_lang;
+  if (saved && (LOCALES as readonly string[]).includes(saved)) return saved as Locale;
+  const al = Astro.request.headers.get('accept-language') ?? '';
+  const first = al.split(',')[0]?.slice(0, 2).toLowerCase();
+  if (first && (LOCALES as readonly string[]).includes(first)) return first as Locale;
+  return 'en';
+}
+const locale: Locale = detectLocale();
 ---
-<Base title="Shift Mode">
+<Base title={t(locale, 'shift.title')}>
   {isEmbed && (
     <style is:global set:html={'header { display: none !important; } footer { display: none !important; } main { padding: 14px !important; max-width: none !important; } body { background: transparent !important; }'}></style>
   )}
-  <h1 class="text-2xl font-bold mb-2">Shift Mode</h1>
+  <h1 class="text-2xl font-bold mb-2">{t(locale, 'shift.title')}</h1>
   <p class="text-nt-text-dim mb-4 text-sm">
-    {open.length} open tickets · {cap_remaining}/{cap} LLM-budget remaining today · {player.free_shifts_today + player.paid_shifts_today} shifts used today
+    {t(locale, 'shift.summary')
+      .replace('{open}', String(open.length))
+      .replace('{used}', String(cap_remaining))
+      .replace('{cap}', String(cap))
+      .replace('{shifts}', String(player.free_shifts_today + player.paid_shifts_today))}
   </p>
 
   <div id="pre-shift" class={ready ? '' : 'hidden'}>
-    <button id="start-shift" class="px-6 py-3 bg-nt-accent rounded font-semibold">▶ Start Shift</button>
-    <p class="text-nt-text-dim text-xs mt-3">A shift lasts 30 minutes. Up to 10 tickets per shift.</p>
+    <button id="start-shift" class="px-6 py-3 bg-nt-accent rounded font-semibold">{t(locale, 'shift.start')}</button>
+    <p class="text-nt-text-dim text-xs mt-3">{t(locale, 'shift.length_note')}</p>
   </div>
 
   {open.length === 0 && (
     <div class="bg-nt-bg-2 p-6 rounded">
-      <p class="text-nt-accent mb-2">🎉 Inbox zero.</p>
-      <p class="text-nt-text-dim text-sm">Wait for cron-tick to spawn more tickets, or buy more servers to attract customers.</p>
+      <p class="text-nt-accent mb-2">{t(locale, 'shift.inbox_zero_title')}</p>
+      <p class="text-nt-text-dim text-sm">{t(locale, 'shift.inbox_zero_body')}</p>
     </div>
   )}
 
   {open.length > 0 && cap_remaining < 5 && (
     <div class="bg-nt-bg-2 p-6 rounded">
-      <p class="text-yellow-400 mb-2">⚠ Daily LLM-budget too low ({cap_remaining}/{cap}).</p>
-      <p class="text-nt-text-dim text-sm">Shifts need at least 5 budget. Try again tomorrow, or upgrade to Pro.</p>
+      <p class="text-yellow-400 mb-2">{t(locale, 'shift.low_budget_title').replace('{rem}', String(cap_remaining)).replace('{cap}', String(cap))}</p>
+      <p class="text-nt-text-dim text-sm">{t(locale, 'shift.low_budget_body')}</p>
     </div>
   )}
 
   <div id="shift-area" class="hidden mt-6">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <aside class="bg-nt-bg-2 p-4 rounded col-span-1 max-h-[70vh] overflow-y-auto">
-        <h2 class="font-bold mb-2 text-sm uppercase text-nt-text-dim">Queue</h2>
+        <h2 class="font-bold mb-2 text-sm uppercase text-nt-text-dim">{t(locale, 'shift.queue_head')}</h2>
         <ul id="queue-list" class="space-y-2 text-sm"></ul>
       </aside>
       <section class="md:col-span-2 bg-nt-bg-2 p-4 rounded flex flex-col h-[70vh]">
@@ -70,23 +90,23 @@ const isEmbed = new URL(Astro.request.url).searchParams.get('embed') === '1';
         </header>
         <div id="messages" class="flex-1 overflow-y-auto space-y-2 mb-2"></div>
         <div class="flex gap-2 flex-wrap mb-2 text-xs">
-          <button data-action="refund_30" class="px-2 py-1 bg-nt-bg-3 rounded">Refund 30%</button>
-          <button data-action="refund_50" class="px-2 py-1 bg-nt-bg-3 rounded">Refund 50%</button>
-          <button data-action="refund_100" class="px-2 py-1 bg-nt-bg-3 rounded">Refund 100%</button>
-          <button data-action="escalate" class="px-2 py-1 bg-nt-bg-3 rounded">Escalate ($50)</button>
-          <button data-action="investigate" class="px-2 py-1 bg-nt-bg-3 rounded">Investigate (free)</button>
-          <button data-action="close" class="px-2 py-1 bg-red-500/20 text-red-300 rounded">Close ticket</button>
+          <button data-action="refund_30" class="px-2 py-1 bg-nt-bg-3 rounded">{t(locale, 'shift.action.refund_30')}</button>
+          <button data-action="refund_50" class="px-2 py-1 bg-nt-bg-3 rounded">{t(locale, 'shift.action.refund_50')}</button>
+          <button data-action="refund_100" class="px-2 py-1 bg-nt-bg-3 rounded">{t(locale, 'shift.action.refund_100')}</button>
+          <button data-action="escalate" class="px-2 py-1 bg-nt-bg-3 rounded">{t(locale, 'shift.action.escalate')}</button>
+          <button data-action="investigate" class="px-2 py-1 bg-nt-bg-3 rounded">{t(locale, 'shift.action.investigate')}</button>
+          <button data-action="close" class="px-2 py-1 bg-red-500/20 text-red-300 rounded">{t(locale, 'shift.action.close')}</button>
         </div>
         <div class="flex gap-2">
-          <input id="msg-input" type="text" placeholder="Type a reply..." class="flex-1 px-3 py-2 bg-nt-bg-3 border border-nt-border rounded" />
-          <button id="msg-send" class="px-3 py-2 bg-nt-accent rounded text-sm font-semibold">Send</button>
+          <input id="msg-input" type="text" placeholder={t(locale, 'shift.compose_ph')} class="flex-1 px-3 py-2 bg-nt-bg-3 border border-nt-border rounded" />
+          <button id="msg-send" class="px-3 py-2 bg-nt-accent rounded text-sm font-semibold">{t(locale, 'shift.send')}</button>
         </div>
       </section>
     </div>
     <div id="shift-end" class="hidden bg-nt-bg-2 p-6 rounded mt-6">
-      <h2 class="font-bold text-lg mb-2">Shift Complete</h2>
+      <h2 class="font-bold text-lg mb-2">{t(locale, 'shift.end_title')}</h2>
       <p id="end-summary" class="text-nt-text-dim"></p>
-      <a href="/play" class="inline-block mt-4 px-4 py-2 bg-nt-accent rounded">Back to Dashboard</a>
+      <a href="/play" class="inline-block mt-4 px-4 py-2 bg-nt-accent rounded">{t(locale, 'shift.back_dashboard')}</a>
     </div>
   </div>
 

@@ -87,6 +87,85 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
         if (h1.firstChild) h1.firstChild.textContent = 'Customers ';
         if (count) count.textContent = s.customers.length + ' active';
       }
+      const PORTRAITS = {
+        karen: '/img/persona-karen.webp',
+        newbie: '/img/persona-loyalist.webp',
+        pro: '/img/persona-pro.webp',
+        cheapskate: '/img/persona-cheapskate.webp',
+        ghost: '/img/persona-ghost.webp',
+        loyalist: '/img/persona-loyalist.webp',
+        drama: '/img/persona-drama.webp',
+        crypto: '/img/persona-crypto.webp',
+      };
+      const planPriceCents = { hobby: 500, starter: 1900, standard: 2900, pro: 9900, enterprise: 49900 };
+
+      // Re-render the profile panel for whichever customer is selected.
+      // Called once on initial paint, then again on every row click — fixes
+      // the "díísz?" bug where the cust-rows had cursor:pointer but no
+      // click handler.
+      function renderProfile(c) {
+        const crumbs = document.querySelector('.crumbs span:last-child');
+        if (crumbs) crumbs.textContent = c ? c.name : 'customers';
+        if (!c) return;
+        const profHead = document.querySelector('.prof-head');
+        if (profHead) {
+          const initial = (c.name[0] || '?').toUpperCase();
+          const av = profHead.querySelector('.av');
+          if (av) {
+            av.textContent = initial;
+            av.className = 'av av-' + initial;
+            const portrait = PORTRAITS[c.persona] || '/img/persona-anon.webp';
+            av.style.backgroundImage = 'url(' + portrait + ')';
+            av.style.backgroundSize = 'cover';
+            av.style.backgroundPosition = 'center';
+            av.style.color = 'transparent';
+          }
+          const h2 = profHead.querySelector('h2');
+          if (h2) {
+            const pill = h2.querySelector('.pill');
+            h2.textContent = c.name + ' ';
+            if (pill) {
+              pill.textContent = c.satisfaction < 30 ? '⚠ Churn risk' : c.satisfaction < 60 ? 'Watch' : 'Healthy';
+              h2.appendChild(pill);
+            }
+          }
+          const org = profHead.querySelector('.org');
+          if (org) {
+            org.replaceChildren();
+            org.appendChild(document.createTextNode(c.plan + ' plan · LLM persona: '));
+            const b = document.createElement('b');
+            b.textContent = c.persona;
+            org.appendChild(b);
+          }
+        }
+        const stats = document.querySelectorAll('.stats-row .pstat');
+        if (stats.length >= 5) {
+          const mrrCents = planPriceCents[c.plan] || 0;
+          stats[0].querySelector('.v').textContent = '$' + (mrrCents/100).toFixed(0);
+          stats[0].querySelector('.meta').textContent = 'Plan: ' + c.plan;
+          stats[1].querySelector('.v').textContent = '$' + c.ltv.toFixed(0);
+          stats[1].querySelector('.v').className = 'v' + (c.ltv >= 50 ? ' good' : ' warn');
+          stats[1].querySelector('.meta').textContent = 'Lifetime revenue';
+          const moodDelta = c.satisfaction - 50;
+          stats[2].querySelector('.v').textContent = (moodDelta > 0 ? '+' : '') + moodDelta;
+          stats[2].querySelector('.v').className = 'v' + (moodDelta >= 20 ? ' good' : moodDelta < -10 ? ' bad' : ' warn');
+          stats[2].querySelector('.meta').textContent = 'Satisfaction ' + c.satisfaction + '/100';
+          const churn = Math.max(0, Math.min(100, 100 - c.satisfaction));
+          stats[3].querySelector('.v').textContent = churn + '%';
+          stats[3].querySelector('.v').className = 'v' + (churn >= 60 ? ' bad' : churn >= 30 ? ' warn' : ' good');
+          stats[3].querySelector('.meta').textContent = c.satisfaction < 30 ? 'Forum risk' : 'Stable';
+          stats[4].querySelector('.v').textContent = '—';
+          stats[4].querySelector('.meta').textContent = 'See Tickets';
+        }
+        document.querySelectorAll('.twocol .col').forEach((col) => {
+          col.replaceChildren();
+          const note = document.createElement('div');
+          note.style.cssText = 'padding:18px;color:var(--dim);font-family:var(--mono);font-size:11px;text-align:center;';
+          note.textContent = 'Per-customer chat history + persona-memory comes online after first cron-tick LLM run.';
+          col.appendChild(note);
+        });
+      }
+
       const list = document.querySelector('.cust-list');
       if (list && s.customers.length >= 0) {
         list.querySelectorAll('.cust-row').forEach(r => r.remove());
@@ -103,18 +182,6 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
           row.className = 'cust-row' + (i === 0 ? ' selected' : '');
           const av = document.createElement('div');
           av.className = 'av av-' + initial;
-          // Use the generated portrait per persona_archetype as background;
-          // letter remains as accessible fallback if the image is missing.
-          const PORTRAITS = {
-            karen: '/img/persona-karen.webp',
-            newbie: '/img/persona-loyalist.webp',
-            pro: '/img/persona-pro.webp',
-            cheapskate: '/img/persona-cheapskate.webp',
-            ghost: '/img/persona-ghost.webp',
-            loyalist: '/img/persona-loyalist.webp',
-            drama: '/img/persona-drama.webp',
-            crypto: '/img/persona-crypto.webp',
-          };
           const portrait = PORTRAITS[c.persona] || '/img/persona-anon.webp';
           av.style.backgroundImage = 'url(' + portrait + ')';
           av.style.backgroundSize = 'cover';
@@ -143,82 +210,17 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
           row.appendChild(av);
           row.appendChild(mid);
           row.appendChild(right);
+          // Click to select — fixes "díísz?" bug.
+          row.addEventListener('click', () => {
+            list.querySelectorAll('.cust-row').forEach(r => r.classList.remove('selected'));
+            row.classList.add('selected');
+            renderProfile(c);
+          });
           list.appendChild(row);
         });
       }
 
-      // ─── Profile-panel: render the first customer's real data ─────────
-      // The page ships with a fixed Karen-Holloway HTML mock; replace it
-      // with whichever customer is currently selected (first by default).
-      // Hide the chat / timeline / persona-memory blocks entirely — those
-      // are storytelling-mock for now (no live LLM context yet).
-      const first = s.customers[0];
-      const crumbs = document.querySelector('.crumbs span:last-child');
-      if (first && crumbs) crumbs.textContent = first.name;
-
-      if (first) {
-        const profHead = document.querySelector('.prof-head');
-        if (profHead) {
-          const initial = (first.name[0] || '?').toUpperCase();
-          const av = profHead.querySelector('.av');
-          if (av) {
-            av.textContent = initial;
-            av.className = 'av av-' + initial;
-          }
-          const h2 = profHead.querySelector('h2');
-          if (h2) {
-            // h2 contains: text node "Karen Holloway " + <span class="pill">...</span>
-            const pill = h2.querySelector('.pill');
-            h2.textContent = first.name + ' ';
-            if (pill) {
-              pill.textContent = first.satisfaction < 30 ? '⚠ Churn risk' : first.satisfaction < 60 ? 'Watch' : 'Healthy';
-              h2.appendChild(pill);
-            }
-          }
-          const org = profHead.querySelector('.org');
-          if (org) {
-            org.replaceChildren();
-            org.appendChild(document.createTextNode(first.plan + ' plan · LLM persona: '));
-            const b = document.createElement('b');
-            b.textContent = first.persona;
-            org.appendChild(b);
-          }
-        }
-        // Stats-row: MRR / LTV / Mood / Churn / Tickets
-        const stats = document.querySelectorAll('.stats-row .pstat');
-        if (stats.length >= 5) {
-          // 0 MRR
-          const planPriceCents = { hobby: 500, starter: 1900, standard: 2900, pro: 9900, enterprise: 49900 };
-          const mrrCents = planPriceCents[first.plan] || 0;
-          stats[0].querySelector('.v').textContent = '$' + (mrrCents/100).toFixed(0);
-          stats[0].querySelector('.meta').textContent = 'Plan: ' + first.plan;
-          // 1 LTV
-          stats[1].querySelector('.v').textContent = '$' + first.ltv.toFixed(0);
-          stats[1].querySelector('.v').className = 'v' + (first.ltv >= 50 ? ' good' : ' warn');
-          stats[1].querySelector('.meta').textContent = 'Lifetime revenue';
-          // 2 Mood
-          const moodDelta = first.satisfaction - 50;
-          stats[2].querySelector('.v').textContent = (moodDelta > 0 ? '+' : '') + moodDelta;
-          stats[2].querySelector('.v').className = 'v' + (moodDelta >= 20 ? ' good' : moodDelta < -10 ? ' bad' : ' warn');
-          stats[2].querySelector('.meta').textContent = 'Satisfaction ' + first.satisfaction + '/100';
-          // 3 Churn risk — derive crude from satisfaction
-          const churn = Math.max(0, Math.min(100, 100 - first.satisfaction));
-          stats[3].querySelector('.v').textContent = churn + '%';
-          stats[3].querySelector('.v').className = 'v' + (churn >= 60 ? ' bad' : churn >= 30 ? ' warn' : ' good');
-          stats[3].querySelector('.meta').textContent = first.satisfaction < 30 ? 'Forum risk' : 'Stable';
-          // 4 Tickets — not yet wired to per-customer ticket count
-          stats[4].querySelector('.v').textContent = '—';
-          stats[4].querySelector('.meta').textContent = 'See Tickets';
-        }
-        // Hide chat / timeline / persona-memory mock columns
-        document.querySelectorAll('.twocol .col').forEach((col) => {
-          col.replaceChildren();
-          const note = document.createElement('div');
-          note.style.cssText = 'padding:18px;color:var(--dim);font-family:var(--mono);font-size:11px;text-align:center;';
-          note.textContent = 'Per-customer chat history + persona-memory comes online after first cron-tick LLM run.';
-          col.appendChild(note);
-        });
-      }
+      renderProfile(s.customers[0]);
 
       // Day-counter
       const dayEl = document.querySelector('.clock .day');

@@ -730,29 +730,35 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
       function openShiftModal() {
         let dlg = document.getElementById('shift-modal');
         if (!dlg) {
+          // Inject the global ::backdrop dark-overlay once. Native <dialog>
+          // doesn't render a backdrop by default — without this the
+          // dashboard bleeds through and the user wrote "huu ez igy csúnya".
+          if (!document.getElementById('shift-modal-style')) {
+            const st = document.createElement('style');
+            st.id = 'shift-modal-style';
+            st.textContent = 'dialog#shift-modal::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(4px); } dialog#shift-modal { color: var(--text); }';
+            document.head.appendChild(st);
+          }
           dlg = document.createElement('dialog');
           dlg.id = 'shift-modal';
-          dlg.style.cssText = 'padding:0;border:1px solid var(--line-2);border-radius:14px;background:var(--panel);width:min(1100px,92vw);height:min(720px,86vh);max-width:none;overflow:hidden;';
-          // Close button row
-          const closeBar = document.createElement('div');
-          closeBar.style.cssText = 'position:absolute;top:10px;right:10px;z-index:10;display:flex;gap:8px;';
+          dlg.style.cssText = 'padding:0;border:1px solid var(--line-2);border-radius:14px;background:var(--panel);width:min(1100px,92vw);height:min(720px,86vh);max-width:none;overflow:hidden;position:relative;';
+          // Close button — fixed top-right, never collides with iframe content.
           const closeBtn = document.createElement('button');
-          closeBtn.textContent = '✕ Bezárás';
-          closeBtn.style.cssText = 'padding:6px 12px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);border-radius:8px;font-family:var(--mono);font-size:12px;cursor:pointer;';
+          closeBtn.textContent = '✕';
+          closeBtn.setAttribute('aria-label', 'Close');
+          closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;z-index:10;width:32px;height:32px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);border-radius:8px;font-size:16px;cursor:pointer;display:grid;place-items:center;line-height:1;';
           closeBtn.addEventListener('click', () => dlg.close());
-          closeBar.appendChild(closeBtn);
-          dlg.appendChild(closeBar);
+          dlg.appendChild(closeBtn);
           // The iframe loads /play/shift?embed=1 which renders without
           // the outer Base layout header (see shift.astro frontmatter).
           const frame = document.createElement('iframe');
           frame.src = '/play/shift?embed=1';
-          frame.style.cssText = 'width:100%;height:100%;border:0;background:var(--bg);';
+          frame.style.cssText = 'width:100%;height:100%;border:0;background:var(--bg);display:block;';
           dlg.appendChild(frame);
-          // Click on backdrop closes
+          // Click on backdrop closes (only if click target is the dialog
+          // element itself — clicks inside content don't bubble here).
           dlg.addEventListener('click', (e) => {
-            const r = dlg.getBoundingClientRect();
-            const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
-            if (!inside) dlg.close();
+            if (e.target === dlg) dlg.close();
           });
           document.body.appendChild(dlg);
         }
