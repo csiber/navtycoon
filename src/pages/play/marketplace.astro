@@ -6,6 +6,7 @@ import { getCurrentUser, getDB } from '../../lib/auth';
 import { listListings } from '../../lib/marketplace/db';
 import { translateListing, type ListingLang } from '../../lib/marketplace/translations';
 import { resolveLocale } from '../../lib/i18n/server';
+import { t } from '../../lib/i18n';
 
 const user = await getCurrentUser(Astro);
 if (!user) return Astro.redirect('/login?next=/play/marketplace');
@@ -29,34 +30,39 @@ const rawListings = db ? await listListings(db, { category: filter, limit: 50 })
 // in whatever language the author wrote them.
 const listings = rawListings.map((l) => {
   if (l.is_npc === 1) {
-    const t = translateListing(viewerLang, { title: l.title, body: l.body });
-    return { ...l, title: t.title, body: t.body };
+    const tr = translateListing(viewerLang, { title: l.title, body: l.body });
+    return { ...l, title: tr.title, body: tr.body };
   }
   return l;
 });
 
-const CAT_LABELS_HU: Record<string, string> = {
-  peering: 'Peering',
-  hardware: 'Hardver',
-  service: 'Szolgáltatás',
-  leads: 'Keresett',
+const CAT_LABELS: Record<string, string> = {
+  peering: t(viewerLang, 'marketplace.cat.peering'),
+  hardware: t(viewerLang, 'marketplace.cat.hardware'),
+  service: t(viewerLang, 'marketplace.cat.service'),
+  leads: t(viewerLang, 'marketplace.cat.leads'),
 };
 const UNIT_LABELS: Record<string, string> = {
   one_time: '',
-  monthly: '/hó',
-  per_gb: '/GB',
+  monthly: t(viewerLang, 'marketplace.unit.monthly'),
+  per_gb: t(viewerLang, 'marketplace.unit.per_gb'),
 };
+
+const NOW_LABEL = t(viewerLang, 'time.now');
+const MIN_SUFFIX = t(viewerLang, 'time.minute_suffix');
+const HOUR_SUFFIX = t(viewerLang, 'time.hour_suffix');
+const DAY_SUFFIX = t(viewerLang, 'time.day_suffix');
 
 function timeAgo(ts: number): string {
   const sec = Math.floor(Date.now() / 1000) - ts;
-  if (sec < 60) return 'most';
-  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}ó`;
-  return `${Math.floor(sec / 86400)}n`;
+  if (sec < 60) return NOW_LABEL;
+  if (sec < 3600) return `${Math.floor(sec / 60)}${MIN_SUFFIX}`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}${HOUR_SUFFIX}`;
+  return `${Math.floor(sec / 86400)}${DAY_SUFFIX}`;
 }
 function formatPrice(cents: number, unit: string): string {
-  if (cents === 0 && unit === 'one_time') return 'megegyezés szerint';
-  if (unit === 'per_gb') return `$${(cents / 100).toFixed(4)}/GB`;
+  if (cents === 0 && unit === 'one_time') return t(viewerLang, 'marketplace.price.negotiable');
+  if (unit === 'per_gb') return `$${(cents / 100).toFixed(4)}${t(viewerLang, 'marketplace.unit.per_gb')}`;
   const usd = cents / 100;
   const fmt = usd >= 100 ? usd.toFixed(0) : usd.toFixed(2);
   return `$${fmt}${UNIT_LABELS[unit] ?? ''}`;
@@ -64,19 +70,23 @@ function formatPrice(cents: number, unit: string): string {
 function initial(name: string | null): string {
   return (name?.trim()[0] ?? '?').toUpperCase();
 }
+
+const errorPrefix = t(viewerLang, 'marketplace.error.prefix');
+const errorUnknown = t(viewerLang, 'marketplace.error.unknown');
+const postingLabel = t(viewerLang, 'marketplace.form.posting');
 ---
-<Base title="Piactér">
+<Base title={t(viewerLang, 'marketplace.page_title')}>
   <div class="max-w-5xl mx-auto">
     <div class="flex items-baseline justify-between mb-2">
       <div>
-        <h1 class="text-3xl font-bold">Piactér</h1>
+        <h1 class="text-3xl font-bold">{t(viewerLang, 'marketplace.title')}</h1>
         <p class="text-nt-text-dim text-sm mt-1">
-          Hirdetések NPC-ktől és valódi alapítóktól · {listings.length} aktív
+          {t(viewerLang, 'marketplace.sub').replace('{count}', String(listings.length))}
         </p>
       </div>
       <button id="new-listing-btn"
               class="px-4 py-2 bg-nt-accent rounded font-semibold text-sm hover:opacity-90 transition">
-        + Új hirdetés
+        {t(viewerLang, 'marketplace.new_listing')}
       </button>
     </div>
 
@@ -84,12 +94,12 @@ function initial(name: string | null): string {
     <div class="flex flex-wrap gap-2 mt-4 mb-6">
       <a href="/play/marketplace"
          class={`px-3 py-1 rounded text-sm border transition ${!filter ? 'bg-nt-accent border-nt-accent text-white' : 'border-nt-border text-nt-text-dim hover:text-nt-text'}`}>
-        Mind
+        {t(viewerLang, 'marketplace.filter.all')}
       </a>
       {(['peering', 'hardware', 'service', 'leads'] as const).map((c) => (
         <a href={`/play/marketplace?category=${c}`}
            class={`px-3 py-1 rounded text-sm border transition ${filter === c ? 'bg-nt-accent border-nt-accent text-white' : 'border-nt-border text-nt-text-dim hover:text-nt-text'}`}>
-          {CAT_LABELS_HU[c]}
+          {CAT_LABELS[c]}
         </a>
       ))}
     </div>
@@ -98,48 +108,48 @@ function initial(name: string | null): string {
     <form id="new-listing-form" class="hidden mt-4 mb-6 p-4 bg-nt-bg-2 border border-nt-border rounded-lg space-y-3">
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Kategória</label>
+          <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">{t(viewerLang, 'marketplace.form.category')}</label>
           <select name="category" required
                   class="w-full px-3 py-2 bg-nt-bg border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none">
-            <option value="peering">Peering</option>
-            <option value="hardware">Hardver</option>
-            <option value="service">Szolgáltatás</option>
-            <option value="leads">Keresett</option>
+            <option value="peering">{t(viewerLang, 'marketplace.cat.peering')}</option>
+            <option value="hardware">{t(viewerLang, 'marketplace.cat.hardware')}</option>
+            <option value="service">{t(viewerLang, 'marketplace.cat.service')}</option>
+            <option value="leads">{t(viewerLang, 'marketplace.cat.leads')}</option>
           </select>
         </div>
         <div>
-          <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Ár</label>
+          <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">{t(viewerLang, 'marketplace.form.price')}</label>
           <div class="flex gap-2">
-            <input type="number" name="price_cents" min="0" max="99999999" placeholder="0"
+            <input type="number" name="price_cents" min="0" max="99999999" placeholder={t(viewerLang, 'marketplace.form.price_ph')}
                    class="flex-1 px-3 py-2 bg-nt-bg border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none" />
             <select name="price_unit"
                     class="px-3 py-2 bg-nt-bg border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none">
-              <option value="one_time">egyszeri</option>
-              <option value="monthly">havi</option>
-              <option value="per_gb">/GB</option>
+              <option value="one_time">{t(viewerLang, 'marketplace.form.unit.one_time')}</option>
+              <option value="monthly">{t(viewerLang, 'marketplace.form.unit.monthly')}</option>
+              <option value="per_gb">{t(viewerLang, 'marketplace.form.unit.per_gb')}</option>
             </select>
           </div>
-          <p class="text-xs text-nt-text-dim mt-1">cent-ben (pl. 9900 = $99). 0 = megegyezés szerint.</p>
+          <p class="text-xs text-nt-text-dim mt-1">{t(viewerLang, 'marketplace.form.price_hint')}</p>
         </div>
       </div>
       <div>
-        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Cím</label>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">{t(viewerLang, 'marketplace.form.title')}</label>
         <input type="text" name="title" required minlength="4" maxlength="140"
-               placeholder="pl. 1U Pentium 4 + 4GB RAM bérelhető"
+               placeholder={t(viewerLang, 'marketplace.form.title_ph')}
                class="w-full px-3 py-2 bg-nt-bg border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none" />
       </div>
       <div>
-        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">Leírás</label>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim mb-1">{t(viewerLang, 'marketplace.form.body')}</label>
         <textarea name="body" required minlength="4" maxlength="8000" rows="5"
-                  placeholder="Specs, feltételek, kapcsolatfelvétel..."
+                  placeholder={t(viewerLang, 'marketplace.form.body_ph')}
                   class="w-full px-3 py-2 bg-nt-bg border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none resize-y"></textarea>
       </div>
       <div class="flex items-center gap-2">
         <button type="submit" class="px-4 py-2 bg-nt-accent rounded font-semibold text-sm hover:opacity-90 transition">
-          Hirdetés posztolása
+          {t(viewerLang, 'marketplace.form.submit')}
         </button>
         <button type="button" id="new-listing-cancel" class="px-4 py-2 text-nt-text-dim hover:text-nt-text text-sm transition">
-          Mégse
+          {t(viewerLang, 'marketplace.form.cancel')}
         </button>
         <p id="new-listing-status" class="text-sm ml-auto" aria-live="polite"></p>
       </div>
@@ -147,7 +157,7 @@ function initial(name: string | null): string {
 
     {listings.length === 0 ? (
       <p class="mt-12 text-center text-nt-text-dim">
-        Nincs hirdetés ebben a kategóriában. Tedd közzé az elsőt.
+        {t(viewerLang, 'marketplace.empty')}
       </p>
     ) : (
       <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -172,7 +182,7 @@ function initial(name: string | null): string {
                 </div>
                 <p class="text-sm text-nt-text-dim line-clamp-3 whitespace-pre-wrap">{l.body}</p>
                 <div class="mt-2 flex items-center gap-2 text-xs">
-                  <span class="px-1.5 py-0.5 bg-nt-bg rounded text-nt-text-dim">{CAT_LABELS_HU[l.category]}</span>
+                  <span class="px-1.5 py-0.5 bg-nt-bg rounded text-nt-text-dim">{CAT_LABELS[l.category]}</span>
                 </div>
               </div>
             </div>
@@ -182,9 +192,9 @@ function initial(name: string | null): string {
     )}
   </div>
 
-  <script>
+  <script define:vars={{ postingLabel, errorPrefix, errorUnknown }}>
     const btn = document.getElementById('new-listing-btn');
-    const form = document.getElementById('new-listing-form') as HTMLFormElement;
+    const form = document.getElementById('new-listing-form');
     const cancel = document.getElementById('new-listing-cancel');
     const status = document.getElementById('new-listing-status');
 
@@ -203,7 +213,7 @@ function initial(name: string | null): string {
       e.preventDefault();
       const fd = new FormData(form);
       if (status) {
-        status.textContent = 'Posztolás...';
+        status.textContent = postingLabel;
         status.className = 'text-sm text-nt-text-dim ml-auto';
       }
       const r = await fetch('/api/marketplace/listings', {
@@ -218,9 +228,9 @@ function initial(name: string | null): string {
         }),
       });
       if (!r.ok) {
-        const j = await r.json().catch(() => ({} as { error?: string }));
+        const j = await r.json().catch(() => ({}));
         if (status) {
-          status.textContent = 'Hiba: ' + ((j as { error?: string }).error ?? 'ismeretlen');
+          status.textContent = errorPrefix + (j.error ?? errorUnknown);
           status.className = 'text-sm text-red-400 ml-auto';
         }
         return;

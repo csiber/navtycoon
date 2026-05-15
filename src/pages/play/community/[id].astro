@@ -5,6 +5,7 @@ import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getThread, listReplies } from '../../../lib/forum/db';
 import { translateThread, translateReply, type ForumLang } from '../../../lib/forum/translations';
 import { resolveLocale } from '../../../lib/i18n/server';
+import { t } from '../../../lib/i18n';
 
 const user = await getCurrentUser(Astro);
 if (!user) return Astro.redirect('/login?next=/play/community');
@@ -30,20 +31,33 @@ const replies = rawReplies.map((r) =>
   r.is_npc === 1 ? { ...r, body: translateReply(viewerLang, r.body) } : r,
 );
 
+const NOW_LABEL = t(viewerLang, 'time.now');
+const MIN_SUFFIX = t(viewerLang, 'time.minute_suffix');
+const HOUR_SUFFIX = t(viewerLang, 'time.hour_suffix');
+const DAY_SUFFIX = t(viewerLang, 'time.day_suffix');
+
 function timeAgo(ts: number): string {
   const sec = Math.floor(Date.now() / 1000) - ts;
-  if (sec < 60) return 'most';
-  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}ó`;
-  return `${Math.floor(sec / 86400)}n`;
+  if (sec < 60) return NOW_LABEL;
+  if (sec < 3600) return `${Math.floor(sec / 60)}${MIN_SUFFIX}`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}${HOUR_SUFFIX}`;
+  return `${Math.floor(sec / 86400)}${DAY_SUFFIX}`;
 }
 function avatarChar(name: string | null): string {
   return (name?.trim()[0] ?? '?').toUpperCase();
 }
+
+const unknownAuthor = t(viewerLang, 'community.unknown_author');
+const sendingLabel = t(viewerLang, 'community.reply.sending');
+const errorPrefix = t(viewerLang, 'community.error.prefix');
+const errorUnknown = t(viewerLang, 'community.error.unknown');
+const repliesLabel = replies.length === 1
+  ? t(viewerLang, 'community.thread.replies_one').replace('{n}', String(replies.length))
+  : t(viewerLang, 'community.thread.replies_other').replace('{n}', String(replies.length));
 ---
 <Base title={thread.title}>
   <div class="max-w-3xl mx-auto">
-    <a href="/play/community" class="text-sm text-nt-text-dim hover:text-nt-text transition">← Vissza a fórumra</a>
+    <a href="/play/community" class="text-sm text-nt-text-dim hover:text-nt-text transition">{t(viewerLang, 'community.thread.back')}</a>
 
     <article class="mt-4 p-5 bg-nt-bg-2 border border-nt-border rounded-lg">
       <div class="flex items-start gap-3">
@@ -52,7 +66,7 @@ function avatarChar(name: string | null): string {
         </div>
         <div class="flex-1">
           <div class="flex items-baseline gap-2 text-xs text-nt-text-dim">
-            <span class="font-semibold text-nt-text">{thread.author_name ?? 'unknown'}</span>
+            <span class="font-semibold text-nt-text">{thread.author_name ?? unknownAuthor}</span>
             {thread.author_city && <span>· {thread.author_city}</span>}
             {thread.is_npc === 1 && thread.npc_archetype && (
               <span class="px-1.5 py-0.5 bg-nt-bg rounded text-[10px] uppercase tracking-wide">{thread.npc_archetype.replace(/_/g, ' ')}</span>
@@ -66,7 +80,7 @@ function avatarChar(name: string | null): string {
     </article>
 
     <h2 class="mt-8 mb-3 text-sm uppercase tracking-wide text-nt-text-dim">
-      {replies.length} {replies.length === 1 ? 'válasz' : 'válasz'}
+      {repliesLabel}
     </h2>
 
     <div class="space-y-3">
@@ -78,7 +92,7 @@ function avatarChar(name: string | null): string {
             </div>
             <div class="flex-1">
               <div class="flex items-baseline gap-2 text-xs text-nt-text-dim mb-1">
-                <span class="font-semibold text-nt-text">{r.author_name ?? 'unknown'}</span>
+                <span class="font-semibold text-nt-text">{r.author_name ?? unknownAuthor}</span>
                 {r.is_npc === 1 && r.npc_archetype && (
                   <span class="px-1.5 py-0.5 bg-nt-bg rounded text-[10px] uppercase tracking-wide">{r.npc_archetype.replace(/_/g, ' ')}</span>
                 )}
@@ -93,17 +107,17 @@ function avatarChar(name: string | null): string {
 
     {thread.is_locked === 1 ? (
       <p class="mt-6 p-4 bg-nt-bg-2 border border-nt-border rounded-lg text-center text-nt-text-dim text-sm">
-        🔒 Ez a szál lezárva. Új válasz nem küldhető.
+        {t(viewerLang, 'community.thread.locked')}
       </p>
     ) : (
       <form id="reply-form" class="mt-6 p-4 bg-nt-bg-2 border border-nt-border rounded-lg space-y-3">
-        <label class="block text-xs uppercase tracking-wide text-nt-text-dim">Válasz</label>
+        <label class="block text-xs uppercase tracking-wide text-nt-text-dim">{t(viewerLang, 'community.reply.label')}</label>
         <textarea name="body" required minlength="4" maxlength="8000" rows="4"
-                  placeholder="A te véleményed..."
+                  placeholder={t(viewerLang, 'community.reply.body_ph')}
                   class="w-full px-3 py-2 bg-nt-bg border border-nt-border rounded text-nt-text focus:border-nt-accent focus:outline-none transition resize-y"></textarea>
         <div class="flex items-center gap-2">
           <button type="submit" class="px-4 py-2 bg-nt-accent rounded font-semibold text-sm hover:opacity-90 transition">
-            Válasz küldése
+            {t(viewerLang, 'community.reply.submit')}
           </button>
           <p id="reply-status" class="text-sm ml-auto" aria-live="polite"></p>
         </div>
@@ -111,14 +125,14 @@ function avatarChar(name: string | null): string {
     )}
   </div>
 
-  <script define:vars={{ threadId: id }}>
+  <script define:vars={{ threadId: id, sendingLabel, errorPrefix, errorUnknown }}>
     document.getElementById('reply-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
       const fd = new FormData(form);
       const status = document.getElementById('reply-status');
       if (status) {
-        status.textContent = 'Küldés...';
+        status.textContent = sendingLabel;
         status.className = 'text-sm text-nt-text-dim ml-auto';
       }
       const r = await fetch(`/api/forum/threads/${threadId}/reply`, {
@@ -129,7 +143,7 @@ function avatarChar(name: string | null): string {
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
         if (status) {
-          status.textContent = 'Hiba: ' + (j.error ?? 'ismeretlen');
+          status.textContent = errorPrefix + (j.error ?? errorUnknown);
           status.className = 'text-sm text-red-400 ml-auto';
         }
         return;
