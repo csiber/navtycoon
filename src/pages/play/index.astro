@@ -751,8 +751,17 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
           dlg.appendChild(closeBtn);
           // The iframe loads /play/shift?embed=1 which renders without
           // the outer Base layout header (see shift.astro frontmatter).
+          // Pass the current UI locale so labels match the dashboard —
+          // an iframe doesn't inherit parent localStorage automatically.
+          const _lang = (function () {
+            try {
+              const v = localStorage.getItem('hs_lang');
+              if (v === 'hu' || v === 'de' || v === 'en') return v;
+            } catch {}
+            return 'en';
+          })();
           const frame = document.createElement('iframe');
-          frame.src = '/play/shift?embed=1';
+          frame.src = '/play/shift?embed=1&lang=' + _lang;
           frame.style.cssText = 'width:100%;height:100%;border:0;background:var(--bg);display:block;';
           dlg.appendChild(frame);
           // Click on backdrop closes (only if click target is the dialog
