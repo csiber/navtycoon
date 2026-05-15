@@ -47,23 +47,24 @@ CREATE INDEX idx_marketplace_listings_sold ON marketplace_listings(sold_at);
 {
   "archetype": "loyalist",
   "name": "Sarah Chen",
-  "starting_satisfaction": 75,
-  "monthly_cents": 2900,
-  "trial_days": 7
+  "plan_tier": "hobby",
+  "starting_satisfaction": 75
 }
 ```
 
+**MRR mechanics:** The `customers` table has no per-row MRR column. A customer's monthly revenue is derived from its `plan_tier` × the player's pricing field on `players` (`pricing_hobby_cents`, `pricing_business_cents`). The MRR roll-up runs in `lib/game/tick.ts` on every cron-tick. So a Sarah-Chen-as-hobby slot adds the player's current hobby-price to MRR on the next tick. No trial mechanic exists in the current schema — customers are paying immediately after creation.
+
 ### 5 new NPC lead seeds
 
-| Name        | Archetype  | Price | MRR     | Trial   | Starting sat | Notes                              |
-|-------------|------------|-------|---------|---------|--------------|------------------------------------|
-| Sarah Chen  | loyalist   | $200  | $29/mo  | 7 days  | 75           | low churn, stable                  |
-| Tomás López | newbie     | $150  | $15/mo  | 7 days  | 60           | med risk — generates more tickets  |
-| Avery Tran  | pro        | $400  | $59/mo  | 0 (paying immediately) | 60 | low churn, RFC-quoting             |
-| Jordan Smith| cheapskate | $80   | $9/mo   | 14 days | 45           | refund-asker                       |
-| Beth Park   | karen      | $50   | $19/mo  | 7 days  | 25           | **HIGH churn risk, P1 magnet**     |
+| Name        | Archetype  | Plan tier | One-time price | Starting sat | Notes                              |
+|-------------|------------|-----------|----------------|--------------|------------------------------------|
+| Sarah Chen  | loyalist   | hobby     | $200           | 75           | low churn, stable                  |
+| Tomás López | newbie     | hobby     | $150           | 60           | med risk — generates more tickets  |
+| Avery Tran  | pro        | business  | $400           | 60           | low churn, RFC-quoting, business-tier |
+| Jordan Smith| cheapskate | hobby     | $80            | 45           | refund-asker                       |
+| Beth Park   | karen      | hobby     | $50            | 25           | **HIGH churn risk, P1 magnet**     |
 
-The intentional pricing-vs-quality tension: cheap leads carry the worst archetypes. Player decision becomes "do I splurge on Avery Tran or risk Beth Park?", not "I buy the cheapest one every time."
+Monthly revenue is set by the player's pricing on the matched `plan_tier`. With defaults (hobby ≈ $5/mo, business ≈ $15-30/mo) this means Sarah-Chen-as-loyalist-hobby is *expected* to pay back her $200 within ~40 ticks if the player keeps her happy. Cheap leads (Jordan, Beth) come on hobby with worse archetypes; the player tension is *"do I splurge on Avery Tran's business slot or hope Beth Park doesn't P1 me in week one?"*
 
 The 3 existing WTB listings (`npc-pixelforge`, `npc-quantum-pulse`, `npc-maelstrom`) keep their current copy with `effect_type = NULL` — flavor only, not buyable.
 
@@ -82,7 +83,7 @@ The 3 existing WTB listings (`npc-pixelforge`, `npc-quantum-pulse`, `npc-maelstr
 - D1 batch (single transaction):
   1. `UPDATE marketplace_listings SET sold_at=?, sold_to_player_id=? WHERE id=? AND sold_at IS NULL` (sold-once guard).
   2. `UPDATE players SET cash_usd_cents = cash_usd_cents - ? WHERE user_id = ?` (cash deduction).
-  3. `INSERT INTO customers (player_id, name, persona_archetype, satisfaction, monthly_rate_cents, is_active, trial_ends_at, created_at, ...)` — fields drawn from `effect_payload`. `trial_ends_at = created_at + trial_days*86400` (when `trial_days=0`, equals `created_at` → no trial, customer pays from day 1; the cron-tick already treats `trial_ends_at <= now` as paying).
+  3. `INSERT INTO customers (player_id, name, persona_archetype, plan_tier, satisfaction, joined_at, is_active)` with values from `effect_payload`: `name`, `persona_archetype`, `plan_tier`, `starting_satisfaction → satisfaction`; `joined_at = now`, `is_active = 1`. Customer is paying from day 1 (no trial mechanic in the schema).
 - If step 1 affects 0 rows (race), return 409 `{error:'sold'}`.
 - Response: `{ok:true, customer_id, customer_name, cash_remaining_cents}`.
 
@@ -98,7 +99,7 @@ In `src/lib/i18n.ts` for each locale (EN/HU/DE):
 
 - `marketplace.buy_cta` — "Buy $X" / "Vétel $X" / "Kaufen $X"
 - `marketplace.buy_confirm_title` — "Confirm purchase" / "Vásárlás megerősítése" / "Kauf bestätigen"
-- `marketplace.buy_confirm_body` — "{name} ({archetype}) for $X. Expected: $Y/mo, {trial} day trial." (with placeholders)
+- `marketplace.buy_confirm_body` — "{name} ({archetype}, {tier} tier) for ${price}. Paying from day 1 at your current {tier} price." (placeholders: name, archetype, tier, price)
 - `marketplace.buy_confirm_ok` — "Buy" / "Megveszem" / "Kaufen"
 - `marketplace.buy_confirm_cancel` — "Cancel" / "Mégse" / "Abbrechen"
 - `marketplace.buy_success` — "+1 customer: {name}" / "+1 ügyfél: {name}" / "+1 Kunde: {name}"
@@ -127,7 +128,8 @@ Smoke flow with `auditen@hyperscales.local`:
 1. Open `/play/marketplace?category=leads` — see 8 listings (3 WTB + 5 new).
 2. Click "Buy $200" on Sarah Chen → confirm → success toast.
 3. `/play/finance` → cash reduced by $200.
-4. `/play/customers` → Sarah Chen visible, archetype=loyalist, trial_ends_at = now + 7d.
+4. `/play/customers` → Sarah Chen visible, archetype=loyalist, plan_tier=hobby, active=1.
+5. Next cron-tick → player's `mrr_usd_cents` increased by the hobby-tier price.
 5. Back to marketplace → Sarah Chen card shows ELADVA badge, no button.
 6. Try `POST /api/marketplace/purchase/<sarah_id>` again via curl → 409 sold.
 7. Repeat with insufficient cash: player at $50 tries Avery Tran ($400) → 402 insufficient_cash.
@@ -137,5 +139,5 @@ Repeat the locale check on HU + DE audit users — confirm buttons, modal copy, 
 ### Risks
 
 - **D1 transactional guarantees:** D1 batches are atomic; the `UPDATE … WHERE sold_at IS NULL` check is the race-safe gate. If two players race, only one batch's UPDATE affects a row; the loser's batch sees 0 affected rows and returns 409.
-- **Trial mechanics:** the existing `customers` table already has `trial_ends_at` and the cron-tick (`/api/cron/tick.ts`) flips trial → paying on expiry. New customers slot in cleanly.
+- **No trial mechanic in schema:** customer is paying from day 1, no `trial_ends_at` column exists. If we want trials later, that's its own migration.
 - **Cash floor at zero:** cash is stored as signed `cash_usd_cents`. We check `>= price` before the deduction so we never go negative.
