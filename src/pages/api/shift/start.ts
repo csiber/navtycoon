@@ -25,12 +25,18 @@ export const POST = async (c: APIContext): Promise<Response> => {
   const todayUsed = player.free_shifts_today + player.paid_shifts_today;
   if (todayUsed >= cap) return jerr(429, `daily shift cap reached (${cap})`);
 
-  // Up to 10 open tickets with their customers
+  // Up to 10 tickets with their customers.
+  // We accept BOTH 'open' and 'in_progress' so abandoned shifts (the
+  // player closed the modal mid-shift; tickets got bumped to
+  // in_progress but never resolved) get picked up again. Without this
+  // the dashboard CTA reads "9 open tickets" (state.ts counts both
+  // statuses) but the shift screen sees 0 and shows "Inbox-empty",
+  // which the user flagged as inconsistent.
   const tickets = await db.prepare(`
     SELECT t.id AS ticket_id, t.summary, t.full_text,
            c.id AS customer_id, c.name, c.persona_archetype, c.satisfaction
     FROM tickets t JOIN customers c ON t.customer_id = c.id
-    WHERE t.player_id = ? AND t.status = 'open'
+    WHERE t.player_id = ? AND t.status IN ('open', 'in_progress')
     ORDER BY t.created_at ASC LIMIT 10
   `).bind(user.id).all<{
     ticket_id: number; summary: string; full_text: string;
