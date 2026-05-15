@@ -58,49 +58,79 @@ export const POST = async (c: APIContext): Promise<Response> => {
   const now = Math.floor(Date.now() / 1000);
 
   // D1 batch — atomic per Cloudflare docs.
-  // The `WHERE sold_at IS NULL` on the UPDATE is the race-safe gate:
-  // a concurrent buyer's batch will affect 0 rows on that statement,
-  // but the batch still commits. We re-read sold_at afterward to
-  // detect the loss and refund/rollback by deletion.
+  // - Statement 0 (listing UPDATE) is the sold-once gate: WHERE sold_at IS NULL.
+  // - Statement 1 (cash UPDATE) is the funds gate: WHERE cash_usd_cents >= price.
+  // - Statement 2 (INSERT customer) uses RETURNING so we get the new id back
+  //   for the rollback path; without it we can't safely target the customer
+  //   in case of an over-matching name+joined_at race.
   const result = await db.batch([
     db.prepare(
       'UPDATE marketplace_listings SET sold_at = ?, sold_to_player_id = ? ' +
       'WHERE id = ? AND sold_at IS NULL',
     ).bind(now, user.id, listing.id),
     db.prepare(
-      'UPDATE players SET cash_usd_cents = cash_usd_cents - ? WHERE user_id = ?',
-    ).bind(listing.price_cents, user.id),
+      'UPDATE players SET cash_usd_cents = cash_usd_cents - ? ' +
+      'WHERE user_id = ? AND cash_usd_cents >= ?',
+    ).bind(listing.price_cents, user.id, listing.price_cents),
     db.prepare(
       'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction, is_active) ' +
-      'VALUES (?, ?, ?, ?, ?, ?, 1)',
+      'VALUES (?, ?, ?, ?, ?, ?, 1) RETURNING id',
     ).bind(user.id, effect.name, effect.archetype, effect.plan_tier, now, effect.starting_satisfaction),
   ]);
 
-  // Race detection: first statement is the UPDATE on listing.
-  // D1 returns meta.changes per statement. If 0, someone else bought it.
-  // The local D1Like batch return type omits `meta` (it's part of the real
-  // D1Result shape, see @cloudflare/workers-types), so we widen by cast.
-  const meta0 = (result[0] as unknown as { meta?: { changes?: number } } | undefined)?.meta;
-  if (!meta0 || meta0.changes !== 1) {
-    // Loser of race — undo the cash deduction and the customer insert.
-    // We know the customer's archetype + joined_at uniquely identifies
-    // it within this transaction window for this player.
-    await db.batch([
-      db.prepare('UPDATE players SET cash_usd_cents = cash_usd_cents + ? WHERE user_id = ?').bind(listing.price_cents, user.id),
-      db.prepare('DELETE FROM customers WHERE player_id = ? AND name = ? AND joined_at = ?').bind(user.id, effect.name, now),
-    ]);
-    return jerr(409, 'sold');
+  // D1's `meta.changes` lives outside the local D1Like typing — cast to read it.
+  function changesOf(r: unknown): number {
+    return (r as { meta?: { changes?: number } } | undefined)?.meta?.changes ?? 0;
+  }
+  // RETURNING id surfaces in result[2].results[0].id; cast to read it.
+  function returnedId(r: unknown): number | null {
+    const row = (r as { results?: Array<{ id?: number }> } | undefined)?.results?.[0];
+    return typeof row?.id === 'number' ? row.id : null;
   }
 
-  // Fetch the new customer id for the client redirect/toast.
-  const created = await db.prepare(
-    'SELECT id FROM customers WHERE player_id = ? AND name = ? AND joined_at = ? ORDER BY id DESC LIMIT 1',
-  ).bind(user.id, effect.name, now).first<{ id: number }>();
+  const listingSold = changesOf(result[0]) === 1;
+  const cashDeducted = changesOf(result[1]) === 1;
+  const insertedCustomerId = returnedId(result[2]);
 
-  return new Response(JSON.stringify({
-    ok: true,
-    customer_id: created?.id ?? null,
-    customer_name: effect.name,
-    cash_remaining_cents: player.cash_usd_cents - listing.price_cents,
-  }), { headers: { 'content-type': 'application/json' } });
+  // Happy path — both gates passed.
+  if (listingSold && cashDeducted) {
+    const post = await db
+      .prepare('SELECT cash_usd_cents FROM players WHERE user_id = ? LIMIT 1')
+      .bind(user.id)
+      .first<{ cash_usd_cents: number }>();
+    return new Response(JSON.stringify({
+      ok: true,
+      customer_id: insertedCustomerId,
+      customer_name: effect.name,
+      cash_remaining_cents: post?.cash_usd_cents ?? (player.cash_usd_cents - listing.price_cents),
+    }), { headers: { 'content-type': 'application/json' } });
+  }
+
+  // Rollback path — at least one gate failed. Undo whatever the batch did
+  // commit so the world is consistent.
+  const rollbackStmts: ReturnType<typeof db.prepare>[] = [];
+  if (listingSold) {
+    rollbackStmts.push(
+      db.prepare('UPDATE marketplace_listings SET sold_at = NULL, sold_to_player_id = NULL WHERE id = ?').bind(listing.id),
+    );
+  }
+  if (cashDeducted) {
+    rollbackStmts.push(
+      db.prepare('UPDATE players SET cash_usd_cents = cash_usd_cents + ? WHERE user_id = ?').bind(listing.price_cents, user.id),
+    );
+  }
+  if (insertedCustomerId !== null) {
+    rollbackStmts.push(
+      db.prepare('DELETE FROM customers WHERE id = ?').bind(insertedCustomerId),
+    );
+  }
+  if (rollbackStmts.length > 0) {
+    await db.batch(rollbackStmts);
+  }
+
+  // Surface the most specific failure: cash race takes precedence over sold
+  // race for the user-facing error, since the player can re-try after a
+  // shift cleared a refund vs they can't un-sell a listing.
+  if (!cashDeducted) return jerr(402, 'insufficient_cash');
+  return jerr(409, 'sold');
 };
