@@ -31,6 +31,34 @@ import SidebarUser from './SidebarUser.astro';
     }
     const locale = resolveLocale();
 
+    // ───── 0) Lang sync: cookie + DB ─────────────────────────────────
+    // The server-side render (marketplace.astro, community.astro,
+    // shift.astro, …) can't read localStorage — it can only see the
+    // ?lang= URL param, the player.preferred_lang in D1, or a cookie.
+    // So we mirror the client-side choice into both:
+    //   (a) hs_lang cookie (1y) so the next server-render uses it
+    //   (b) POST /api/game/settings if the DB row disagrees, so future
+    //       sessions and cron-tick LLM prompts use the right locale
+    try {
+      const m = document.cookie.match(/(?:^|; )hs_lang=([^;]+)/);
+      const cookieLang = m ? m[1] : null;
+      if (cookieLang !== locale) {
+        document.cookie = 'hs_lang=' + locale + '; path=/; max-age=' + (60 * 60 * 24 * 365) + '; samesite=lax';
+      }
+      // Best-effort DB sync. Silent on auth failure (landing page).
+      // 5s debounce via session-storage so we don't spam the endpoint
+      // on every page load.
+      const lastSync = sessionStorage.getItem('hs_lang_last_sync');
+      if (lastSync !== locale) {
+        sessionStorage.setItem('hs_lang_last_sync', locale);
+        fetch('/api/game/settings', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ preferred_lang: locale }),
+        }).catch(() => { /* silent */ });
+      }
+    } catch { /* sandboxed */ }
+
     // ───── 1) data-i18n attribute swap ─────────────────────────────────
     function applyI18nAttrs() {
       const dict = DASH_TRANSLATIONS[locale] || DASH_TRANSLATIONS.en;
@@ -553,6 +581,18 @@ import SidebarUser from './SidebarUser.astro';
         '30-min live ticket triage': '30-perces élő ticket-triage',
         'per ticket': 'ticketenként',
         '+rep': '+hírnév',
+        // ─── Ticket detail thread-head labels ───
+        'From': 'Feladó',
+        'Persona': 'Persona',
+        'Age': 'Kor',
+        // ─── Finance page chrome ───
+        'P&L · projections · invoices · burn': 'P&L · előrejelzés · számlák · égés',
+        'projections': 'előrejelzés',
+        'invoices': 'számlák',
+        'burn': 'égés',
+        'CSV export': 'CSV-export',
+        'becsült égés': 'becsült égés',
+        '— hardver-intenzív': '— hardver-intenzív',
         // ─── Toast / notification labels ───
         'Achievement unlocked': 'Kitűző feloldva',
         'Next era': 'Köv. korszak',
@@ -775,6 +815,19 @@ import SidebarUser from './SidebarUser.astro';
           // Generic plural form for "N open tickets waiting" so the
           // sticky CTA stays in HU for any N (not just 1-4).
           [/^(\d+) open tickets? waiting$/g, '$1 nyitott ticket várakozik'],
+          // Ticket detail / forum / activity time-ago tokens
+          [/(\d+)h ago\b/g, '$1ó'],
+          [/(\d+)d ago\b/g, '$1n'],
+          [/(\d+)m ago\b/g, '$1p'],
+          // Ticket thread-head triple "From X · Persona: y · Age: 18h"
+          [/^From /g, 'Feladó: '],
+          [/ · Persona: /g, ' · persona: '],
+          [/ · Age: /g, ' · kor: '],
+          // Finance card units
+          [/Runway (\d+) days?\b/g, 'Futamidő $1 nap'],
+          [/\$(\d+(?:\.\d+)?)\/day\b/g, '$$$1/nap'],
+          [/(\d+) RECENT TICKETS?\b/gi, '$1 LEGUTÓBBI TICKET'],
+          [/(\d+) days?\b/g, '$1 nap'],
         ],
       },
       de: {
@@ -796,6 +849,16 @@ import SidebarUser from './SidebarUser.astro';
           [/🎉 unlocked Era (\d+)/g, '🎉 freigeschaltet: Ära $1'],
           [/\bEra (\d+) · /g, 'Ära $1 · '],
           [/^(\d+) open tickets? waiting$/g, '$1 offene Tickets warten'],
+          [/(\d+)h ago\b/g, 'vor $1h'],
+          [/(\d+)d ago\b/g, 'vor $1d'],
+          [/(\d+)m ago\b/g, 'vor $1m'],
+          [/^From /g, 'Von: '],
+          [/ · Persona: /g, ' · Persona: '],
+          [/ · Age: /g, ' · Alter: '],
+          [/Runway (\d+) days?\b/g, 'Laufzeit $1 Tage'],
+          [/\$(\d+(?:\.\d+)?)\/day\b/g, '$$$1/Tag'],
+          [/(\d+) RECENT TICKETS?\b/gi, '$1 NEUE TICKETS'],
+          [/(\d+) days?\b/g, '$1 Tage'],
         ],
       },
     };
