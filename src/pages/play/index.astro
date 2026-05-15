@@ -234,12 +234,22 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
   <div id="shift-cta" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--indigo) 0%,#4f46e5 100%);color:#fff;padding:14px 24px;border-radius:12px;box-shadow:0 12px 32px -8px rgba(99,102,241,.6);z-index:80;display:flex;align-items:center;gap:14px;font-family:var(--display);font-weight:600;">
     <span style="font-size:20px;">🔥</span>
     <span>{openTickets} open ticket{openTickets > 1 ? 's' : ''} waiting</span>
-    <a href="/play/shift" style="background:rgba(255,255,255,.2);padding:6px 14px;border-radius:8px;color:#fff;text-decoration:none;font-size:13px;">Start shift →</a>
+    <a href="/play/shift" id="shift-cta-link" style="background:rgba(255,255,255,.2);padding:6px 14px;border-radius:8px;color:#fff;text-decoration:none;font-size:13px;cursor:pointer;">Start shift →</a>
     <button id="shift-cta-close" style="background:transparent;border:0;color:rgba(255,255,255,.6);cursor:pointer;font-size:18px;line-height:1;padding:0;margin-left:4px;">×</button>
   </div>
   <script is:inline>
     document.getElementById('shift-cta-close')?.addEventListener('click', () => {
       document.getElementById('shift-cta')?.remove();
+    });
+    // Sticky CTA "Start shift →" opens the inline modal (no page nav).
+    document.getElementById('shift-cta-link')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (typeof window.openShiftModal === 'function') {
+        window.openShiftModal();
+      } else {
+        // Fallback if hydrate hasn't run yet → use the real page.
+        window.location.href = '/play/shift';
+      }
     });
   </script>
 )}
@@ -705,11 +715,51 @@ const pageHtml = "\n\n<div class=\"app\">\n\n  <!-- ─── Sidebar ─── 
       const quickMarket = document.querySelector('.quick.market');
       if (quickMarket) { quickMarket.addEventListener('click', () => { location.href = '/play/marketplace'; }); quickMarket.style.cursor = 'pointer'; }
       const quickShift = document.querySelector('.quick.shift');
-      if (quickShift) { quickShift.addEventListener('click', () => { location.href = '/play/shift'; }); quickShift.style.cursor = 'pointer'; }
+      if (quickShift) { quickShift.addEventListener('click', () => openShiftModal()); quickShift.style.cursor = 'pointer'; }
 
-      // Shift CTA button → /play/shift
+      // Shift CTA button → open inline modal (no page navigation, keeps
+      // dashboard context behind it).
       const shiftStart = document.querySelector('.shift-cta .start');
-      if (shiftStart) shiftStart.addEventListener('click', () => { location.href = '/play/shift'; });
+      if (shiftStart) shiftStart.addEventListener('click', () => openShiftModal());
+
+      // ─── Shift modal: lazy iframe overlay ───
+      // The /play/shift page already runs the WebSocket-driven UI; embed
+      // mode (?embed=1) strips its outer header so it fits an iframe.
+      // Open-on-demand: only create the dialog DOM the first time the
+      // user clicks; close-on-ESC or click-outside.
+      function openShiftModal() {
+        let dlg = document.getElementById('shift-modal');
+        if (!dlg) {
+          dlg = document.createElement('dialog');
+          dlg.id = 'shift-modal';
+          dlg.style.cssText = 'padding:0;border:1px solid var(--line-2);border-radius:14px;background:var(--panel);width:min(1100px,92vw);height:min(720px,86vh);max-width:none;overflow:hidden;';
+          // Close button row
+          const closeBar = document.createElement('div');
+          closeBar.style.cssText = 'position:absolute;top:10px;right:10px;z-index:10;display:flex;gap:8px;';
+          const closeBtn = document.createElement('button');
+          closeBtn.textContent = '✕ Bezárás';
+          closeBtn.style.cssText = 'padding:6px 12px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);border-radius:8px;font-family:var(--mono);font-size:12px;cursor:pointer;';
+          closeBtn.addEventListener('click', () => dlg.close());
+          closeBar.appendChild(closeBtn);
+          dlg.appendChild(closeBar);
+          // The iframe loads /play/shift?embed=1 which renders without
+          // the outer Base layout header (see shift.astro frontmatter).
+          const frame = document.createElement('iframe');
+          frame.src = '/play/shift?embed=1';
+          frame.style.cssText = 'width:100%;height:100%;border:0;background:var(--bg);';
+          dlg.appendChild(frame);
+          // Click on backdrop closes
+          dlg.addEventListener('click', (e) => {
+            const r = dlg.getBoundingClientRect();
+            const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+            if (!inside) dlg.close();
+          });
+          document.body.appendChild(dlg);
+        }
+        dlg.showModal();
+      }
+      // Expose for any later hook that wants to programmatically open it.
+      window.openShiftModal = openShiftModal;
 
       // "Open fleet →", "Inbox →", "All events →", "Finance →" links
       const fleetMore = document.querySelector('.side-stack .panel:first-child .more');
