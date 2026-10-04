@@ -1,15 +1,11 @@
-// POST /api/auth/logout — kijelentkeztet (cookie + PromNET sessions-row).
-//
-// A `navtycoon_session` cookie értéke = PromNET sessions.token, így
-// ha kitöröljük a sort, a user PromNET-en is kijelentkezik (a `pn_session`
-// cookie még él, de a session-token már nem létezik a sessions-ben).
+// POST /api/auth/logout — kijelentkeztet (cookie + a sessions-sor törlése).
 //
 // A POST-ot azért ragaszkodjuk, hogy CSRF ne kattintsa ki a usert.
 
 import type { APIContext } from 'astro';
 import {
-  getPromnetDB, getSessionCookie, clearSessionCookie,
-  deletePromnetSession,
+  getAuthDB, getSessionCookie, clearSessionCookie,
+  deleteSession,
 } from '../../../lib/auth';
 
 export const prerender = false;
@@ -17,10 +13,10 @@ export const prerender = false;
 export async function POST(context: APIContext): Promise<Response> {
   const token = getSessionCookie(context);
   if (token) {
-    const pdb = getPromnetDB(context);
+    const pdb = getAuthDB(context);
     if (pdb) {
-      try { await deletePromnetSession(pdb, token); }
-      catch (e) { console.warn('logout: deletePromnetSession hiba:', (e as Error).message); }
+      try { await deleteSession(pdb, token); }
+      catch (e) { console.warn('logout: deleteSession hiba:', (e as Error).message); }
     }
   }
   clearSessionCookie(context);
@@ -42,9 +38,9 @@ export async function POST(context: APIContext): Promise<Response> {
 export async function GET(context: APIContext): Promise<Response> {
   const token = getSessionCookie(context);
   if (token) {
-    const pdb = getPromnetDB(context);
+    const pdb = getAuthDB(context);
     if (pdb) {
-      try { await deletePromnetSession(pdb, token); }
+      try { await deleteSession(pdb, token); }
       catch { /* ignore */ }
     }
   }

@@ -1,19 +1,12 @@
-// Hyperscales auth-réteg — cross-brand SSO PromNET-tel.
+// Hyperscales auth-réteg — saját users/sessions tábla a navtycoon D1-ben (DB binding).
 //
-// FONTOS: Hyperscales nincs saját users/sessions táblája. A user-fiókok a
-// PromNET shared `users` táblájában élnek (PROMNET_DB binding), így ugyanazzal
-// a fiókkal lehet PromNET-en, NavBot-on és Hyperscales-en is bejelentkezni.
+// 2026-10-05-ig a fiókok a PromNET users/sessions tábláiban éltek (PROMNET_DB binding, PromNET-SSO);
+// Csaba döntése: a játék független a PromNET-től. A régi játékosok e-mail-címe a `legacy_accounts`
+// táblában van — ha ugyanazzal az e-mail-címmel regisztrálnak, a régi user_id-t (és vele a játékállást)
+// kapják vissza (migrations/0011_own_auth.sql). Jelszó-hash-t nem vittünk át.
 //
-// Cookie-stratégia:
-//   - PromNET cookie: `pn_session` (domain: .promnet.hu)
-//   - Hyperscales cookie: `navtycoon_session` (domain: .hyperscaler.game)
-//   - A cookie ÉRTÉKE ugyanaz a session-token (PROMNET_DB sessions.token).
-//   - Cross-domain cookie nincs, ezért a session-átadás ?_sso= handoff-tokennel
-//     történik (lásd: src/pages/api/auth/promnet-callback.ts).
-//
-// Hash-algoritmus: PBKDF2-SHA256 100k iter, 16-byte salt, 32-byte hash —
-// EZ A PROMNET ALGORITMUSA, BIT-RE EGYEZIK (lásd /home/aika/promnet/src/lib/auth.ts).
-// MÁS algoritmus = a felhasználó nem tud cross-brand bejelentkezni.
+// Cookie: `navtycoon_session`, értéke a sessions.token.
+// Hash-algoritmus: PBKDF2-SHA256 100k iter, 16-byte salt, 32-byte hash.
 
 import type { APIContext } from 'astro';
 
@@ -51,15 +44,20 @@ export function getDB(context: APIContext): D1Like | null {
   return env?.DB ?? null;
 }
 
-/** PromNET shared D1 (users + sessions). */
-export function getPromnetDB(context: APIContext): D1Like | null {
-  const env = context.locals.runtime?.env as
-    | { PROMNET_DB?: D1Like }
-    | undefined;
-  return env?.PROMNET_DB ?? null;
+/** A belépés táblái (users, sessions, legacy_accounts) — ugyanaz a navtycoon D1, mint a játékállás. */
+export function getAuthDB(context: APIContext): D1Like | null {
+  return getDB(context);
 }
 
-// ── Crypto helpers (BIT-EGYEZŐ a PromNET-tel) ──────────────────────
+/** A PromNET-korszakból megmaradt játékos-azonosító ehhez az e-mailhez (ha van, és még nincs új fiókja). */
+export async function legacyUserId(pdb: D1Like, email: string): Promise<string | null> {
+  const row = await pdb.prepare(
+    'SELECT l.user_id FROM legacy_accounts l LEFT JOIN users u ON u.id = l.user_id WHERE l.email = ? AND u.id IS NULL LIMIT 1',
+  ).bind(email.toLowerCase().trim()).first<{ user_id: string }>();
+  return row?.user_id ?? null;
+}
+
+// ── Crypto helpers ─────────────────────────────────────────────────
 
 function bytesToHex(buf: ArrayBuffer | Uint8Array): string {
   const arr = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
@@ -80,7 +78,7 @@ export function randomToken(byteLen = 32): string {
   return bytesToHex(buf);
 }
 
-/** PBKDF2-SHA256 — UGYANAZ az algoritmus mint PromNET-en. */
+/** PBKDF2-SHA256 (a régi PromNET-fiókokkal azonos paraméterek). */
 export async function hashPassword(
   password: string, saltHex?: string,
 ): Promise<{ hash: string; salt: string }> {
@@ -110,9 +108,9 @@ export async function verifyPassword(
   return diff === 0;
 }
 
-// ── PromNET users / sessions műveletek ─────────────────────────────
+// ── users / sessions műveletek ─────────────────────────────────────
 
-/** Minimális SELECT a PromNET users táblából — csak a Hyperscales-nek
+/** Minimális SELECT a users táblából — csak a Hyperscales-nek
  *  szükséges oszlopok. (Az új PromNET-mezők itt nem kellenek; minimal-
  *  contract elv: kevesebb oszlop = kevesebb migration-coupling.) */
 async function findUserByEmail(
@@ -136,15 +134,15 @@ async function findUserById(
   ).bind(id).first<User>();
 }
 
-/** Új user beillesztése a PromNET users táblába.
- *  A PromNET createUser pont ezeket az oszlopokat tölti — egyezzünk vele. */
-export async function createPromnetUser(
+/** Új user a saját users táblába. `existingId`: a régi (PromNET-korszakbeli) játékos-azonosító, ha van. */
+export async function createUser(
   pdb: D1Like,
   email: string,
   password: string,
   displayName: string | null,
+  existingId?: string | null,
 ): Promise<{ id: string; email: string; display_name: string | null }> {
-  const id = `u_${randomToken(12)}`;
+  const id = existingId ?? `u_${randomToken(12)}`;
   const { hash, salt } = await hashPassword(password);
   const now = Math.floor(Date.now() / 1000);
   await pdb.prepare(
@@ -165,9 +163,9 @@ export async function isEmailTaken(
   return row !== null;
 }
 
-/** Új session a PromNET sessions táblában. Visszaadja a token-t —
+/** Új session a saját sessions táblában. Visszaadja a token-t —
  *  ugyanaz a token kerül a `navtycoon_session` cookie-ba is. */
-export async function createPromnetSession(
+export async function createSession(
   pdb: D1Like, userId: string,
   ipAddress?: string | null, userAgent?: string | null,
 ): Promise<string> {
@@ -183,7 +181,7 @@ export async function createPromnetSession(
   return token;
 }
 
-/** Session-token validálás a PromNET sessions ellen, lejárat-ellenőrzéssel.
+/** Session-token validálás a sessions tábla ellen, lejárat-ellenőrzéssel.
  *  Visszaadja a User-t ha érvényes, null ha lejárt vagy nem létezik. */
 export async function getUserBySessionToken(
   pdb: D1Like, token: string,
@@ -202,7 +200,7 @@ export async function getUserBySessionToken(
   return findUserById(pdb, row.user_id);
 }
 
-export async function deletePromnetSession(
+export async function deleteSession(
   pdb: D1Like, token: string,
 ): Promise<void> {
   await pdb.prepare('DELETE FROM sessions WHERE token = ?').bind(token).run();
@@ -232,10 +230,10 @@ export function clearSessionCookie(context: APIContext): void {
 
 // ── Magas-szintű helper ────────────────────────────────────────────
 
-/** A jelenlegi user — `navtycoon_session` cookie alapján, PROMNET_DB
+/** A jelenlegi user — `navtycoon_session` cookie alapján, a saját
  *  sessions ellen validálva. Ha nincs cookie / lejárt / DB nincs → null. */
 export async function getCurrentUser(context: APIContext): Promise<User | null> {
-  const pdb = getPromnetDB(context);
+  const pdb = getAuthDB(context);
   if (!pdb) return null;
   const token = getSessionCookie(context);
   if (!token) return null;

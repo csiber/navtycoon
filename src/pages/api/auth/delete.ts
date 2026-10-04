@@ -1,16 +1,11 @@
 // POST /api/auth/delete — törli a felhasználói fiókot teljes egészében.
-// Törli a navtycoon DB rekordjait + PromNET sessions-rowt, majd
-// kijelentkezteti és redirect-eli a homepage-re.
-//
-// FIGYELEM: a PromNET users-tábla rekordját NEM töröljük itt — az a
-// PromNET-oldali profil. Ez csak a hyperscaler-saját state-et törli
-// (player + customers + tickets + events + servers + achievements
-// + upgrades + llm_usage), és kijelentkezteti a usert.
+// Törli a játékállást (player + customers + tickets + events + servers + achievements + upgrades + llm_usage),
+// a fiókot (users, sessions, legacy_accounts — 2026-10-05 óta saját táblák), majd kijelentkeztet.
 
 import type { APIContext } from 'astro';
 import {
   getCurrentUser, getDB,
-  getPromnetDB, getSessionCookie, clearSessionCookie, deletePromnetSession,
+  getAuthDB, getSessionCookie, clearSessionCookie, deleteSession,
 } from '../../../lib/auth';
 
 export const prerender = false;
@@ -30,17 +25,20 @@ export async function POST(context: APIContext): Promise<Response> {
     await db.prepare('DELETE FROM upgrades WHERE player_id = ?').bind(user.id).run();
     await db.prepare('DELETE FROM llm_usage WHERE player_id = ?').bind(user.id).run();
     await db.prepare('DELETE FROM players WHERE user_id = ?').bind(user.id).run();
+    await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
+    await db.prepare('DELETE FROM legacy_accounts WHERE user_id = ?').bind(user.id).run();
+    await db.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
   } catch (e) {
     return jerr(500, 'Account-delete hiba: ' + (e as Error).message);
   }
 
-  // PromNET session-row törlés (közös sessions-tábla).
+  // A cookie-hoz tartozó session (ha a fenti törlés előtt keletkezett volna).
   const token = getSessionCookie(context);
   if (token) {
-    const pdb = getPromnetDB(context);
+    const pdb = getAuthDB(context);
     if (pdb) {
-      try { await deletePromnetSession(pdb, token); }
-      catch (e) { console.warn('delete-account: deletePromnetSession hiba:', (e as Error).message); }
+      try { await deleteSession(pdb, token); }
+      catch (e) { console.warn('delete-account: deleteSession hiba:', (e as Error).message); }
     }
   }
   clearSessionCookie(context);

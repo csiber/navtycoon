@@ -2,18 +2,15 @@
 //
 // Body: { email, password }
 // 1. Validáció (email-formátum + password jelenlét)
-// 2. Lookup PromNET users táblában (cross-brand store)
-// 3. verifyPassword (PBKDF2-SHA256 100k iter, BIT-egyező a PromNET-tel)
-// 4. createPromnetSession → új sor PromNET sessions-ben
+// 2. Lookup a users táblában
+// 3. verifyPassword (PBKDF2-SHA256 100k iter)
+// 4. createSession → új sor a sessions táblában
 // 5. setSessionCookie + return { ok, redirect: '/play' }
 //
-// Megjegyzés: SSO-only login is elérhető a /api/auth/promnet-bridge-en
-// keresztül (PromNET-account → handoff-token → navtycoon_session).
-// Ez az endpoint a navtycoon-only signup-pal regisztrált usereknek kell.
 
 import type { APIContext } from 'astro';
 import {
-  getPromnetDB, createPromnetSession, setSessionCookie,
+  getAuthDB, createSession, setSessionCookie,
   verifyPassword, isValidEmail,
 } from '../../../lib/auth';
 
@@ -25,8 +22,8 @@ interface LoginBody {
 }
 
 export async function POST(context: APIContext): Promise<Response> {
-  const pdb = getPromnetDB(context);
-  if (!pdb) return jerr(500, 'PROMNET_DB nincs konfigurálva.');
+  const pdb = getAuthDB(context);
+  if (!pdb) return jerr(500, 'DB nincs konfigurálva.');
 
   let body: LoginBody;
   try {
@@ -57,7 +54,7 @@ export async function POST(context: APIContext): Promise<Response> {
 
     const ip = context.request.headers.get('cf-connecting-ip') ?? undefined;
     const ua = context.request.headers.get('user-agent') ?? undefined;
-    const token = await createPromnetSession(pdb, u.id, ip, ua);
+    const token = await createSession(pdb, u.id, ip, ua);
 
     setSessionCookie(context, token);
     return new Response(

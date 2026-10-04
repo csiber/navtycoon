@@ -1,22 +1,17 @@
-// POST /api/auth/signup — új Hyperscales-fiók (cross-brand: PromNET users-be).
+// POST /api/auth/signup — új Hyperscales-fiók (saját users tábla, 2026-10-05 óta független a PromNET-től).
 //
 // Body: { email, password, company_name, city? }
 // 1. Validáció (email, password ≥8, company_name ≥2)
-// 2. Email-foglaltság check a PromNET users táblában
-// 3. createPromnetUser → új sor PromNET users-ben (PBKDF2-SHA256 hash)
-// 4. createPromnetSession → új sor PromNET sessions-ben
-// 5. createPlayer (lokális navtycoon DB) → játékos rekord
+// 2. Email-foglaltság check a users táblában
+// 3. createUser — ha az e-mail a PromNET-korszak egyik játékosáé (legacy_accounts), a régi user_id-t kapja,
+//    így a meglévő játékállás (players) visszakerül hozzá
+// 4. createSession
+// 5. createPlayer, ha még nincs játékos-rekord
 // 6. setSessionCookie + return { ok, redirect: '/play' }
-//
-// Egyetlen tranzakcióban nincs (D1 nem támogat cross-DB tranzakciót), így
-// best-effort: ha 5. lépés elhasal, a PromNET-user ÉS session megmarad.
-// A user legközelebb a /play first-hit-en kap player-rekordot
-// (promnet-callback hasonló logikát csinál).
-
 import type { APIContext } from 'astro';
 import {
-  getDB, getPromnetDB,
-  isEmailTaken, createPromnetUser, createPromnetSession,
+  getDB, getAuthDB,
+  isEmailTaken, createUser, createSession, legacyUserId,
   setSessionCookie,
   isValidEmail, passwordIssue, companyNameIssue,
 } from '../../../lib/auth';
@@ -39,8 +34,8 @@ interface SignupBody {
 }
 
 export async function POST(context: APIContext): Promise<Response> {
-  const pdb = getPromnetDB(context);
-  if (!pdb) return jerr(500, 'PROMNET_DB nincs konfigurálva.');
+  const pdb = getAuthDB(context);
+  if (!pdb) return jerr(500, 'DB nincs konfigurálva.');
   const db = getDB(context);
   if (!db) return jerr(500, 'DB nincs konfigurálva.');
 
@@ -72,13 +67,13 @@ export async function POST(context: APIContext): Promise<Response> {
       return jerr(409, 'Ezzel az email-címmel már regisztráltak.');
     }
 
-    // 1) PromNET user (display_name = company_name első verzióban)
-    const user = await createPromnetUser(pdb, email, password, companyName);
+    // 1) User (display_name = company_name); régi játékosnál a régi azonosítóval
+    const user = await createUser(pdb, email, password, companyName, await legacyUserId(pdb, email));
 
-    // 2) PromNET session
+    // 2) Session
     const ip = context.request.headers.get('cf-connecting-ip') ?? undefined;
     const ua = context.request.headers.get('user-agent') ?? undefined;
-    const token = await createPromnetSession(pdb, user.id, ip, ua);
+    const token = await createSession(pdb, user.id, ip, ua);
 
     // 3) Hyperscales player + starter-bootstrap — best-effort.
     // Ha a player már létezik (pl. callback-bridge előbb futott), nem

@@ -19,11 +19,7 @@ binding = "DB"
 database_name = "navtycoon-prod"
 database_id = "b044638b-743d-4287-b0ee-181288b8c3a4"
 
-# Cross-brand: PromNET shared user-DB (read-only access SSO-hoz, plan-tier lookuphoz).
-[[d1_databases]]
-binding = "PROMNET_DB"
-database_name = "promnet-prod"
-database_id = "6ae31f06-a817-44c9-a0ae-7ef090fb0d43"
+# (A PROMNET_DB binding 2026-10-05-én megszűnt: a belépés a saját DB users/sessions tábláiban él.)
 
 # SESSION KV — Astro CF Sessions (platformProxy default-ben ezt keresi).
 [[kv_namespaces]]

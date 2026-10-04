@@ -4,10 +4,11 @@
 
 import { Miniflare } from 'miniflare';
 import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { D1Database } from '@cloudflare/workers-types/experimental';
 
-const MIGRATIONS_DIR = '/home/aika/navtycoon/migrations';
+const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 
 function splitSqlStatements(sql: string): string[] {
   // Sor-megjegyzéseket (`-- …`) eltávolítjuk, nehogy a `;` bennük zavarjon.

@@ -1,5 +1,5 @@
 ---
-// /login — két opció: PromNET SSO bridge VAGY email/password login.
+// /login — email/jelszó belépés (saját fiókok; a PromNET-SSO 2026-10-05-én megszűnt).
 //
 // Smart auth-check: already-logged-in visitor → skip the form, go straight
 // to the requested destination (default /play).
@@ -43,17 +43,6 @@ const locale: Locale = detectLocale();
         <h1 class="text-2xl font-bold">{t(locale, 'auth.login.title')}</h1>
         <p class="text-nt-text-dim text-sm mt-1">{t(locale, 'auth.login.sub')}</p>
       </div>
-    </div>
-
-    <a href="/api/auth/promnet-bridge"
-       class="block w-full px-4 py-3 bg-nt-accent rounded text-center font-semibold mb-4 hover:opacity-90 transition">
-      {t(locale, 'auth.login.promnet')}
-    </a>
-
-    <div class="flex items-center gap-3 my-6">
-      <div class="flex-1 h-px bg-nt-border"></div>
-      <span class="text-xs uppercase tracking-wide text-nt-text-dim">{t(locale, 'auth.login.divider')}</span>
-      <div class="flex-1 h-px bg-nt-border"></div>
     </div>
 
     <form id="login-form" class="space-y-3">
