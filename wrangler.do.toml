@@ -6,7 +6,7 @@ main = "src/do-worker-entry.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
-# Workers AI binding (Llama-3.1-8b)
+# Workers AI binding (Llama-3.3-70b chat, see src/lib/ai/workers-ai.ts)
 [ai]
 binding = "AI"
 
@@ -36,3 +36,7 @@ index_name = "navtycoon-customer-memory"
 # can live for the navtycoon stack.
 [triggers]
 crons = ["*/5 * * * *"]
+
+# Logs (console.error from the AI fallback chain) — the 2026 model retirement went unnoticed for 4 months.
+[observability]
+enabled = true

@@ -26,7 +26,7 @@ database_id = "b044638b-743d-4287-b0ee-181288b8c3a4"
 binding = "SESSION"
 id = "cd93081a3571411b9fa782cdd1336c04"
 
-# Workers AI (Llama-3.1-8b + bge-base embeddings)
+# Workers AI (Llama-3.3-70b chat + bge-base embeddings)
 [ai]
 binding = "AI"
 
