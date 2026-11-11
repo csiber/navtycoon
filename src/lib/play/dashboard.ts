@@ -12,6 +12,8 @@ import { eventLine, ago, type FeedEvent } from './events';
 import { serverName, upgradeName } from './catalog';
 import { SERVER_SPECS, affordableServerTypes } from '../game/server-types';
 import type { EraId } from '../game/types';
+import { assignLoad } from '../game/capacity';
+import { localizePlaceholderTicket } from '../game/customer-spawn';
 
 export interface DashCustomer {
   id: number; name: string; satisfaction: number; churn_risk: number; plan_tier: string;
@@ -145,13 +147,14 @@ export function renderDashboardContent(d: DashboardData): string {
       </section>`;
 
   // ─── Fleet (real servers) ───
-  const totalCap = d.servers.reduce((a, x) => a + x.capacity, 0);
+  const loaded = assignLoad(d.servers, active.length);
+  const totalCap = loaded.totalCapacity;
   const rows: string[] = [];
   for (let i = 0; i < Math.max(5, d.servers.length) && i < 8; i++) {
-    const sv = d.servers[i];
+    const sv = loaded.servers[i];
     const lbl = 'U' + (22 - i);
     if (sv) {
-      const util = sv.capacity > 0 ? Math.round((sv.current_load / sv.capacity) * 100) : 0;
+      const util = sv.util;
       const cls = util >= 80 ? 'u hot' : util >= 60 ? 'u warn' : 'u';
       rows.push(`<div class="${cls}"><span class="lbl">${lbl}</span><span class="name">${esc(serverName(L, sv.type, SERVER_SPECS[sv.type as keyof typeof SERVER_SPECS]?.display_name ?? sv.type))}</span><span class="leds"><i class="${util >= 80 ? 'r' : 'g'}"></i><i class="g"></i><i class="${util >= 60 ? 'a' : 'g'}"></i></span><span class="util">${util}%</span></div>`);
     } else {
@@ -210,7 +213,7 @@ export function renderDashboardContent(d: DashboardData): string {
     : d.tickets.map((t, i) => {
       const nm = t.cust_name ?? '?';
       const avCls = ['av-K', 'av-D', 'av-A', 'av-M', 'av-R'][i % 5];
-      return `<a class="ticket-row" href="/play/tickets"><div class="av ${avCls}">${esc(nm.trim().charAt(0).toUpperCase() || '?')}</div><div class="info"><div class="who">${esc(nm)}</div><div class="msg">${esc(t.summary.slice(0, 90))}</div></div><span class="age">${esc(ago(L, d.now - t.created_at))}</span></a>`;
+      return `<a class="ticket-row" href="/play/tickets"><div class="av ${avCls}">${esc(nm.trim().charAt(0).toUpperCase() || '?')}</div><div class="info"><div class="who">${esc(nm)}</div><div class="msg">${esc(localizePlaceholderTicket(t.summary, L).slice(0, 90))}</div></div><span class="age">${esc(ago(L, d.now - t.created_at))}</span></a>`;
     }).join('');
   const ticketsPanel = `
       <section class="panel tickets-panel">
@@ -315,9 +318,4 @@ export function renderDashboardContent(d: DashboardData): string {
     </div>`;
 }
 
-const CONTENT_RE = /<div class="content">[\s\S]*<\/div>\s*<\/main>/;
-
-/** A sablon <div class="content">…</div> blokkját a valós vezérlőre cseréli. */
-export function applyDashboardContent(pageHtml: string, contentHtml: string): string {
-  return pageHtml.replace(CONTENT_RE, () => contentHtml + '\n  </main>');
-}
+export { applyContent as applyDashboardContent } from './shell';

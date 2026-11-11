@@ -274,6 +274,13 @@ export function applyShell(pageHtml: string, s: ShellData, active: NavId, crumbs
   return out;
 }
 
+const CONTENT_RE = /<div class="content">[\s\S]*<\/div>\s*<\/main>/;
+
+/** A sablon <div class="content">…</div> blokkját (a </main>-ig) a szerveroldalon renderelt tartalomra cseréli. */
+export function applyContent(pageHtml: string, contentHtml: string): string {
+  return pageHtml.replace(CONTENT_RE, () => contentHtml + '\n  </main>');
+}
+
 /** A kliensoldali keret-szkriptnek (toast, számanimáció) átadott szövegek. */
 export function shellClientStrings(locale: PlayLocale): Record<string, string> {
   return clientStrings(locale, ['toast.', 'nav.']);

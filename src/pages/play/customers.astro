@@ -1,6 +1,7 @@
 ---
 // /play/customers -- auth-required.
-import { loadShell, applyShell } from '../../lib/play/shell';
+import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
+import { renderCustomersContent } from '../../lib/play/customers-page';
 import { pt } from '../../lib/play/strings';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
@@ -19,25 +20,22 @@ if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
 if (!player) return Astro.redirect('/play'); // a /play hozza létre a kezdőállást
 
-const customers = await listCustomers(db, user.id, true);
-const customerCount = customers.length;
-const companyName = player.company_name;
-const initials = companyName.split(/\s+/).map((w: string) => w[0] ?? '').join('').slice(0, 2).toUpperCase() || 'HY';
-const dayNum = Math.max(1, Math.floor((Date.now() / 1000 - player.founded_at) / 86400) + 1);
-const founded = new Date(player.founded_at * 1000).getFullYear();
-const cashUsd = (player.cash_usd_cents / 100).toFixed(0);
-const mrrUsd = (player.mrr_usd_cents / 100).toFixed(0);
-const customerData = customers.map(c => ({
-  id: c.id, name: c.name, persona: c.persona_archetype, plan: c.plan_tier,
-  satisfaction: c.satisfaction, ltv: c.lifetime_value_cents / 100,
-  joined: new Date(c.joined_at * 1000).toLocaleDateString('en-US'),
-}));
 const pageCss = "\n  .layout { grid-column: span 12; display: grid; grid-template-columns: 340px 1fr; gap: 18px; }\n  .cust-list { display: flex; flex-direction: column; }\n  .cust-search {\n    padding: 10px 12px; border-bottom: 1px solid var(--line);\n    background: rgba(7,9,15,.4);\n  }\n  .cust-search input {\n    width: 100%; padding: 8px 10px; border-radius: 7px;\n    background: var(--panel-2); border: 1px solid var(--line);\n    color: var(--text); font-family: var(--mono); font-size: 12px;\n  }\n  .cust-search input::placeholder { color: var(--dim); }\n  .cust-filters { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }\n  .cust-filters button {\n    padding: 4px 9px; border-radius: 999px;\n    background: var(--panel-2); border: 1px solid var(--line);\n    color: var(--muted); font-size: 11px; font-family: var(--mono);\n  }\n  .cust-filters button.on { background: rgba(99,102,241,.15); color: var(--indigo-2); border-color: rgba(99,102,241,.4); }\n  .cust-row {\n    display: grid; grid-template-columns: 36px 1fr auto;\n    gap: 10px; padding: 12px 14px;\n    border-bottom: 1px solid var(--line);\n    cursor: pointer; align-items: center;\n  }\n  .cust-row:hover { background: var(--panel-2); }\n  .cust-row.selected { background: rgba(99,102,241,.08); border-left: 3px solid var(--indigo); padding-left: 11px; }\n  .cust-row .av {\n    width: 36px; height: 36px; border-radius: 50%;\n    display: grid; place-items: center;\n    font-family: var(--mono); font-weight: 700; font-size: 13px; color: #fff;\n    position: relative;\n  }\n  .cust-row .av::after {\n    content: \"\"; position: absolute; bottom: -1px; right: -1px;\n    width: 11px; height: 11px; border-radius: 50%;\n    background: var(--mint); border: 2px solid var(--panel);\n  }\n  .cust-row .av.angry::after { background: var(--pink); }\n  .cust-row .av.warn::after { background: var(--amber); }\n  .cust-row .name { font-weight: 600; font-size: 13px; }\n  .cust-row .meta { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 1px; }\n  .cust-row .right { text-align: right; }\n  .cust-row .mrr { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--text); }\n  .cust-row .mood { font-family: var(--mono); font-size: 10px; }\n  .cust-row .mood.good { color: var(--mint); }\n  .cust-row .mood.bad { color: var(--pink); }\n  .cust-row .mood.warn { color: var(--amber); }\n  .cust-row .mood.muted { color: var(--dim); }\n\n  /* Profile */\n  .prof-head {\n    padding: 22px 24px;\n    border-bottom: 1px solid var(--line);\n    display: grid; grid-template-columns: auto 1fr auto; gap: 20px;\n    align-items: center;\n    background: linear-gradient(180deg, rgba(244,63,94,.06), transparent);\n  }\n  .prof-head .av {\n    width: 80px; height: 80px; border-radius: 18px;\n    display: grid; place-items: center;\n    font-family: var(--display); font-weight: 700; font-size: 36px; color: #fff;\n    position: relative;\n  }\n  .prof-head .av::after {\n    content: \"\"; position: absolute; bottom: -3px; right: -3px;\n    width: 22px; height: 22px; border-radius: 50%;\n    background: var(--pink); border: 4px solid var(--panel);\n  }\n  .prof-head h2 {\n    margin: 0;\n    font-family: var(--display); font-weight: 700; font-size: 26px;\n    display: flex; align-items: center; gap: 12px;\n  }\n  .prof-head h2 .pill {\n    font-family: var(--mono); font-size: 10px;\n    padding: 3px 8px; border-radius: 999px;\n    background: rgba(244,63,94,.15); color: var(--pink);\n    border: 1px solid rgba(244,63,94,.3);\n    text-transform: uppercase; letter-spacing: 0.08em;\n  }\n  .prof-head .org { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-top: 4px; }\n  .prof-head .org b { color: var(--text); }\n  .prof-actions { display: flex; gap: 8px; }\n\n  .stats-row {\n    padding: 18px 24px;\n    display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;\n    border-bottom: 1px solid var(--line);\n  }\n  .pstat {\n    background: var(--panel-2); border: 1px solid var(--line);\n    border-radius: 9px; padding: 12px 14px;\n  }\n  .pstat .k { font-family: var(--mono); font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }\n  .pstat .v { font-family: var(--display); font-weight: 700; font-size: 18px; margin-top: 4px; }\n  .pstat .v.bad { color: var(--pink); }\n  .pstat .v.good { color: var(--mint); }\n  .pstat .v.warn { color: var(--amber); }\n  .pstat .meta { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }\n\n  .twocol { display: grid; grid-template-columns: 1.3fr 1fr; gap: 0; }\n  .col { padding: 18px 24px; }\n  .col + .col { border-left: 1px solid var(--line); }\n\n  /* Chat */\n  h4.sec {\n    margin: 0 0 12px;\n    font-family: var(--mono); font-size: 11px; color: var(--dim);\n    text-transform: uppercase; letter-spacing: 0.1em;\n  }\n  .chat { display: flex; flex-direction: column; gap: 10px; }\n  .msg {\n    display: grid; grid-template-columns: 28px 1fr; gap: 10px;\n  }\n  .msg .av-mini {\n    width: 28px; height: 28px; border-radius: 50%;\n    display: grid; place-items: center;\n    font-family: var(--mono); font-weight: 700; font-size: 11px; color: #fff;\n  }\n  .msg.me { grid-template-columns: 1fr 28px; }\n  .msg.me .av-mini { background: linear-gradient(135deg, var(--indigo), #4f46e5); }\n  .msg .bubble {\n    padding: 10px 12px; border-radius: 10px;\n    background: var(--panel-2); border: 1px solid var(--line);\n    font-size: 13px; color: var(--text);\n    max-width: 100%;\n  }\n  .msg.me .bubble {\n    background: rgba(99,102,241,.12); border-color: rgba(99,102,241,.3);\n    grid-row: 1; grid-column: 1;\n  }\n  .msg .ts { font-family: var(--mono); font-size: 10px; color: var(--dim); margin-top: 4px; }\n  .msg.me .ts { text-align: right; }\n  .msg .bubble.recall {\n    background: rgba(245,158,11,.06); border-style: dashed;\n    border-color: rgba(245,158,11,.3); color: var(--amber);\n    font-family: var(--mono); font-size: 11px;\n  }\n  .reply {\n    margin-top: 14px;\n    padding: 12px; border-radius: 10px;\n    background: var(--panel-2); border: 1px solid var(--line);\n  }\n  .reply textarea {\n    width: 100%; min-height: 60px;\n    background: transparent; border: 0; resize: none;\n    color: var(--text); font-family: var(--body); font-size: 13px;\n  }\n  .reply textarea:focus { outline: 0; }\n  .reply .row {\n    display: flex; align-items: center; gap: 8px; margin-top: 8px;\n    padding-top: 8px; border-top: 1px dashed var(--line);\n  }\n  .reply .row .ai {\n    font-family: var(--mono); font-size: 11px; color: var(--indigo-2);\n  }\n  .reply .send { margin-left: auto; }\n\n  /* Timeline */\n  .tl { display: flex; flex-direction: column; gap: 0; }\n  .tl-ev {\n    display: grid; grid-template-columns: 64px 20px 1fr; gap: 10px;\n    padding: 10px 0;\n    border-bottom: 1px dashed var(--line);\n    align-items: start;\n  }\n  .tl-ev:last-child { border-bottom: 0; }\n  .tl-ev .day { font-family: var(--mono); font-size: 10px; color: var(--dim); padding-top: 3px; }\n  .tl-ev .dot {\n    width: 12px; height: 12px; border-radius: 50%;\n    background: var(--bg); border: 2px solid var(--indigo);\n    margin: 4px 4px 0; position: relative;\n  }\n  .tl-ev.good .dot { border-color: var(--mint); }\n  .tl-ev.bad .dot { border-color: var(--pink); }\n  .tl-ev.warn .dot { border-color: var(--amber); }\n  .tl-ev .body { font-size: 13px; color: var(--text); }\n  .tl-ev .body small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }\n  .tl-ev .impact { font-family: var(--mono); font-size: 11px; font-weight: 600; }\n  .tl-ev.good .impact { color: var(--mint); }\n  .tl-ev.bad .impact { color: var(--pink); }\n\n  /* Persona memory */\n  .mem-list { display: flex; flex-direction: column; gap: 8px; }\n  .mem {\n    padding: 10px 12px; border-radius: 8px;\n    background: var(--panel-2); border: 1px solid var(--line);\n    font-size: 12px;\n  }\n  .mem .head { display: flex; align-items: center; gap: 8px; }\n  .mem .head .tag {\n    font-family: var(--mono); font-size: 9px;\n    padding: 1px 6px; border-radius: 4px;\n    background: rgba(245,158,11,.15); color: var(--amber);\n    border: 1px solid rgba(245,158,11,.3);\n    text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;\n  }\n  .mem .head .tag.pos { background: rgba(52,211,153,.12); color: var(--mint); border-color: rgba(52,211,153,.25); }\n  .mem .head .ago { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--dim); }\n  .mem .text { margin-top: 6px; color: var(--text); line-height: 1.45; }\n  .mem .text em { font-style: normal; color: var(--amber); font-family: var(--mono); font-size: 11px; }\n\n  @media (max-width: 1100px) {\n    .layout { grid-template-columns: 1fr; }\n    .stats-row { grid-template-columns: repeat(2, 1fr); }\n    .twocol { grid-template-columns: 1fr; }\n    .col + .col { border-left: 0; border-top: 1px solid var(--line); }\n  }\n";
 const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=\"/play\"><div class=\"brand-mark\"></div>Hyperscales</a>\n    <div class=\"company-card\">\n      <div class=\"row\"><div class=\"crest\">SN</div><div><div class=\"name\">SyncNode <span class=\"edit\">✎</span></div><div class=\"sub\">EST 2026 · ERA 1 · DAY 12</div></div></div>\n      <div class=\"runway\"><span>Runway</span><b>26 days</b></div>\n      <div class=\"bar\"><i></i></div>\n    </div>\n    <div class=\"nav-section\">\n      <div class=\"nav-head\" data-i18n=\"dash.nav.operate\">Operate</div>\n      <a class=\"nav-item\" href=\"/play\"><span class=\"ico\">▣</span> <span data-i18n=\"dash.nav.dashboard\">Dashboard</span></a>\n      <a class=\"nav-item\" href=\"/play/servers\"><span class=\"ico\">▤</span> <span data-i18n=\"dash.nav.servers\">Servers</span> <span class=\"badge muted\">2</span></a>\n      <a class=\"nav-item active\"><span class=\"ico\">◉</span> <span data-i18n=\"dash.nav.customers\">Customers</span> <span class=\"badge new\">+1</span></a>\n      <a class=\"nav-item\" href=\"/play/tickets\"><span class=\"ico\">✉</span> <span data-i18n=\"dash.nav.tickets\">Tickets</span> <span class=\"badge\">3</span></a>\n      <a class=\"nav-item\" href=\"/play/finance\"><span class=\"ico\">$</span> <span data-i18n=\"dash.nav.finance\">Finance</span></a>\n    </div>\n    <div class=\"nav-section\">\n      <div class=\"nav-head\" data-i18n=\"dash.nav.grow\">Grow</div>\n      <a class=\"nav-item\" href=\"/play/research\"><span class=\"ico\">⚙</span> <span data-i18n=\"dash.nav.research\">Research</span> <span class=\"badge muted\">0/12</span></a>\n      <a class=\"nav-item\" href=\"/play/marketplace\"><span class=\"ico\">◈</span> <span data-i18n=\"dash.nav.marketplace\">Marketplace</span></a>\n      <a class=\"nav-item locked\" href=\"/play/staff\"><span class=\"ico\">☰</span> <span data-i18n=\"dash.nav.staff\">Staff</span> <span class=\"lock\">🔒 Era 2</span></a>\n      <a class=\"nav-item locked\" href=\"/play/network\"><span class=\"ico\">◴</span> <span data-i18n=\"dash.nav.network\">Network</span> <span class=\"lock\">🔒 Era 2</span></a>\n    </div>\n    <div class=\"nav-section\">\n      <div class=\"nav-head\" data-i18n=\"dash.nav.meta\">Meta</div>\n      <a class=\"nav-item\" href=\"/play/leaderboard\"><span class=\"ico\">⌖</span> <span data-i18n=\"dash.nav.leaderboard\">Leaderboard</span></a>\n      <a class=\"nav-item\" href=\"/play/devlog\"><span class=\"ico\">▶</span> <span data-i18n=\"dash.nav.devlog\">Devlog</span></a>\n      <a class=\"nav-item\" href=\"/play/settings\"><span class=\"ico\">⚒</span> <span data-i18n=\"dash.nav.settings\">Settings</span></a>\n    </div>\n    <div class=\"side-foot\"><div>v0.7.2 · build 18,402</div><a href=\"#\">⌨ Shortcuts ⌘K</a><div class=\"me\"><span class=\"ava\">P</span>promnet · log out</div></div>\n  </aside>\n\n  <main>\n    <header class=\"topbar\">\n      <div class=\"crumbs\"><span>Play</span><span class=\"sep\">›</span><b>Customers</b><span class=\"sep\">›</span><span>Karen Holloway</span></div>\n      <div class=\"clock\"><div class=\"day\">Day 12<small> / 365</small></div><div class=\"time\">03:42 AM</div><div class=\"ctrls\"><button>‖</button><button class=\"on\">▶</button><button>▶▶</button></div></div>\n      <div class=\"topbar-stats\">\n        <div class=\"tstat\"><span class=\"k\" data-i18n=\"dash.topbar.cash\">Cash</span><span class=\"v\">$390<small>+$45/d</small></span></div>\n        <div class=\"tstat\"><span class=\"k\" data-i18n=\"dash.topbar.mrr\">MRR</span><span class=\"v\">$15<small>+$0</small></span></div>\n        <div class=\"tstat\"><span class=\"k\" data-i18n=\"dash.topbar.rep\">Rep</span><span class=\"v\">50<small class=\"dn\">−2</small></span></div>\n      </div>\n      <div class=\"topbar-actions\"><button class=\"bell\" data-count=\"4\">🔔</button></div>\n    </header>\n\n    <div class=\"content\">\n      <div class=\"pagehead\">\n        <div class=\"h-left\">\n          <h1>Customers <span class=\"count\">3 active · 1 trial · 1 lead</span></h1>\n          <div class=\"sub\">Every account is a persistent LLM agent. They remember.</div>\n        </div>\n        <div class=\"h-right\">\n          <button class=\"btn\">Export CSV</button>\n          <button class=\"btn primary\">＋ Invite customer</button>\n        </div>\n      </div>\n\n      <div class=\"layout\">\n\n        <!-- Customer list -->\n        <section class=\"panel cust-list\">\n          <div class=\"cust-search\">\n            <input placeholder=\"Search name, org, email...\" />\n            <div class=\"cust-filters\">\n              <button class=\"on\">All · 5</button>\n              <button>Paying · 2</button>\n              <button>Trial · 1</button>\n              <button>At risk · 1</button>\n              <button>Leads · 1</button>\n            </div>\n          </div>\n          <div class=\"cust-row selected\">\n            <div class=\"av av-K angry\">K</div>\n            <div>\n              <div class=\"name\">Karen Holloway</div>\n              <div class=\"meta\">@ nutricoach.io · 8d</div>\n            </div>\n            <div class=\"right\">\n              <div class=\"mrr\">$19/mo</div>\n              <div class=\"mood bad\">−42 · P1</div>\n            </div>\n          </div>\n          <div class=\"cust-row\">\n            <div class=\"av av-D\">D</div>\n            <div>\n              <div class=\"name\">Devon Park</div>\n              <div class=\"meta\">@ pixelbrew · 8d</div>\n            </div>\n            <div class=\"right\">\n              <div class=\"mrr\">$29/mo</div>\n              <div class=\"mood good\">+88 · loyal</div>\n            </div>\n          </div>\n          <div class=\"cust-row\">\n            <div class=\"av av-A warn\">A</div>\n            <div>\n              <div class=\"name\">\"Anon\"</div>\n              <div class=\"meta\">@ ?? burner · 2d trial</div>\n            </div>\n            <div class=\"right\">\n              <div class=\"mrr\">$0 trial</div>\n              <div class=\"mood warn\">? vibes</div>\n            </div>\n          </div>\n          <div class=\"cust-row\">\n            <div class=\"av av-M warn\">M</div>\n            <div>\n              <div class=\"name\">Mira Sato</div>\n              <div class=\"meta\">@ glassmap · lead 6h</div>\n            </div>\n            <div class=\"right\">\n              <div class=\"mrr\">$1.2k/mo</div>\n              <div class=\"mood warn\">quote due 48h</div>\n            </div>\n          </div>\n          <div class=\"cust-row\">\n            <div class=\"av av-R\">R</div>\n            <div>\n              <div class=\"name\">Rita Chen</div>\n              <div class=\"meta\">@ finchat · churned</div>\n            </div>\n            <div class=\"right\">\n              <div class=\"mrr\" style=\"color:var(--dim)\">$0</div>\n              <div class=\"mood muted\">left Day 5</div>\n            </div>\n          </div>\n        </section>\n\n        <!-- Profile -->\n        <section class=\"panel\">\n          <div class=\"prof-head\">\n            <div class=\"av av-K\">K</div>\n            <div>\n              <h2>Karen Holloway <span class=\"pill\">⚠ Churn risk</span></h2>\n              <div class=\"org\">karen@<b>nutricoach.io</b> · solo founder · LLM persona: <b>frustrated indie SaaS</b></div>\n            </div>\n            <div class=\"prof-actions\">\n              <button class=\"btn sm\">Refund $19</button>\n              <button class=\"btn sm\">Offer discount</button>\n              <button class=\"btn sm primary\">Reply to ticket #042</button>\n            </div>\n          </div>\n\n          <div class=\"stats-row\">\n            <div class=\"pstat\"><div class=\"k\">MRR</div><div class=\"v\">$19</div><div class=\"meta\">Since Day 4</div></div>\n            <div class=\"pstat\"><div class=\"k\">LTV (est)</div><div class=\"v warn\">$73</div><div class=\"meta\">Below break-even</div></div>\n            <div class=\"pstat\"><div class=\"k\">Mood</div><div class=\"v bad\">−42</div><div class=\"meta\">3rd P1 ticket</div></div>\n            <div class=\"pstat\"><div class=\"k\">Churn risk</div><div class=\"v bad\">81%</div><div class=\"meta\">Forum risk: high</div></div>\n            <div class=\"pstat\"><div class=\"k\">Tickets</div><div class=\"v\">7</div><div class=\"meta\">5 closed · 2 open</div></div>\n          </div>\n\n          <div class=\"twocol\">\n            <!-- Chat -->\n            <div class=\"col\">\n              <h4 class=\"sec\">Conversation · last 24h</h4>\n              <div class=\"chat\">\n                <div class=\"msg\">\n                  <div class=\"av-mini av-K\">K</div>\n                  <div>\n                    <div class=\"bubble\">This is the THIRD time my checkout has 500'd this week. I have receipts and screenshots. I pay $19/mo. NINETEEN.</div>\n                    <div class=\"ts\">03:31 AM · Day 12</div>\n                  </div>\n                </div>\n                <div class=\"msg\">\n                  <div class=\"av-mini av-K\">K</div>\n                  <div>\n                    <div class=\"bubble recall\">⚲ persona memory recalled · \"you bumped my price Day 7 without notice\"</div>\n                    <div class=\"ts\">03:31 AM · auto-injected</div>\n                  </div>\n                </div>\n                <div class=\"msg me\">\n                  <div>\n                    <div class=\"bubble\">Karen, looking into U22 latency right now. I'll waive your invoice this month and patch the route. Sorry.</div>\n                    <div class=\"ts\">03:33 AM · you</div>\n                  </div>\n                  <div class=\"av-mini\">P</div>\n                </div>\n                <div class=\"msg\">\n                  <div class=\"av-mini av-K\">K</div>\n                  <div>\n                    <div class=\"bubble\">Patching the \"route\" doesn't bring back the 4 leads I lost. But fine. Waive this month and next, and I'll consider not posting on /r/budgethosting.</div>\n                    <div class=\"ts\">03:37 AM · Day 12</div>\n                  </div>\n                </div>\n              </div>\n              <div class=\"reply\">\n                <textarea placeholder=\"Reply to Karen... (the LLM reads everything you say, forever)\"></textarea>\n                <div class=\"row\">\n                  <span class=\"ai\">✨ Lin-1 suggests: \"Two months waived, sincere apology, no spin.\"</span>\n                  <button class=\"btn sm\">Refund $19</button>\n                  <button class=\"btn sm primary send\">Send →</button>\n                </div>\n              </div>\n            </div>\n\n            <!-- Timeline + memory -->\n            <div class=\"col\">\n              <h4 class=\"sec\">Relationship timeline</h4>\n              <div class=\"tl\">\n                <div class=\"tl-ev good\">\n                  <div class=\"day\">Day 4</div>\n                  <div class=\"dot\"></div>\n                  <div>\n                    <div class=\"body\">Signed up via Marketplace listing</div>\n                    <small>Picked $19 Starter plan · auto-billed</small>\n                  </div>\n                </div>\n                <div class=\"tl-ev good\">\n                  <div class=\"day\">Day 5</div>\n                  <div class=\"dot\"></div>\n                  <div><div class=\"body\">First positive feedback</div><small>\"setup was actually easy, surprised\"</small></div>\n                </div>\n                <div class=\"tl-ev warn\">\n                  <div class=\"day\">Day 7</div>\n                  <div class=\"dot\"></div>\n                  <div><div class=\"body\">Price bump from $15→$19</div><small>Didn't email her first · she noticed</small></div>\n                </div>\n                <div class=\"tl-ev bad\">\n                  <div class=\"day\">Day 9</div>\n                  <div class=\"dot\"></div>\n                  <div><div class=\"body\">P1 ticket #018 · checkout 500</div><small>Resolved in 2h · she said \"noted\"</small></div>\n                </div>\n                <div class=\"tl-ev bad\">\n                  <div class=\"day\">Day 11</div>\n                  <div class=\"dot\"></div>\n                  <div><div class=\"body\">P1 ticket #029 · checkout 500 again</div><small>Resolved in 6h · cold reply</small></div>\n                </div>\n                <div class=\"tl-ev bad\">\n                  <div class=\"day\">Day 12</div>\n                  <div class=\"dot\"></div>\n                  <div><div class=\"body\">P1 ticket #042 · open now</div><small>Mentioned forum publicly · ⚠</small></div>\n                </div>\n              </div>\n\n              <h4 class=\"sec\" style=\"margin-top: 20px;\">Persona memory (LLM context)</h4>\n              <div class=\"mem-list\">\n                <div class=\"mem\">\n                  <div class=\"head\"><span class=\"tag\">grudge</span><span class=\"ago\">Day 7</span></div>\n                  <div class=\"text\">You bumped her plan from $15 to <em>$19/mo</em> without an email. She found out from the invoice.</div>\n                </div>\n                <div class=\"mem\">\n                  <div class=\"head\"><span class=\"tag\">pattern</span><span class=\"ago\">Day 9–12</span></div>\n                  <div class=\"text\">Three checkout 500s in 4 days. All on <em>U22</em>. She tracks errors in a spreadsheet.</div>\n                </div>\n                <div class=\"mem\">\n                  <div class=\"head\"><span class=\"tag pos\">leverage</span><span class=\"ago\">Day 12</span></div>\n                  <div class=\"text\">She has <em>4,200 followers</em> on a small SaaS newsletter. Forum thread risk is real.</div>\n                </div>\n                <div class=\"mem\">\n                  <div class=\"head\"><span class=\"tag pos\">soft spot</span><span class=\"ago\">Day 5</span></div>\n                  <div class=\"text\">She liked your setup flow. Lead with that if you apologize.</div>\n                </div>\n              </div>\n            </div>\n          </div>\n\n        </section>\n      </div>\n    </div>\n  </main>\n</div>\n";
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
-const shellHtml = applyShell(pageHtml, shell, 'customers', [pt(locale, 'nav.customers')]);
+const allCustomers = (await db.prepare(
+  'SELECT id, name, persona_archetype, plan_tier, joined_at, satisfaction, churn_risk, is_active FROM customers WHERE player_id = ? ORDER BY joined_at DESC LIMIT 200',
+).bind(user.id).all<{ id: number; name: string; persona_archetype: string; plan_tier: string; joined_at: number; satisfaction: number; churn_risk: number; is_active: number }>()).results ?? [];
+const custTickets = (await db.prepare(
+  'SELECT id, customer_id, summary, full_text, status, resolution, created_at, resolved_at FROM tickets WHERE player_id = ? ORDER BY created_at DESC LIMIT 400',
+).bind(user.id).all<{ id: number; customer_id: number; summary: string; full_text: string; status: string; resolution: string | null; created_at: number; resolved_at: number | null }>()).results ?? [];
+const custContent = renderCustomersContent({
+  shell, now: Math.floor(Date.now() / 1000), customers: allCustomers, tickets: custTickets,
+  prices: { hobby: player.pricing_hobby_cents, business: player.pricing_business_cents },
+});
+const shellHtml = applyContent(applyShell(pageHtml, shell, 'customers', [pt(locale, 'nav.customers')]), custContent);
 ---
 <!doctype html>
 <html lang="en">
@@ -59,178 +57,32 @@ const shellHtml = applyShell(pageHtml, shell, 'customers', [pt(locale, 'nav.cust
 </head>
 <body class="preload">
 <Fragment set:html={shellHtml} />
-{customerCount === 0 && (
-  <div id="customers-empty-cta" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--line-2);border-radius:16px;padding:32px;max-width:480px;text-align:center;z-index:50;">
-    <div style="font-size:56px;margin-bottom:12px;">🌱</div>
-    <h2 style="font-family:var(--display);font-size:22px;font-weight:700;margin:0 0 12px;">No customers yet</h2>
-    <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:20px;">
-      Customers come automatically as your servers attract traffic. Make sure you have at least one server
-      and your marketing-mix is non-zero. Set your pricing to attract the type of customer you want.
-    </p>
-    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-      <a href="/play/servers" style="padding:8px 16px;background:var(--indigo);color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">Manage servers</a>
-      <a href="/play/marketing" style="padding:8px 16px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;text-decoration:none;font-size:13px;">Marketing mix</a>
-    </div>
-  </div>
-)}
-<script type="application/json" id="state" set:html={jsonForScript({
-    company: companyName, initials, founded, day: dayNum, era: player.current_era,
-    cashUsd, mrrUsd, rep: player.reputation, customers: customerData,
-  })}></script>
-
 <script is:inline>
-    try {
-      const s = JSON.parse(document.getElementById('state').textContent);
-      const h1 = document.querySelector('.pagehead h1');
-      if (h1) {
-        const count = h1.querySelector('.count');
-        if (h1.firstChild) h1.firstChild.textContent = 'Customers ';
-        if (count) count.textContent = s.customers.length + ' active';
-      }
-      const PORTRAITS = {
-        karen: '/img/persona-karen.webp',
-        newbie: '/img/persona-loyalist.webp',
-        pro: '/img/persona-pro.webp',
-        cheapskate: '/img/persona-cheapskate.webp',
-        ghost: '/img/persona-ghost.webp',
-        loyalist: '/img/persona-loyalist.webp',
-        drama: '/img/persona-drama.webp',
-        crypto: '/img/persona-crypto.webp',
-      };
-      const planPriceCents = { hobby: 500, starter: 1900, standard: 2900, pro: 9900, enterprise: 49900 };
-
-      // Re-render the profile panel for whichever customer is selected.
-      // Called once on initial paint, then again on every row click — fixes
-      // the "díísz?" bug where the cust-rows had cursor:pointer but no
-      // click handler.
-      function renderProfile(c) {
-        const crumbs = document.querySelector('.crumbs span:last-child');
-        if (crumbs) crumbs.textContent = c ? c.name : 'customers';
-        if (!c) return;
-        const profHead = document.querySelector('.prof-head');
-        if (profHead) {
-          const initial = (c.name[0] || '?').toUpperCase();
-          const av = profHead.querySelector('.av');
-          if (av) {
-            av.textContent = initial;
-            av.className = 'av av-' + initial;
-            const portrait = PORTRAITS[c.persona] || '/img/persona-anon.webp';
-            av.style.backgroundImage = 'url(' + portrait + ')';
-            av.style.backgroundSize = 'cover';
-            av.style.backgroundPosition = 'center';
-            av.style.color = 'transparent';
-          }
-          const h2 = profHead.querySelector('h2');
-          if (h2) {
-            const pill = h2.querySelector('.pill');
-            h2.textContent = c.name + ' ';
-            if (pill) {
-              pill.textContent = c.satisfaction < 30 ? '⚠ Churn risk' : c.satisfaction < 60 ? 'Watch' : 'Healthy';
-              h2.appendChild(pill);
-            }
-          }
-          const org = profHead.querySelector('.org');
-          if (org) {
-            org.replaceChildren();
-            org.appendChild(document.createTextNode(c.plan + ' plan · LLM persona: '));
-            const b = document.createElement('b');
-            b.textContent = c.persona;
-            org.appendChild(b);
-          }
-        }
-        const stats = document.querySelectorAll('.stats-row .pstat');
-        if (stats.length >= 5) {
-          const mrrCents = planPriceCents[c.plan] || 0;
-          stats[0].querySelector('.v').textContent = '$' + (mrrCents/100).toFixed(0);
-          stats[0].querySelector('.meta').textContent = 'Plan: ' + c.plan;
-          stats[1].querySelector('.v').textContent = '$' + c.ltv.toFixed(0);
-          stats[1].querySelector('.v').className = 'v' + (c.ltv >= 50 ? ' good' : ' warn');
-          stats[1].querySelector('.meta').textContent = 'Lifetime revenue';
-          const moodDelta = c.satisfaction - 50;
-          stats[2].querySelector('.v').textContent = (moodDelta > 0 ? '+' : '') + moodDelta;
-          stats[2].querySelector('.v').className = 'v' + (moodDelta >= 20 ? ' good' : moodDelta < -10 ? ' bad' : ' warn');
-          stats[2].querySelector('.meta').textContent = 'Satisfaction ' + c.satisfaction + '/100';
-          const churn = Math.max(0, Math.min(100, 100 - c.satisfaction));
-          stats[3].querySelector('.v').textContent = churn + '%';
-          stats[3].querySelector('.v').className = 'v' + (churn >= 60 ? ' bad' : churn >= 30 ? ' warn' : ' good');
-          stats[3].querySelector('.meta').textContent = c.satisfaction < 30 ? 'Forum risk' : 'Stable';
-          stats[4].querySelector('.v').textContent = '—';
-          stats[4].querySelector('.meta').textContent = 'See Tickets';
-        }
-        document.querySelectorAll('.twocol .col').forEach((col) => {
-          col.replaceChildren();
-          const note = document.createElement('div');
-          note.style.cssText = 'padding:18px;color:var(--dim);font-family:var(--mono);font-size:11px;text-align:center;';
-          note.textContent = 'Per-customer chat history + persona-memory comes online after first cron-tick LLM run.';
-          col.appendChild(note);
+  (function () {
+    // Ügyfél kiválasztása + szűrők (szerveroldali adat, csak megjelenítés-váltás).
+    const rows = Array.from(document.querySelectorAll('.cust-row[data-cust]'));
+    function select(row) {
+      rows.forEach((r) => r.classList.toggle('selected', r === row));
+      const id = row.getAttribute('data-cust');
+      document.querySelectorAll('[data-cust-prof]').forEach((p) => { p.hidden = p.getAttribute('data-cust-prof') !== id; });
+    }
+    rows.forEach((r) => r.addEventListener('click', () => select(r)));
+    document.querySelectorAll('[data-cf]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const f = btn.getAttribute('data-cf');
+        document.querySelectorAll('[data-cf]').forEach((b) => b.classList.toggle('on', b === btn));
+        let first = null;
+        rows.forEach((r) => {
+          const tags = (r.getAttribute('data-tags') || '').split(' ');
+          const show = f === 'all' || tags.includes(f);
+          r.hidden = !show;
+          if (show && !first) first = r;
         });
-      }
-
-      const list = document.querySelector('.cust-list');
-      if (list && s.customers.length >= 0) {
-        list.querySelectorAll('.cust-row').forEach(r => r.remove());
-        if (s.customers.length === 0) {
-          const empty = document.createElement('div');
-          empty.style.padding = '24px';
-          empty.style.color = 'var(--muted)';
-          empty.textContent = 'No customers yet. Buy a server to attract them.';
-          list.appendChild(empty);
-        }
-        s.customers.forEach((c, i) => {
-          const initial = (c.name[0] || '?').toUpperCase();
-          const row = document.createElement('div');
-          row.className = 'cust-row' + (i === 0 ? ' selected' : '');
-          const av = document.createElement('div');
-          av.className = 'av av-' + initial;
-          const portrait = PORTRAITS[c.persona] || '/img/persona-anon.webp';
-          av.style.backgroundImage = 'url(' + portrait + ')';
-          av.style.backgroundSize = 'cover';
-          av.style.backgroundPosition = 'center';
-          av.style.color = 'transparent';
-          av.textContent = initial;
-          const mid = document.createElement('div');
-          const mname = document.createElement('div');
-          mname.className = 'name';
-          mname.textContent = c.name;
-          const mmeta = document.createElement('div');
-          mmeta.className = 'meta';
-          mmeta.textContent = c.plan.toUpperCase() + ' · joined ' + c.joined;
-          mid.appendChild(mname);
-          mid.appendChild(mmeta);
-          const right = document.createElement('div');
-          right.className = 'right';
-          const mrr = document.createElement('div');
-          mrr.className = 'mrr';
-          mrr.textContent = '$' + c.ltv.toFixed(0) + ' LTV';
-          const mood = document.createElement('div');
-          mood.className = 'mood ' + (c.satisfaction >= 60 ? 'good' : c.satisfaction >= 30 ? 'warn' : 'bad');
-          mood.textContent = c.satisfaction + ' · ' + c.persona;
-          right.appendChild(mrr);
-          right.appendChild(mood);
-          row.appendChild(av);
-          row.appendChild(mid);
-          row.appendChild(right);
-          // Click to select — fixes "díísz?" bug.
-          row.addEventListener('click', () => {
-            list.querySelectorAll('.cust-row').forEach(r => r.classList.remove('selected'));
-            row.classList.add('selected');
-            renderProfile(c);
-          });
-          list.appendChild(row);
-        });
-      }
-
-      renderProfile(s.customers[0]);
-
-      // ─── DROP mock buttons ──────────────────────────────────────────
-      // Profile-head action buttons (Refund $19 / Offer discount /
-      // Reply to ticket #042) are hardcoded per-ticket-ID actions; not
-      // wired to current customer state.
-      document.querySelectorAll('.prof-actions .btn').forEach((b) => b.remove());
-      // Pagehead "Export CSV" + "Invite customer" — not implemented.
-      document.querySelectorAll('.pagehead .h-right .btn').forEach((b) => b.remove());
-    } catch (e) { console.error('hydrate', e); }
-  </script>
+        if (first) select(first);
+      });
+    });
+  })();
+</script>
 <script is:inline>
   // Hide mock-data flash: remove preload-class once hydrators have run.
   window.addEventListener('load', function () {

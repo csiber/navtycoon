@@ -29,3 +29,14 @@ describe('dailyCashFlow', () => {
       .toBe(PPC_FULL_COST_PER_TICK_CENTS * 288);
   });
 });
+
+import { assignLoad } from '../capacity';
+describe('assignLoad (customers spread over servers)', () => {
+  it('fills servers in order up to capacity and reports overflow', () => {
+    const r = assignLoad([{ id: 1, capacity: 2 }, { id: 2, capacity: 3 }], 4);
+    expect(r.servers.map((s) => s.load)).toEqual([2, 2]);
+    expect(r.servers.map((s) => s.util)).toEqual([100, 67]);
+    expect(r.overflow).toBe(0);
+    expect(assignLoad([{ id: 1, capacity: 2 }], 5).overflow).toBe(3);
+  });
+});
