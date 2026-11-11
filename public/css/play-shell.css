@@ -379,3 +379,7 @@ header.topbar .clock .day { white-space: nowrap; }
 .play-slot aside { position: static !important; height: auto !important; border-right: 0 !important; display: block !important; z-index: auto !important; }
 .play-slot button[disabled], .play-slot input[disabled] { opacity: .5; cursor: not-allowed; }
 @media (max-width: 900px) { .play-slot { padding: 16px 12px 80px; } }
+.rack-vis .u-row .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.content .detail-grid .dgrid { min-width: 0; }
+.content .detail-grid .dgrid .v { font-size: 17px; overflow-wrap: anywhere; }
+.content .detail-grid .dgrid .meta, .content .detail-grid .dgrid .k { overflow-wrap: anywhere; }

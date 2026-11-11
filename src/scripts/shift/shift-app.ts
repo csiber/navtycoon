@@ -325,9 +325,17 @@ document.querySelectorAll<HTMLButtonElement>('#shift-area [data-action]').forEac
     b.disabled = true;
     b.classList.add('ring-2', 'ring-nt-accent');
     const notice = document.getElementById('shift-notice');
+    const doneText = (LABELS.action_done ?? '✓ {action}').replace('{action}', label.trim());
     if (notice) {
-      notice.textContent = (LABELS.action_done ?? '✓ {action}').replace('{action}', label.trim());
+      notice.textContent = doneText;
       notice.classList.remove('hidden');
+    }
+    // Pénzmozgásnál (visszatérítés, eszkaláció) és lezárásnál toast is — a beágyazott ablakból a vezérlőn jelenik meg.
+    if (action && /^(refund_|escalate|close)/.test(action)) {
+      try {
+        const host = (window.parent && window.parent !== window ? window.parent : window) as unknown as { hsToast?: (t: string, k?: string) => void };
+        host.hsToast?.(doneText, action === 'close' ? 'good' : 'bad');
+      } catch { /* cross-origin guard */ }
     }
     setTimeout(() => {
       b.classList.remove('ring-2', 'ring-nt-accent');
