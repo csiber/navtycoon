@@ -1,6 +1,7 @@
 ---
 // /play/community/[id] — single forum thread with replies
-import Base from '../../../layouts/Base.astro';
+import PlayLayout from '../../../layouts/PlayLayout.astro';
+import { pt as ptNav } from '../../../lib/play/strings';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getThread, listReplies } from '../../../lib/forum/db';
 import { translateThread, translateReply, type ForumLang } from '../../../lib/forum/translations';
@@ -55,7 +56,7 @@ const repliesLabel = replies.length === 1
   ? t(viewerLang, 'community.thread.replies_one').replace('{n}', String(replies.length))
   : t(viewerLang, 'community.thread.replies_other').replace('{n}', String(replies.length));
 ---
-<Base title={thread.title}>
+<PlayLayout title={thread.title} active="community" crumbs={[ptNav(viewerLang, 'nav.community'), thread.title.slice(0, 40)]}>
   <div class="max-w-3xl mx-auto">
     <a href="/play/community" class="text-sm text-nt-text-dim hover:text-nt-text transition">{t(viewerLang, 'community.thread.back')}</a>
 
@@ -151,4 +152,4 @@ const repliesLabel = replies.length === 1
       location.reload();
     });
   </script>
-</Base>
+</PlayLayout>

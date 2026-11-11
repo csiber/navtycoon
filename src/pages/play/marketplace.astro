@@ -1,7 +1,8 @@
 ---
 // /play/marketplace — easy-v0.8: passive board of NPC + player listings.
 // Phase 2 will add real transactions; this is read + post-your-own.
-import Base from '../../layouts/Base.astro';
+import PlayLayout from '../../layouts/PlayLayout.astro';
+import { pt as ptNav } from '../../lib/play/strings';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { listListings } from '../../lib/marketplace/db';
 import { translateListing, type ListingLang } from '../../lib/marketplace/translations';
@@ -85,7 +86,7 @@ const BUY_SUCCESS_TEMPLATE = t(viewerLang, 'marketplace.buy_success');
 const ERR_INSUFFICIENT = t(viewerLang, 'marketplace.err.insufficient_cash');
 const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
 ---
-<Base title={t(viewerLang, 'marketplace.page_title')}>
+<PlayLayout title={t(viewerLang, 'marketplace.page_title')} active="marketplace" crumbs={[ptNav(viewerLang, 'nav.marketplace')]}>
   <div class="max-w-5xl mx-auto">
     <div class="flex items-baseline justify-between mb-2">
       <div>
@@ -364,4 +365,4 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
       setTimeout(() => location.reload(), 600);
     });
   </script>
-</Base>
+</PlayLayout>

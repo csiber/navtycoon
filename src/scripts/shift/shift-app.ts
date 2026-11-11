@@ -47,6 +47,8 @@ interface ShiftLabels {
   arch_newbie: string; arch_pro: string; arch_cheapskate: string;
   arch_karen: string; arch_loyalist: string; arch_ghost: string;
   arch_drama: string; arch_crypto: string;
+  achievements?: Record<string, { title: string; desc: string; emoji: string }>;
+  action_done?: string; closed_note?: string; ended_note?: string;
 }
 const LABELS: ShiftLabels = (() => {
   const node = document.getElementById('shift-labels');
@@ -124,6 +126,7 @@ function attachWs(sock: WebSocket) {
         const idx = lastState.queue.findIndex((c) => c.ticket_id === msg.ticket_id);
         if (idx >= 0) {
           lastState.queue[idx].current_satisfaction = msg.new_satisfaction;
+          updateSummary({ remDelta: -1 });
           lastState.queue[idx].conversation.push({
             role: 'customer',
             text: msg.text,
@@ -212,10 +215,36 @@ function renderActive(state: ShiftStateMsg) {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+// Fejléc-számlálók („N nyitott ticket · M AI-válasz maradt · K műszak ma") élőben frissülnek.
+const summaryEl = document.getElementById('shift-summary');
+function updateSummary(patch: { open?: number; remDelta?: number; shiftsDelta?: number }) {
+  if (!summaryEl) return;
+  const d = summaryEl.dataset;
+  if (patch.open !== undefined) d.open = String(patch.open);
+  if (patch.remDelta) d.rem = String(Math.max(0, Number(d.rem || 0) + patch.remDelta));
+  if (patch.shiftsDelta) d.shifts = String(Number(d.shifts || 0) + patch.shiftsDelta);
+  summaryEl.textContent = (d.tpl || '')
+    .replace('{open}', d.open || '0').replace('{used}', d.rem || '0')
+    .replace('{cap}', d.cap || '0').replace('{shifts}', d.shifts || '0');
+}
+
+// A válaszmező és a gombok csak akkor élnek, ha fut a műszak és az aktív ticket még nincs lezárva.
+function setComposer(enabled: boolean, note?: string) {
+  const inp = document.getElementById('msg-input') as HTMLInputElement | null;
+  const send = document.getElementById('msg-send') as HTMLButtonElement | null;
+  if (inp) { inp.disabled = !enabled; if (!enabled && note) inp.placeholder = note; }
+  if (send) send.disabled = !enabled;
+  document.querySelectorAll<HTMLButtonElement>('#shift-area [data-action]').forEach((b) => { b.disabled = !enabled; });
+}
+
 function applyState(state: ShiftStateMsg) {
   lastState = state;
   renderQueue(state);
   renderActive(state);
+  updateSummary({ open: state.queue.filter((c) => c.status === 'pending' || c.status === 'active').length });
+  const active = state.queue[state.active_index];
+  const live = state.status === 'active' && !!active && (active.status === 'pending' || active.status === 'active');
+  setComposer(live, state.status !== 'active' ? LABELS.ended_note : LABELS.closed_note);
 }
 
 function showShiftEnd(
@@ -236,9 +265,15 @@ function showShiftEnd(
   if (newlyUnlocked && newlyUnlocked.length > 0) {
     const ach = document.createElement('p');
     ach.style.cssText = 'margin-top:12px;color:var(--mint,#34d399);font-weight:600;';
-    ach.textContent = LABELS.end_unlocked + ': ' + newlyUnlocked.join(', ');
+    const names = newlyUnlocked.map((id) => {
+      const a = LABELS.achievements?.[id];
+      return a ? `${a.emoji} ${a.title}` : id.replace(/[_-]+/g, ' ');
+    });
+    ach.textContent = LABELS.end_unlocked + ': ' + names.join(', ');
     $('end-summary').after(ach);
   }
+  if (lastState) lastState.status = 'completed';
+  setComposer(false, LABELS.ended_note);
   ws?.close();
 }
 
@@ -256,6 +291,7 @@ async function startShift() {
     return;
   }
   const j = (await r.json()) as { shift_id: string; ws_path: string };
+  updateSummary({ shiftsDelta: 1 });
   wsUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}${j.ws_path}`;
   ws = new WebSocket(wsUrl);
   attachWs(ws);
@@ -280,9 +316,22 @@ $('msg-input')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') $('msg-send').click();
 });
 
-document.querySelectorAll<HTMLElement>('[data-action]').forEach((b) =>
+document.querySelectorAll<HTMLButtonElement>('#shift-area [data-action]').forEach((b) =>
   b.addEventListener('click', () => {
     const action = b.dataset.action;
-    safeSend({ type: 'action', action });
+    if (!safeSend({ type: 'action', action })) return;
+    // Látható visszajelzés (korábban a visszatérítés gomb semmit sem mutatott).
+    const label = b.textContent || '';
+    b.disabled = true;
+    b.classList.add('ring-2', 'ring-nt-accent');
+    const notice = document.getElementById('shift-notice');
+    if (notice) {
+      notice.textContent = (LABELS.action_done ?? '✓ {action}').replace('{action}', label.trim());
+      notice.classList.remove('hidden');
+    }
+    setTimeout(() => {
+      b.classList.remove('ring-2', 'ring-nt-accent');
+      if (lastState?.status === 'active') b.disabled = false;
+    }, 1200);
   }),
 );

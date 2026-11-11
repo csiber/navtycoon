@@ -1,0 +1,54 @@
+---
+// src/layouts/PlayLayout.astro — a Tailwind-alapú /play oldalak (fórum, piactér, műszak) kerete (2026-11-11).
+// Ugyanazt a közös oldalsávot és felső sávot kapják (src/lib/play/shell.ts), mint a sablon-oldalak, így a
+// navigáció minden oldalon egyforma; mobilon ugyanaz a kicsúszó menü. A tartalom a <slot /> marad.
+import { getCurrentUser, getDB } from '../lib/auth';
+import { getPlayer } from '../lib/game/db';
+import { resolveLocale } from '../lib/i18n/server';
+import { loadShell, renderSidebar, renderTopbar, type NavId } from '../lib/play/shell';
+import I18nDashboard from '../components/I18nDashboard.astro';
+
+interface Props {
+  title: string;
+  active: NavId;
+  crumbs: string[];
+}
+const { title, active, crumbs } = Astro.props;
+type AnyCtx = Parameters<typeof getCurrentUser>[0];
+const ctx = Astro as unknown as AnyCtx;
+const user = await getCurrentUser(ctx);
+const db = getDB(ctx);
+const player = user && db ? await getPlayer(db, user.id) : null;
+const locale = await resolveLocale({ request: Astro.request, db, userId: user?.id });
+const shell = user && db && player ? await loadShell(db, player, user, locale) : null;
+---
+<!doctype html>
+<html lang={locale} class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title} · Hyperscales</title>
+  <meta name="theme-color" content="#07090f" />
+  <meta name="color-scheme" content="dark" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/template.css" />
+  <link rel="stylesheet" href="/css/play-shell.css" />
+  <script is:inline defer src="https://stats.aika.hu/aika.js" data-website-id="4edd333d-1a25-461f-bcd3-25a8bcf7f694" data-domains="hyperscales.app,www.hyperscales.app"></script>
+</head>
+<body class="text-nt-text font-sans">
+  <div class="app">
+    {shell && <Fragment set:html={renderSidebar(shell, active)} />}
+    <main>
+      {shell && <Fragment set:html={renderTopbar(shell, crumbs)} />}
+      <div class="play-slot">
+        <slot />
+      </div>
+    </main>
+  </div>
+  <I18nDashboard />
+  <script is:inline src="/js/play-shell.js"></script>
+</body>
+</html>

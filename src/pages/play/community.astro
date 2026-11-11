@@ -1,7 +1,8 @@
 ---
 // /play/community — forum thread list (newest-first, pinned on top).
 // Async player-to-player + NPC. Auth required.
-import Base from '../../layouts/Base.astro';
+import PlayLayout from '../../layouts/PlayLayout.astro';
+import { pt as ptNav } from '../../lib/play/strings';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { listThreads } from '../../lib/forum/db';
 import { translateThread, type ForumLang } from '../../lib/forum/translations';
@@ -51,7 +52,7 @@ const errorUnknown = t(viewerLang, 'community.error.unknown');
 const repliesWord = t(viewerLang, 'community.thread.replies_other').replace('{n}', '').trim();
 const lastReplyTpl = t(viewerLang, 'community.thread.last_reply');
 ---
-<Base title={t(viewerLang, 'community.page_title')}>
+<PlayLayout title={t(viewerLang, 'community.page_title')} active="community" crumbs={[ptNav(viewerLang, 'nav.community')]}>
   <div class="max-w-4xl mx-auto">
     <div class="flex items-baseline justify-between mb-2">
       <div>
@@ -165,4 +166,4 @@ const lastReplyTpl = t(viewerLang, 'community.thread.last_reply');
       location.href = `/play/community/${j.id}`;
     });
   </script>
-</Base>
+</PlayLayout>

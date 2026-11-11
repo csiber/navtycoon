@@ -7,6 +7,9 @@
 // footer) so the page can be rendered inside an <iframe> modal on /play
 // without the redundant outer header.
 import Base from '../../layouts/Base.astro';
+import PlayLayout from '../../layouts/PlayLayout.astro';
+import { pt as ptNav } from '../../lib/play/strings';
+import { achievementMap } from '../../lib/play/achievements-i18n';
 import { jsonForScript } from '../../lib/safe-json';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer, listTickets } from '../../lib/game/db';
@@ -51,6 +54,8 @@ function detectLocale(): Locale {
   return 'en';
 }
 const locale: Locale = detectLocale();
+// Beágyazva (vezérlő műszak-ablaka) a csupasz Base kell; önálló oldalként a közös /play keret (oldalsáv).
+const Layout = isEmbed ? Base : PlayLayout;
 
 // Labels consumed by shift-app.ts at runtime. Emitted as a JSON
 // <script type="application/json"> block below so the bundled TS can
@@ -79,9 +84,14 @@ const shiftLabels = {
   arch_ghost: t(locale, 'shift.archetype.ghost'),
   arch_drama: t(locale, 'shift.archetype.drama'),
   arch_crypto: t(locale, 'shift.archetype.crypto'),
+  // 2026-11-11: olvasható jelvénynevek (nem „first_shift"), akció-visszajelzés, élő fejléc-számlálók.
+  achievements: achievementMap(locale),
+  action_done: ptNav(locale, 'sh.action_done'),
+  closed_note: ptNav(locale, 'sh.closed_note'),
+  ended_note: ptNav(locale, 'sh.ended_note'),
 };
 ---
-<Base title={t(locale, 'shift.title')}>
+<Layout title={t(locale, 'shift.title')} locale={locale} active="shift" crumbs={[ptNav(locale, 'nav.shift')]}>
   {isEmbed && (
     <style is:global set:html={'header { display: none !important; } footer { display: none !important; } main { padding: 14px !important; max-width: none !important; } body { background: transparent !important; margin: 0 !important; }'}></style>
   )}
@@ -120,7 +130,7 @@ const shiftLabels = {
     `}></script>
   )}
   <h1 class="text-2xl font-bold mb-2">{t(locale, 'shift.title')}</h1>
-  <p class="text-nt-text-dim mb-4 text-sm">
+  <p id="shift-summary" class="text-nt-text-dim mb-4 text-sm" data-tpl={t(locale, 'shift.summary')} data-open={open.length} data-rem={cap_remaining} data-cap={cap} data-shifts={player.free_shifts_today + player.paid_shifts_today}>
     {t(locale, 'shift.summary')
       .replace('{open}', String(open.length))
       .replace('{used}', String(cap_remaining))
@@ -187,4 +197,4 @@ const shiftLabels = {
     // unlike `<script src="/src/scripts/...">` which 404s in production.
     import '../../scripts/shift/shift-app';
   </script>
-</Base>
+</Layout>
