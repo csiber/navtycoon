@@ -21,6 +21,7 @@ import { checkHostingNameBlacklist } from '../../../lib/auth/hosting-blacklist';
 import { computeAchievementInput } from '../../../lib/game/achievements-helper';
 import { checkAndUnlockAchievements } from '../../../lib/game/achievements';
 import type { D1Database } from '@cloudflare/workers-types/experimental';
+import { localeFromRequest, jsonError, type ApiLocale } from '../../../lib/i18n/api-errors';
 
 export const prerender = false;
 
@@ -33,38 +34,45 @@ interface SignupBody {
 }
 
 export async function POST(context: APIContext): Promise<Response> {
+  // A hibaüzenetek a kérés nyelvén mennek vissza (body.lang → hs_lang süti → Accept-Language).
+  let loc: ApiLocale = localeFromRequest(context.request);
   const pdb = getAuthDB(context);
-  if (!pdb) return jerr(500, 'DB nincs konfigurálva.');
+  if (!pdb) return jsonError(500, loc, 'db_missing');
   const db = getDB(context);
-  if (!db) return jerr(500, 'DB nincs konfigurálva.');
+  if (!db) return jsonError(500, loc, 'db_missing');
 
   let body: SignupBody;
   try {
     body = await context.request.json() as SignupBody;
   } catch {
-    return jerr(400, 'Érvénytelen JSON.');
+    return jsonError(400, loc, 'invalid_json');
   }
+  loc = localeFromRequest(context.request, body.lang);
 
   const email = (typeof body.email === 'string' ? body.email : '').trim().toLowerCase();
   const password = typeof body.password === 'string' ? body.password : '';
   const companyName = (typeof body.company_name === 'string' ? body.company_name : '').trim();
   const cityRaw = typeof body.city === 'string' ? body.city.trim() : '';
   const city = cityRaw.length > 0 ? cityRaw.slice(0, 80) : null;
-  const langRaw = typeof body.lang === 'string' ? body.lang.toLowerCase() : '';
-  const preferredLang = (['en', 'hu', 'de'].includes(langRaw) ? langRaw : 'en') as 'en' | 'hu' | 'de';
+  // Az új játékos nyelve: a signup-űrlap választója (body.lang), különben a süti / Accept-Language.
+  const preferredLang = loc;
 
-  if (!isValidEmail(email)) return jerr(400, 'Érvénytelen email-cím.');
-  if (email.endsWith(NO_PASSWORD_EMAIL_DOMAIN)) return jerr(400, 'Érvénytelen email-cím.');
+  if (!isValidEmail(email)) return jsonError(400, loc, 'invalid_email');
+  if (email.endsWith(NO_PASSWORD_EMAIL_DOMAIN)) return jsonError(400, loc, 'invalid_email');
   const pwIssue = passwordIssue(password);
-  if (pwIssue) return jerr(400, pwIssue);
+  if (pwIssue) return jsonError(400, loc, pwIssue);
   const cnIssue = companyNameIssue(companyName);
-  if (cnIssue) return jerr(400, cnIssue);
+  if (cnIssue) return jsonError(400, loc, cnIssue);
   const blackcheck = checkHostingNameBlacklist(companyName);
-  if (blackcheck.blocked) return jerr(400, blackcheck.reason!);
+  if (blackcheck.blocked) {
+    return blackcheck.code === 'company_real_brand_sub'
+      ? jsonError(400, loc, 'company_real_brand_sub', { name: blackcheck.sub ?? '' })
+      : jsonError(400, loc, 'company_real_brand');
+  }
 
   try {
     if (await isEmailTaken(pdb, email)) {
-      return jerr(409, 'Ezzel az email-címmel már regisztráltak.');
+      return jsonError(409, loc, 'email_taken');
     }
 
     // 1) User (display_name = company_name). A PromNET-korszak régi játékállását (legacy_accounts) NEM
@@ -111,14 +119,8 @@ export async function POST(context: APIContext): Promise<Response> {
                                 'Cache-Control': 'private, no-store' } },
     );
   } catch (e) {
-    const msg = (e as Error).message ?? 'Ismeretlen hiba.';
-    return jerr(500, `Regisztráció sikertelen: ${msg}`);
+    // A belső hibaszöveg csak a logba megy, a kliens általános üzenetet kap.
+    console.error('signup failed', e);
+    return jsonError(500, loc, 'signup_failed');
   }
-}
-
-function jerr(status: number, message: string): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: message }),
-    { status, headers: { 'Content-Type': 'application/json' } },
-  );
 }

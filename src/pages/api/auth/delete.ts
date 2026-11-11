@@ -7,14 +7,16 @@ import {
   getCurrentUser, getDB,
   getAuthDB, getSessionCookie, clearSessionCookie, deleteSession,
 } from '../../../lib/auth';
+import { localeFromRequest, jsonError } from '../../../lib/i18n/api-errors';
 
 export const prerender = false;
 
 export async function POST(context: APIContext): Promise<Response> {
+  const loc = localeFromRequest(context.request);
   const user = await getCurrentUser(context);
-  if (!user) return jerr(401, 'Be kell jelentkezned.');
+  if (!user) return jsonError(401, loc, 'unauthorized');
   const db = getDB(context);
-  if (!db) return jerr(500, 'No DB');
+  if (!db) return jsonError(500, loc, 'db_missing');
 
   try {
     await db.prepare('DELETE FROM tickets WHERE player_id = ?').bind(user.id).run();
@@ -32,7 +34,8 @@ export async function POST(context: APIContext): Promise<Response> {
     await db.prepare('DELETE FROM oauth_pending WHERE link_user_id = ?').bind(user.id).run();
     await db.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
   } catch (e) {
-    return jerr(500, 'Account-delete hiba: ' + (e as Error).message);
+    console.error('delete-account failed', e);
+    return jsonError(500, loc, 'internal');
   }
 
   // A cookie-hoz tartozó session (ha a fenti törlés előtt keletkezett volna).
@@ -55,9 +58,3 @@ export async function POST(context: APIContext): Promise<Response> {
   );
 }
 
-function jerr(status: number, message: string): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: message }),
-    { status, headers: { 'Content-Type': 'application/json' } },
-  );
-}

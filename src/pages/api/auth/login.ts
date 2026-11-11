@@ -14,30 +14,35 @@ import {
   verifyPassword, isValidEmail,
 } from '../../../lib/auth';
 import { NO_PASSWORD } from '../../../lib/aikahub';
+import { localeFromRequest, jsonError, type ApiLocale } from '../../../lib/i18n/api-errors';
 
 export const prerender = false;
 
 interface LoginBody {
   email?: string;
   password?: string;
+  lang?: string;
 }
 
 export async function POST(context: APIContext): Promise<Response> {
+  // A hibaüzenetek a kérés nyelvén mennek vissza (body.lang → hs_lang süti → Accept-Language).
+  let loc: ApiLocale = localeFromRequest(context.request);
   const pdb = getAuthDB(context);
-  if (!pdb) return jerr(500, 'DB nincs konfigurálva.');
+  if (!pdb) return jsonError(500, loc, 'db_missing');
 
   let body: LoginBody;
   try {
     body = await context.request.json() as LoginBody;
   } catch {
-    return jerr(400, 'Érvénytelen JSON.');
+    return jsonError(400, loc, 'invalid_json');
   }
+  loc = localeFromRequest(context.request, body.lang);
 
   const email = (typeof body.email === 'string' ? body.email : '').trim().toLowerCase();
   const password = typeof body.password === 'string' ? body.password : '';
 
-  if (!email || !password) return jerr(400, 'Email és jelszó kötelező.');
-  if (!isValidEmail(email)) return jerr(400, 'Érvénytelen email-cím.');
+  if (!email || !password) return jsonError(400, loc, 'email_password_required');
+  if (!isValidEmail(email)) return jsonError(400, loc, 'invalid_email');
 
   try {
     const u = await pdb.prepare(
@@ -48,12 +53,12 @@ export async function POST(context: APIContext): Promise<Response> {
       password_hash: string; password_salt: string;
       display_name: string | null;
     }>();
-    if (!u) return jerr(401, 'Hibás email vagy jelszó.');
+    if (!u) return jsonError(401, loc, 'bad_credentials');
     // AikaHub-fiókos usernek nincs jelszava ('!'), csak a „Belépés AikaHub-fiókkal" gombbal léphet be.
-    if (u.password_hash === NO_PASSWORD) return jerr(401, 'Hibás email vagy jelszó.');
+    if (u.password_hash === NO_PASSWORD) return jsonError(401, loc, 'bad_credentials');
 
     const ok = await verifyPassword(password, u.password_hash, u.password_salt);
-    if (!ok) return jerr(401, 'Hibás email vagy jelszó.');
+    if (!ok) return jsonError(401, loc, 'bad_credentials');
 
     const ip = context.request.headers.get('cf-connecting-ip') ?? undefined;
     const ua = context.request.headers.get('user-agent') ?? undefined;
@@ -68,14 +73,8 @@ export async function POST(context: APIContext): Promise<Response> {
       } },
     );
   } catch (e) {
-    const msg = (e as Error).message ?? 'Ismeretlen hiba.';
-    return jerr(500, `Bejelentkezés sikertelen: ${msg}`);
+    // A belső hibaszöveg csak a logba megy, a kliens általános üzenetet kap.
+    console.error('login failed', e);
+    return jsonError(500, loc, 'login_failed');
   }
-}
-
-function jerr(status: number, message: string): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: message }),
-    { status, headers: { 'Content-Type': 'application/json' } },
-  );
 }

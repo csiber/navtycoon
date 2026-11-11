@@ -257,14 +257,16 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length < 255;
 }
 
-export function passwordIssue(password: string): string | null {
-  if (password.length < 8) return 'A jelszó legalább 8 karakter legyen.';
-  if (password.length > 128) return 'A jelszó max. 128 karakter lehet.';
+/** Jelszó-probléma üzenetkulcsa (src/lib/i18n/api-errors.ts), vagy null. */
+export function passwordIssue(password: string): 'password_too_short' | 'password_too_long' | null {
+  if (password.length < 8) return 'password_too_short';
+  if (password.length > 128) return 'password_too_long';
   return null;
 }
 
-export function companyNameIssue(name: string): string | null {
-  if (name.length < 2) return 'A cégnév legalább 2 karakter legyen.';
-  if (name.length > 80) return 'A cégnév max. 80 karakter lehet.';
+/** Cégnév-probléma üzenetkulcsa (src/lib/i18n/api-errors.ts), vagy null. */
+export function companyNameIssue(name: string): 'company_too_short' | 'company_too_long' | null {
+  if (name.length < 2) return 'company_too_short';
+  if (name.length > 80) return 'company_too_long';
   return null;
 }

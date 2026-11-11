@@ -9,6 +9,7 @@ import {
 } from '../../lib/auth';
 import { handleCallback, stateCookieFor } from '../../lib/aikahub';
 import { ensurePlayer } from '../../lib/game/bootstrap';
+import { localeFromRequest } from '../../lib/i18n/api-errors';
 
 export const prerender = false;
 
@@ -43,7 +44,8 @@ export async function GET(context: APIContext): Promise<Response> {
   try {
     const u = await db.prepare('SELECT id, email, display_name FROM users WHERE id = ?')
       .bind(result.userId).first<{ id: string; email: string; display_name: string | null }>();
-    if (u) await ensurePlayer(db, u);
+    // Új játékos nyelve: a landingen/signupon választott (hs_lang süti), különben Accept-Language.
+    if (u) await ensurePlayer(db, u, localeFromRequest(context.request));
   } catch (e) {
     console.warn('aikahub callback: ensurePlayer (a /play pótolja):', (e as Error).message);
   }

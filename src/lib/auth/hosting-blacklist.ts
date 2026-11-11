@@ -83,7 +83,12 @@ const SUBSTRING_BLACKLIST: readonly string[] = [
 
 export interface BlacklistResult {
   blocked: boolean;
+  /** Magyar indoklás (régi mező, naplózáshoz). A felületre a code + sub alapján fordított szöveg megy. */
   reason?: string;
+  /** Üzenetkulcs a src/lib/i18n/api-errors.ts-ben. */
+  code?: 'company_real_brand' | 'company_real_brand_sub';
+  /** A talált valódi márkanév (company_real_brand_sub esetén). */
+  sub?: string;
 }
 
 export function checkHostingNameBlacklist(name: string): BlacklistResult {
@@ -93,6 +98,7 @@ export function checkHostingNameBlacklist(name: string): BlacklistResult {
   if (NORM_BLACKLIST.has(norm)) {
     return {
       blocked: true,
+      code: 'company_real_brand',
       reason: 'Ez egy valódi hosting/cloud-cég neve. Találj ki egy sajátot — kreatívabb is.',
     };
   }
@@ -101,6 +107,8 @@ export function checkHostingNameBlacklist(name: string): BlacklistResult {
     if (norm.includes(sub)) {
       return {
         blocked: true,
+        code: 'company_real_brand_sub',
+        sub,
         reason: `A "${sub}" valódi cég neve, nem használhatod a játékban. Találj ki egy sajátot.`,
       };
     }
