@@ -173,7 +173,7 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
     ) : (
       <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
         {listings.map((l) => (
-          <article class="p-4 bg-nt-bg-2 border border-nt-border rounded-lg hover:border-nt-accent transition">
+          <article class="mp-card p-4 bg-nt-bg-2 border border-nt-border rounded-lg hover:border-nt-accent transition">
             <div class="flex items-start gap-3">
               <div class={`w-10 h-10 rounded-full flex-shrink-0 grid place-items-center text-sm font-bold ${l.is_npc ? 'bg-nt-bg' : 'bg-nt-accent text-white'}`}>
                 {initial(l.author_name)}
@@ -188,10 +188,14 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
                   <span class="ml-auto">{timeAgo(l.posted_at)}</span>
                 </div>
                 <div class="flex items-baseline justify-between gap-2 mb-1">
-                  <h3 class="font-semibold flex-1 min-w-0 truncate">{l.title}</h3>
+                  <h3 class="mp-title font-semibold flex-1 min-w-0 line-clamp-2 break-words">{l.title}</h3>
                   <span class="text-nt-accent font-mono text-sm whitespace-nowrap">{formatPrice(l.price_cents, l.price_unit)}</span>
                 </div>
-                <p class="text-sm text-nt-text-dim line-clamp-3 whitespace-pre-wrap">{l.body}</p>
+                <p class="mp-body text-sm text-nt-text-dim line-clamp-3 whitespace-pre-wrap break-words">{l.body}</p>
+                <button type="button" class="mp-more hidden mt-1 text-xs font-semibold text-nt-accent hover:underline" aria-expanded="false"
+                        data-more={t(viewerLang, 'marketplace.read_more')} data-less={t(viewerLang, 'marketplace.read_less')}>
+                  {t(viewerLang, 'marketplace.read_more')}
+                </button>
                 <div class="mt-2 flex items-center gap-2 text-xs">
                   <span class="px-1.5 py-0.5 bg-nt-bg rounded text-nt-text-dim">{CAT_LABELS[l.category]}</span>
                 </div>
@@ -217,6 +221,29 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
       </div>
     )}
   </div>
+
+  <script>
+    // Hosszú hirdetés: a cím 2, a szöveg 3 sorra vágva; „Tovább olvasom” csak ott jelenik meg, ahol tényleg van levágott rész.
+    function mpSetup() {
+      document.querySelectorAll<HTMLElement>('.mp-card').forEach((card) => {
+        const btn = card.querySelector<HTMLButtonElement>('.mp-more');
+        const parts = [card.querySelector<HTMLElement>('.mp-title'), card.querySelector<HTMLElement>('.mp-body')].filter(Boolean) as HTMLElement[];
+        if (!btn || btn.dataset.ready) return;
+        const cut = parts.some((el) => el.scrollHeight > el.clientHeight + 1);
+        if (!cut) return;
+        btn.dataset.ready = '1';
+        btn.classList.remove('hidden');
+        btn.addEventListener('click', () => {
+          const open = btn.getAttribute('aria-expanded') !== 'true';
+          parts.forEach((el) => el.classList.toggle('line-clamp-2', !open && el.classList.contains('mp-title')));
+          parts.forEach((el) => el.classList.toggle('line-clamp-3', !open && el.classList.contains('mp-body')));
+          btn.setAttribute('aria-expanded', String(open));
+          btn.textContent = open ? btn.dataset.less! : btn.dataset.more!;
+        });
+      });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mpSetup); else mpSetup();
+  </script>
 
   <div id="buy-confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
     <div class="bg-nt-bg-2 border border-nt-border rounded-lg p-6 max-w-md w-full mx-4 space-y-3">
