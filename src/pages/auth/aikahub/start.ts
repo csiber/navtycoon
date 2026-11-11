@@ -1,43 +1,22 @@
 // GET /auth/aikahub/start — „Belépés AikaHub-fiókkal" (lásd src/lib/aikahub.ts).
 //   ?next=/play/…  belépés utáni cél (csak saját relatív útvonal)
-//   ?link=1        belépett (e-mailes) user összeköti az AikaHub-fiókját (Beállítások)
+// Összekötés (már belépett e-mailes user) NEM itt: az POST /auth/aikahub/link, CSRF-tokennel (claude-3 review) —
+// egy GET-et idegen oldal is elindíthatna, az AikaHub pedig a meglévő webes engedélyt kattintás nélkül jóváhagyja.
 import type { APIContext } from 'astro';
 import { getDB, getCurrentUser, safeNextPath } from '../../../lib/auth';
-import { startFlow, redirectUriFor, STATE_COOKIE, PENDING_TTL_SEC } from '../../../lib/aikahub';
+import { redirectUriFor } from '../../../lib/aikahub';
+import { bare302, redirectToAuthorize } from '../../../lib/aikahub-routes';
 
 export const prerender = false;
 
 export async function GET(context: APIContext): Promise<Response> {
   const db = getDB(context);
-  const url = new URL(context.request.url);
   const redirectUri = redirectUriFor(context.request.url);
-  if (!db || !redirectUri) return back('/login?aikahub_error=provider_error');
+  if (!db || !redirectUri) return bare302('/login?aikahub_error=provider_error');
 
-  let linkUserId: string | null = null;
-  if (url.searchParams.get('link') === '1') {
-    const user = await getCurrentUser(context);
-    if (!user) return back('/login?next=/play/settings');
-    linkUserId = user.id;
-  }
-  const nextRaw = url.searchParams.get('next');
-  const { state, authorizeUrl } = await startFlow(db, {
-    redirectUri,
-    linkUserId,
-    nextPath: nextRaw ? safeNextPath(nextRaw) : null,
-  });
-  context.cookies.set(STATE_COOKIE, state, {
-    httpOnly: true,
-    secure: url.protocol === 'https:',
-    sameSite: 'lax', // az AikaHubról visszatérő felső szintű GET-en is elküldi
-    path: '/auth',
-    maxAge: PENDING_TTL_SEC,
-  });
-  return back(authorizeUrl);
-}
+  // Már belépett user: ne váltsunk csendben fiókot — a Beállításokban kötheti össze.
+  if (await getCurrentUser(context)) return bare302('/play/settings?aikahub_error=signed_in#aikahub-link');
 
-function back(location: string): Response {
-  return new Response(null, {
-    status: 302,
-    headers: { Location: location, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
-  });
+  const nextRaw = new URL(context.request.url).searchParams.get('next');
+  return redirectToAuthorize(context, db, { redirectUri, nextPath: nextRaw ? safeNextPath(nextRaw) : null });
 }

@@ -1,11 +1,11 @@
 ---
 // /play/settings -- backend wiring complete.
 // Profile + LLM cap + Pro status from D1.
-import { getCurrentUser, getDB } from '../../lib/auth';
+import { getCurrentUser, getDB, getSessionCookie } from '../../lib/auth';
 import { jsonForScript } from '../../lib/safe-json';
 import { FREE_DAILY_CAP, PRO_DAILY_CAP } from '../../lib/game/llm-cap';
 import { getPlayer } from '../../lib/game/db';
-import { getAikahubLink, NO_PASSWORD_EMAIL_DOMAIN } from '../../lib/aikahub';
+import { getAikahubLink, NO_PASSWORD_EMAIL_DOMAIN, linkCsrfToken } from '../../lib/aikahub';
 import { getLlmUsageToday, getDailyCap } from '../../lib/game/llm-cap';
 import I18nDashboard from '../../components/I18nDashboard.astro';
 import DashboardAnims from '../../components/DashboardAnims.astro';
@@ -38,6 +38,7 @@ const aikahub = await getAikahubLink(db, user.id);
 const aikahubOnly = user.email.endsWith(NO_PASSWORD_EMAIL_DOMAIN);
 const url = new URL(Astro.request.url);
 const aikahubError = url.searchParams.get('aikahub_error');
+const aikahubCsrf = aikahub ? '' : await linkCsrfToken(getSessionCookie(ctx) ?? '');
 
 const proUntilStr = player.pro_until
   ? new Date(player.pro_until * 1000).toISOString().slice(0, 10)
@@ -551,10 +552,14 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     ) : (
       <div>
         <p style="margin: 0 0 12px; font-size: 13px; color: var(--muted);">Link your AikaHub account to sign in with it next time.</p>
-        <a href="/auth/aikahub/start?link=1" style="display:inline-block;padding:10px 18px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-weight:600;">Belépés AikaHub-fiókkal · Link AikaHub</a>
+        <form method="post" action="/auth/aikahub/link" style="margin:0;">
+          <input type="hidden" name="csrf" value={aikahubCsrf} />
+          <button type="submit" style="padding:10px 18px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;color:var(--text);font-weight:600;cursor:pointer;">Belépés AikaHub-fiókkal · Link AikaHub</button>
+        </form>
       </div>
     )}
     {aikahubError === 'already_linked' && <p style="margin:10px 0 0;font-size:12px;color:var(--pink);">This AikaHub account is already linked to another Hyperscales account.</p>}
+    {aikahubError === 'signed_in' && <p style="margin:10px 0 0;font-size:12px;color:var(--amber);">You're already signed in. To use AikaHub with this company, link it here — or log out first to sign in with a different account.</p>}
     {aikahubError === 'link_conflict' && <p style="margin:10px 0 0;font-size:12px;color:var(--pink);">This Hyperscales account is already linked to a different AikaHub account.</p>}
   </div>
 

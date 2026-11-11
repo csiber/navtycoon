@@ -24,6 +24,12 @@ export const AIKAHUB_CLIENT_ID = 'hyperscales';
 export const AIKAHUB_PROVIDER = 'aikahub';
 export const PENDING_TTL_SEC = 600;
 export const STATE_COOKIE = 'hs_aikahub_state';
+/** HTTPS-en (éles) __Secure- előtagú, Secure süti; a http://127.0.0.1 helyi teszten (nem biztonságos séma) a sima név. */
+export function stateCookieFor(requestUrl: string): { name: string; secure: boolean } {
+  return new URL(requestUrl).protocol === 'https:'
+    ? { name: `__Secure-${STATE_COOKIE}`, secure: true }
+    : { name: STATE_COOKIE, secure: false };
+}
 export const NO_PASSWORD = '!';
 export const NO_PASSWORD_EMAIL_DOMAIN = '@aikahub.invalid';
 
@@ -55,9 +61,28 @@ export async function s256Challenge(verifier: string): Promise<string> {
  *  regisztrált loopback, bármely porttal). Más hostról (pl. *.pages.dev előnézet) nem indítunk belépést. */
 export function redirectUriFor(requestUrl: string): string | null {
   const u = new URL(requestUrl);
-  if (u.hostname === 'hyperscales.app' || u.hostname === 'www.hyperscales.app') return PROD_REDIRECT;
+  // www-ről nem: ott a state-süti host-only lenne, a callback pedig az apexre jön (a middleware úgyis 301-gyel átvisz).
+  if (u.hostname === 'hyperscales.app') return PROD_REDIRECT;
   if (u.protocol === 'http:' && u.hostname === '127.0.0.1') return `http://127.0.0.1${u.port ? ':' + u.port : ''}/auth/callback`;
   return null;
+}
+
+// ── CSRF az összekötéshez ──────────────────────────────────────────
+
+/** A Beállítások „AikaHub összekötése" űrlapjának tokene: SHA-256(munkamenet-token + cél). A munkamenet-süti httpOnly,
+ *  így egy idegen oldal nem tudja kiszámolni; titok sem kell hozzá. */
+export async function linkCsrfToken(sessionToken: string): Promise<string> {
+  const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${sessionToken}|aikahub-link`));
+  return b64url(new Uint8Array(h));
+}
+
+export async function checkLinkCsrf(sessionToken: string | null, submitted: string | null): Promise<boolean> {
+  if (!sessionToken || !submitted) return false;
+  const want = await linkCsrfToken(sessionToken);
+  if (want.length !== submitted.length) return false;
+  let diff = 0;
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ submitted.charCodeAt(i);
+  return diff === 0;
 }
 
 // ── 1. start ───────────────────────────────────────────────────────
@@ -100,6 +125,7 @@ export type CallbackError =
   | 'bad_profile'       // a userinfo nem nekünk szól (aud) vagy hiányos
   | 'already_linked'    // összekötésnél: ez az AikaHub-fiók már egy másik Hyperscales-fiókhoz tartozik
   | 'link_conflict'     // összekötésnél: ehhez a Hyperscales-fiókhoz már másik AikaHub-fiók tartozik
+  | 'signed_in'         // már be van lépve (más fiókkal): fiókváltás helyett az összekötés felé terelünk
   | 'network';          // nem értük el az AikaHubot
 
 export type CallbackResult =
@@ -129,12 +155,13 @@ export async function handleCallback(
   const state = params.get('state') ?? '';
 
   // A state-et mindig elfogyasztjuk (egyszer használható), hibás ágon is.
+  // Egyetlen atomi lépés (DELETE … RETURNING): két párhuzamos callback közül csak az egyik kapja meg a sort.
   let pending: PendingRow | null = null;
   if (state && state.length <= 200) {
     pending = await db.prepare(
-      'SELECT state, verifier, redirect_uri, link_user_id, next_path, expires_at FROM oauth_pending WHERE state = ?',
+      'DELETE FROM oauth_pending WHERE state = ? ' +
+      'RETURNING state, verifier, redirect_uri, link_user_id, next_path, expires_at',
     ).bind(state).first<PendingRow>();
-    if (pending) await db.prepare('DELETE FROM oauth_pending WHERE state = ?').bind(state).run();
   }
   if (!pending || !cookieState || cookieState !== state || pending.expires_at < now) {
     return { ok: false, error: 'state_mismatch' };
@@ -232,6 +259,12 @@ export async function linkOrLogin(
       await touchLink(db, p, o.now);
     }
     return { ok: true, userId: o.linkUserId, created: false, linked: true, nextPath: '/play/settings' };
+  }
+
+  // Már belépett user (nem összekötés): csendes fiókváltás helyett — ha nem pont az ő AikaHub-fiókja — az összekötés felé
+  // terelünk; így nem marad árva munkamenet, és nem jön létre véletlenül második fiók.
+  if (o.sessionUserId && (!existing || existing.user_id !== o.sessionUserId)) {
+    return { ok: false, error: 'signed_in' };
   }
 
   if (existing) {

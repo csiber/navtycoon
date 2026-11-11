@@ -7,7 +7,7 @@ import type { APIContext } from 'astro';
 import {
   getDB, getCurrentUser, createSession, setSessionCookie,
 } from '../../lib/auth';
-import { handleCallback, STATE_COOKIE } from '../../lib/aikahub';
+import { handleCallback, stateCookieFor } from '../../lib/aikahub';
 import { ensurePlayer } from '../../lib/game/bootstrap';
 
 export const prerender = false;
@@ -17,8 +17,9 @@ export async function GET(context: APIContext): Promise<Response> {
   if (!db) return redirect('/login?aikahub_error=provider_error');
 
   const params = new URL(context.request.url).searchParams;
-  const cookieState = context.cookies.get(STATE_COOKIE)?.value ?? null;
-  context.cookies.delete(STATE_COOKIE, { path: '/auth' });
+  const sc = stateCookieFor(context.request.url);
+  const cookieState = context.cookies.get(sc.name)?.value ?? null;
+  context.cookies.delete(sc.name, { path: '/auth', secure: sc.secure });
 
   const sessionUser = await getCurrentUser(context);
   let result;
@@ -29,8 +30,8 @@ export async function GET(context: APIContext): Promise<Response> {
     return redirect('/login?aikahub_error=provider_error');
   }
   if (!result.ok) {
-    return redirect(result.error === 'already_linked' || result.error === 'link_conflict'
-      ? `/play/settings?aikahub_error=${result.error}`
+    return redirect(['already_linked', 'link_conflict', 'signed_in'].includes(result.error)
+      ? `/play/settings?aikahub_error=${result.error}#aikahub-link`
       : `/login?aikahub_error=${result.error}`);
   }
 
