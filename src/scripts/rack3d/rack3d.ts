@@ -273,8 +273,10 @@ export function mountRack(host: HTMLElement, model: RackModel, opt: MountOptions
   let raf = 0, visible = true, last = performance.now(), t0 = last;
   let frames = 0, fps = 0, fpsAcc = 0, fpsN = 0, cpuAcc = 0, cpuMs = 0;
   const ease = (x: number) => 1 - Math.pow(1 - x, 3);
-  function frame(now: number) {
+  function frame() {
     raf = 0;
+    // performance.now() és nem a rAF-időbélyeg: az utóbbi a képkocka kezdete (korábbi is lehet a `last`-nál).
+    const now = performance.now();
     const c0 = performance.now();
     // A rAF-időbélyeg a képkocka kezdete — lehet korábbi, mint a láthatóvá váláskor mért `last` → sosem negatív.
     const realDt = Math.max(0, (now - last) / 1000);
