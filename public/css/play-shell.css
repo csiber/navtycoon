@@ -227,3 +227,64 @@ button.cust-row[hidden], .cust-prof[hidden] { display: none; }
   .cust-prof .prof-head { flex-wrap: wrap; }
   .cust-prof .col { padding: 14px; }
 }
+
+/* ─── Tickets page ─── */
+.tk-empty { padding: 30px; text-align: center; color: var(--dim); font-family: var(--mono); font-size: 12px; line-height: 1.6; }
+.tk-head .pill.closed { color: var(--mint); border-color: rgba(52,211,153,.4); background: rgba(52,211,153,.08); }
+.tk-answer { display: inline-block; padding: 10px 16px; border-radius: 8px; background: var(--indigo); color: #fff; font-weight: 600; font-size: 13px; }
+.tk-note { color: var(--dim); font-family: var(--mono); font-size: 11px; text-align: center; }
+.thread .tmsg.me { grid-template-columns: 1fr 34px; }
+.thread .tmsg.me .av { order: 2; background: linear-gradient(135deg, var(--indigo), #4f46e5); }
+.thread .tmsg.me .body { background: rgba(99,102,241,.12); }
+@media (max-width: 900px) { .content .layout { grid-template-columns: minmax(0, 1fr) !important; } }
+
+/* ─── Finance page ─── */
+.content .kpi-card .k { display: flex; align-items: center; }
+.fin-sub { color: var(--dim); font-size: 11px; font-family: var(--mono); margin-top: 2px; font-weight: 400; }
+.fin-hint { padding: 12px 18px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); }
+.fin-hint a { color: var(--indigo-2); }
+.fin-empty { padding: 26px 20px; color: var(--dim); font-family: var(--mono); font-size: 12px; text-align: center; line-height: 1.6; }
+.fin-moves .inv-row { grid-template-columns: 34px 1fr auto auto; }
+@media (max-width: 900px) {
+  .content .kpis { grid-template-columns: 1fr 1fr !important; }
+  .content .kpis .kpi-card:first-child { grid-column: 1 / -1; }
+}
+
+/* ─── Research page ─── */
+.rs-tree { padding: 6px 18px 18px; display: flex; flex-direction: column; gap: 16px; }
+.rs-era-h { font-family: var(--mono); font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+.rs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.rs-node {
+  display: flex; flex-direction: column; gap: 6px; text-align: left; font: inherit; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; cursor: pointer;
+}
+.rs-node:hover { border-color: var(--indigo); }
+.rs-node.selected { border-color: var(--indigo-2); box-shadow: 0 0 0 2px rgba(99,102,241,.25); }
+.rs-node.owned { border-color: rgba(52,211,153,.4); background: linear-gradient(180deg, rgba(52,211,153,.10), var(--panel-2)); }
+.rs-node.available { border-color: rgba(245,158,11,.35); }
+.rs-node.locked { opacity: .55; }
+.rs-name { font-weight: 600; font-size: 13px; }
+.rs-cost { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.rs-node.owned .rs-cost { color: var(--mint); }
+.rs-detail[hidden] { display: none; }
+.rs-detail .det-head { padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.rs-detail .det-head h2 { margin: 0; font-family: var(--display); font-size: 20px; }
+.rs-detail .det-head .cat { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+.rs-detail .det-section { padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.rs-detail .det-section h4 { margin: 0 0 6px; font-family: var(--mono); font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+.rs-detail .det-section p { margin: 0; color: var(--text); font-size: 14px; }
+.rs-price { font-family: var(--display); font-size: 22px !important; font-weight: 700; }
+.rs-pre { color: var(--muted) !important; font-size: 12px !important; margin-top: 6px !important; }
+.rs-detail .det-action { padding: 16px 20px; }
+.rs-detail .det-action .btn { width: 100%; padding: 10px; }
+.rs-why { color: var(--muted); font-size: 13px; }
+
+/* ─── Locked feature pages (staff / network) ─── */
+.lk-card { grid-column: span 12; padding: 34px 28px !important; text-align: center; }
+.lk-card .lk-ico { font-size: 34px; color: var(--indigo-2); }
+.lk-card h2 { font-family: var(--display); font-size: 26px; margin: 8px 0 8px; }
+.lk-card p { color: var(--muted); max-width: 560px; margin: 0 auto 16px; line-height: 1.6; }
+.lk-card .era-req-title { margin-top: 18px; }
+.lk-planned { max-width: 420px; margin: 22px auto 0; text-align: left; }
+.lk-planned ul { list-style: disc; margin: 8px 0 0; padding-left: 18px; color: var(--text); font-size: 13px; line-height: 1.8; }
+.lk-actions { margin-top: 22px; }
