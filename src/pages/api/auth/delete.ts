@@ -27,6 +27,9 @@ export async function POST(context: APIContext): Promise<Response> {
     await db.prepare('DELETE FROM players WHERE user_id = ?').bind(user.id).run();
     await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
     await db.prepare('DELETE FROM legacy_accounts WHERE user_id = ?').bind(user.id).run();
+    // AikaHub-kötés: tokent nem tárolunk (src/lib/aikahub.ts), így visszavonni sincs mit; a kötés sora megy.
+    await db.prepare('DELETE FROM account_links WHERE user_id = ?').bind(user.id).run();
+    await db.prepare('DELETE FROM oauth_pending WHERE link_user_id = ?').bind(user.id).run();
     await db.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
   } catch (e) {
     return jerr(500, 'Account-delete hiba: ' + (e as Error).message);

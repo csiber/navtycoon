@@ -15,6 +15,7 @@ import {
   isValidEmail, passwordIssue, companyNameIssue,
 } from '../../../lib/auth';
 import { getPlayer } from '../../../lib/game/db';
+import { NO_PASSWORD_EMAIL_DOMAIN } from '../../../lib/aikahub';
 import { bootstrapStarterPlayer } from '../../../lib/game/bootstrap';
 import { checkHostingNameBlacklist } from '../../../lib/auth/hosting-blacklist';
 import { computeAchievementInput } from '../../../lib/game/achievements-helper';
@@ -53,6 +54,7 @@ export async function POST(context: APIContext): Promise<Response> {
   const preferredLang = (['en', 'hu', 'de'].includes(langRaw) ? langRaw : 'en') as 'en' | 'hu' | 'de';
 
   if (!isValidEmail(email)) return jerr(400, 'Érvénytelen email-cím.');
+  if (email.endsWith(NO_PASSWORD_EMAIL_DOMAIN)) return jerr(400, 'Érvénytelen email-cím.');
   const pwIssue = passwordIssue(password);
   if (pwIssue) return jerr(400, pwIssue);
   const cnIssue = companyNameIssue(companyName);

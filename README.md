@@ -16,6 +16,16 @@ Astro 5 · Cloudflare Pages + Workers + D1 + Cron · Workers AI (Llama-3.3-70b �
 - **Admin** (force-tick, seed-végpontok): Pages környezeti változó `ADMIN_USER_IDS` (vesszővel elválasztott
   `users.id`-k). Nincs beállítva → senki sem admin.
 
+## Belépés AikaHub-fiókkal (ág: aikahub-auth)
+
+OAuth 2.0 engedélykód + PKCE (S256), `client_id=hyperscales`, csak `profile` scope. Kód: `src/lib/aikahub.ts`,
+`src/pages/auth/aikahub/start.ts`, `src/pages/auth/callback.ts` (törzs nélküli 302, `Referrer-Policy: no-referrer`),
+migráció `migrations/0012_aikahub_auth.sql` (`account_links`, `oauth_pending`). Tokent nem tárolunk: a profilt csak
+belépéskor olvassuk, a frissítő tokent azonnal visszavonjuk. Az e-mail+jelszavas belépés változatlan.
+Helyi teszt: `wrangler pages dev dist --port 8788` → http://127.0.0.1:8788 (az AikaHubon regisztrált loopback;
+mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d1 execute … --file`, mert a
+`wrangler d1 migrations apply` a `0010b_…`-t a `0010_…` elé sorolja és elhasal.
+
 ## Állapot (2026-11-11)
 
 - Átvizsgálás + javítás: „Mentés törlése" utáni végtelen átirányítás (a /play most újra létrehozza a kezdőállást),

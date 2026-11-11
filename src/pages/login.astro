@@ -25,6 +25,11 @@ function detectLocale(): Locale {
   return 'en';
 }
 const locale: Locale = detectLocale();
+// „Belépés AikaHub-fiókkal" (src/lib/aikahub.ts): a /auth/callback hiba esetén ide küld vissza ?aikahub_error=…-ral.
+const aikahubErrRaw = new URL(Astro.request.url).searchParams.get('aikahub_error');
+const aikahubError = aikahubErrRaw && ['access_denied','state_mismatch','invalid_grant','bad_profile','network','provider_error'].includes(aikahubErrRaw) ? aikahubErrRaw : null;
+const nextQs = next && next !== '/play' ? `?next=${encodeURIComponent(next)}` : '';
+
 ---
 <Base title={t(locale, 'auth.tab.login')}>
   <div class="max-w-md mx-auto py-10 px-4" data-locale={locale}>
@@ -43,6 +48,19 @@ const locale: Locale = detectLocale();
         <h1 class="text-2xl font-bold">{t(locale, 'auth.login.title')}</h1>
         <p class="text-nt-text-dim text-sm mt-1">{t(locale, 'auth.login.sub')}</p>
       </div>
+    </div>
+
+    {aikahubError && (
+      <p class="mb-4 p-3 rounded border border-amber-500/40 bg-amber-500/10 text-sm text-amber-200" role="alert">
+        {t(locale, `auth.aikahub.err.${aikahubError}`)}
+      </p>
+    )}
+    <a href={`/auth/aikahub/start${nextQs}`}
+       class="flex items-center justify-center gap-2 w-full px-4 py-3 mb-3 rounded font-semibold bg-nt-bg-2 border border-nt-border hover:border-nt-accent transition">
+      {t(locale, 'auth.aikahub.button')}
+    </a>
+    <div class="flex items-center gap-3 my-4 text-xs uppercase tracking-wide text-nt-text-dim">
+      <span class="flex-1 h-px bg-nt-border"></span>{t(locale, 'auth.aikahub.or')}<span class="flex-1 h-px bg-nt-border"></span>
     </div>
 
     <form id="login-form" class="space-y-3">

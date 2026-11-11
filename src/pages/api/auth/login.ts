@@ -13,6 +13,7 @@ import {
   getAuthDB, createSession, setSessionCookie,
   verifyPassword, isValidEmail,
 } from '../../../lib/auth';
+import { NO_PASSWORD } from '../../../lib/aikahub';
 
 export const prerender = false;
 
@@ -48,6 +49,8 @@ export async function POST(context: APIContext): Promise<Response> {
       display_name: string | null;
     }>();
     if (!u) return jerr(401, 'Hibás email vagy jelszó.');
+    // AikaHub-fiókos usernek nincs jelszava ('!'), csak a „Belépés AikaHub-fiókkal" gombbal léphet be.
+    if (u.password_hash === NO_PASSWORD) return jerr(401, 'Hibás email vagy jelszó.');
 
     const ok = await verifyPassword(password, u.password_hash, u.password_salt);
     if (!ok) return jerr(401, 'Hibás email vagy jelszó.');
