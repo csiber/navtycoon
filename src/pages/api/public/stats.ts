@@ -41,11 +41,13 @@ export const GET: APIRoute = async (ctx) => {
     return new Response(JSON.stringify(ZERO), { status: 200, headers });
   }
   try {
+    // Csak valódi, létező fiókok: NPC-versenytársak és a PromNET-korszak árva players-sorai nélkül.
+    const REAL = 'is_npc = 0 AND user_id IN (SELECT id FROM users)';
     const playersRow = await db.prepare(
-      'SELECT COUNT(*) AS n FROM players',
+      `SELECT COUNT(*) AS n FROM players WHERE ${REAL}`,
     ).first<{ n: number }>();
     const mrrRow = await db.prepare(
-      'SELECT COALESCE(SUM(mrr_usd_cents), 0) AS s FROM players',
+      `SELECT COALESCE(SUM(mrr_usd_cents), 0) AS s FROM players WHERE ${REAL}`,
     ).first<{ s: number }>();
     const custRow = await db.prepare(
       'SELECT COUNT(*) AS n FROM customers WHERE is_active = 1',
@@ -54,7 +56,7 @@ export const GET: APIRoute = async (ctx) => {
       "SELECT COUNT(*) AS n FROM tickets WHERE status = 'resolved'",
     ).first<{ n: number }>();
     const topRow = await db.prepare(
-      'SELECT user_id, company_name, founded_at FROM players ORDER BY mrr_usd_cents DESC, cash_usd_cents DESC LIMIT 1',
+      `SELECT user_id, company_name, founded_at FROM players WHERE ${REAL} ORDER BY mrr_usd_cents DESC, cash_usd_cents DESC LIMIT 1`,
     ).first<{ user_id: string; company_name: string; founded_at: number }>();
     const top_run = topRow ? {
       company_name: topRow.company_name,
