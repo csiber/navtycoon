@@ -1,21 +1,24 @@
 ---
-// /play/shift — Shift-mode page. Auth-required.
-// Plan 2 Task 13: pre-shift gate (open tickets + LLM-cap), then WS-driven chat UI.
-// XSS-safe: customer/AI text is user-supplied → DOM via textContent only, NEVER innerHTML.
+// /play/shift — Műszak 2.0 (ux-2, 2026-11-11): a vezérlő konzol-dizájnjában (PlayLayout + src/styles/shift.css).
+// Visszaszámláló, élő elégedettség-sávok, lebegő +$/hangulat jelzések, gépel-jelzés, gombállapotok, záróképernyő
+// csillagokkal, opcionális (alapból kikapcsolt) hangok, mobilon vízszintes ügyfél-sáv.
+// XSS: az ügyfél- és MI-szöveg csak textContent-tel kerül a DOM-ba (src/scripts/shift/shift-app.ts).
+// Stílus: src/styles/shift.css.
 //
-// Embed mode (`?embed=1`): hides the Base layout chrome (header nav,
-// footer) so the page can be rendered inside an <iframe> modal on /play
-// without the redundant outer header.
-import Base from '../../layouts/Base.astro';
+// A korábbi beágyazott mód (?embed=1, a vezérlő iframe-ablaka) megszűnt: a műszak teljes oldal. Egy régi,
+// gyorsítótárazott vezérlő iframe-jéből a kliens kiugrik a felső ablakba.
 import PlayLayout from '../../layouts/PlayLayout.astro';
-import { pt as ptNav } from '../../lib/play/strings';
+import { pt, clientStrings } from '../../lib/play/strings';
 import { achievementMap } from '../../lib/play/achievements-i18n';
 import { jsonForScript } from '../../lib/safe-json';
 import { getCurrentUser, getDB } from '../../lib/auth';
-import { getPlayer, listTickets } from '../../lib/game/db';
+import { getPlayer } from '../../lib/game/db';
 import { getLlmUsageToday, getDailyCap } from '../../lib/game/llm-cap';
-import I18nDashboard from '../../components/I18nDashboard.astro';
-import { t, type Locale, LOCALES } from '../../lib/i18n';
+import { resolveLocale } from '../../lib/i18n/server';
+import { t } from '../../lib/i18n';
+import { secondsUntilShiftReset, shiftsUsedToday } from '../../lib/game/shift-score';
+// Astro-csomagolt, tartalom-hash-es CSS (a public/ alatti fájlt a böngésző a régi változatból szolgálná ki).
+import '../../styles/shift.css';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -27,174 +30,135 @@ if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
 if (!player) return Astro.redirect('/play'); // a /play hozza létre a kezdőállást
 
-// Mirror /api/shift/start: both 'open' AND 'in_progress' count toward
-// the shift-ready check. Otherwise abandoned in_progress tickets leave
-// the user staring at "Inbox-empty" while the dashboard CTA still
-// reads "9 open tickets waiting".
-const openTickets = await listTickets(db, user.id, 'open');
-const inProgress = await listTickets(db, user.id, 'in_progress');
-const open = [...openTickets, ...inProgress];
+const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
+
+// Ugyanaz a lekérdezés, mint a /api/shift/start-ban ('open' + 'in_progress', legrégebbi elöl, max. 10).
+const waiting = (await db.prepare(`
+  SELECT t.id, t.summary, c.name, c.persona_archetype AS archetype, c.satisfaction
+  FROM tickets t JOIN customers c ON t.customer_id = c.id
+  WHERE t.player_id = ? AND t.status IN ('open', 'in_progress')
+  ORDER BY t.created_at ASC
+`).bind(user.id).all<{ id: number; summary: string; name: string; archetype: string; satisfaction: number }>()).results ?? [];
+const openCount = waiting.length;
 const used = await getLlmUsageToday(db, user.id);
 const cap = getDailyCap(player.is_pro === 1);
-const cap_remaining = cap - used;
-const ready = open.length > 0 && cap_remaining >= 5;
-const isEmbed = new URL(Astro.request.url).searchParams.get('embed') === '1';
+const capRemaining = Math.max(0, cap - used);
+const shiftCap = player.is_pro === 1 ? 5 : 1;
+const nowSec = Math.floor(Date.now() / 1000);
+const shiftsLeft = Math.max(0, shiftCap - shiftsUsedToday(player as Parameters<typeof shiftsUsedToday>[0], nowSec));
+const resetIn = secondsUntilShiftReset(nowSec);
+const durText = pt(locale, 'sx.dur', { h: Math.floor(resetIn / 3600), m: Math.floor((resetIn % 3600) / 60) });
+const lowBudget = capRemaining < 5;
+const canStart = openCount > 0 && shiftsLeft > 0 && !lowBudget;
+const peek = waiting.slice(0, 5);
+const ARCH = (a: string) => t(locale, `shift.archetype.${a}` as never) || a;
+const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+const hue = (n: string) => { let h = 0; for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 360; };
 
-// Locale resolution mirrors signup/login: ?lang= URL param wins, then the
-// player's saved preferred_lang, then Accept-Language header. Drives the
-// HU/DE labels below so the shift screen doesn't read EN inside a HU UI.
-function detectLocale(): Locale {
-  const qLang = new URL(Astro.request.url).searchParams.get('lang');
-  if (qLang && (LOCALES as readonly string[]).includes(qLang)) return qLang as Locale;
-  const saved = (player as { preferred_lang?: string }).preferred_lang;
-  if (saved && (LOCALES as readonly string[]).includes(saved)) return saved as Locale;
-  const al = Astro.request.headers.get('accept-language') ?? '';
-  const first = al.split(',')[0]?.slice(0, 2).toLowerCase();
-  if (first && (LOCALES as readonly string[]).includes(first)) return first as Locale;
-  return 'en';
-}
-const locale: Locale = detectLocale();
-// Beágyazva (vezérlő műszak-ablaka) a csupasz Base kell; önálló oldalként a közös /play keret (oldalsáv).
-const Layout = isEmbed ? Base : PlayLayout;
-
-// Labels consumed by shift-app.ts at runtime. Emitted as a JSON
-// <script type="application/json"> block below so the bundled TS can
-// read them via document.getElementById('shift-labels').
-const shiftLabels = {
-  status_pending: t(locale, 'shift.queue.status.pending'),
-  status_active: t(locale, 'shift.queue.status.active'),
-  status_resolved: t(locale, 'shift.queue.status.resolved'),
-  status_abandoned: t(locale, 'shift.queue.status.abandoned'),
-  sat: t(locale, 'shift.queue.sat'),
-  active_subject: t(locale, 'shift.active.subject'),
-  active_sat: t(locale, 'shift.active.sat'),
-  end_tickets: t(locale, 'shift.end.tickets'),
-  end_total_sat: t(locale, 'shift.end.total_sat'),
-  end_refunds: t(locale, 'shift.end.refunds'),
-  end_rep: t(locale, 'shift.end.rep'),
-  end_unlocked: t(locale, 'shift.end.unlocked'),
+const labels = {
+  ...clientStrings(locale, ['sx.', 'sh.']),
+  end_title: t(locale, 'shift.end_title'),
   err_could_not_start: t(locale, 'shift.error.could_not_start'),
-  err_generic: t(locale, 'shift.error.generic'),
   err_llm_cap: t(locale, 'shift.error.llm_cap'),
-  arch_newbie: t(locale, 'shift.archetype.newbie'),
-  arch_pro: t(locale, 'shift.archetype.pro'),
-  arch_cheapskate: t(locale, 'shift.archetype.cheapskate'),
-  arch_karen: t(locale, 'shift.archetype.karen'),
-  arch_loyalist: t(locale, 'shift.archetype.loyalist'),
-  arch_ghost: t(locale, 'shift.archetype.ghost'),
-  arch_drama: t(locale, 'shift.archetype.drama'),
-  arch_crypto: t(locale, 'shift.archetype.crypto'),
-  // 2026-11-11: olvasható jelvénynevek (nem „first_shift"), akció-visszajelzés, élő fejléc-számlálók.
+  arch: Object.fromEntries(['newbie', 'pro', 'cheapskate', 'karen', 'loyalist', 'ghost', 'drama', 'crypto'].map((a) => [a, ARCH(a)])),
   achievements: achievementMap(locale),
-  action_done: ptNav(locale, 'sh.action_done'),
-  closed_note: ptNav(locale, 'sh.closed_note'),
-  ended_note: ptNav(locale, 'sh.ended_note'),
 };
+const boot = { capRemaining, cap, shiftsLeft: Math.max(0, shiftsLeft - 1), resetIn, locale };
 ---
-<Layout title={t(locale, 'shift.title')} locale={locale} active="shift" crumbs={[ptNav(locale, 'nav.shift')]}>
-  {isEmbed && (
-    <style is:global set:html={'header { display: none !important; } footer { display: none !important; } main { padding: 14px !important; max-width: none !important; } body { background: transparent !important; margin: 0 !important; }'}></style>
-  )}
-  {isEmbed && (
-    <script is:inline set:html={`
-      // Embed mode auto-resize: post our rendered content height to the
-      // parent dialog so the modal shrinks for inbox-zero / pre-shift state
-      // and grows when the shift area mounts. Debounced via rAF.
-      (function () {
-        if (window.parent === window) return;
-        var lastH = 0;
-        var raf = 0;
-        function report() {
-          raf = 0;
-          // measure outer-padded main + small buffer, ignore overflow:hidden
-          var main = document.querySelector('main');
-          var h = main ? main.scrollHeight + 28 : document.body.scrollHeight;
-          if (h === lastH) return;
-          lastH = h;
-          try {
-            window.parent.postMessage({ type: 'shift-resize', height: h }, '*');
-          } catch (e) { /* cross-origin guard */ }
-        }
-        function schedule() {
-          if (raf) return;
-          raf = requestAnimationFrame(report);
-        }
-        var ro = new ResizeObserver(schedule);
-        ro.observe(document.body);
-        // Re-measure when the hidden shift-area un-hides (class toggle by shift-app).
-        var mo = new MutationObserver(schedule);
-        mo.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
-        window.addEventListener('load', schedule);
-        schedule();
-      })();
-    `}></script>
-  )}
-  <h1 class="text-2xl font-bold mb-2">{t(locale, 'shift.title')}</h1>
-  <p id="shift-summary" class="text-nt-text-dim mb-4 text-sm" data-tpl={t(locale, 'shift.summary')} data-open={open.length} data-rem={cap_remaining} data-cap={cap} data-shifts={player.free_shifts_today + player.paid_shifts_today}>
-    {t(locale, 'shift.summary')
-      .replace('{open}', String(open.length))
-      .replace('{used}', String(cap_remaining))
-      .replace('{cap}', String(cap))
-      .replace('{shifts}', String(player.free_shifts_today + player.paid_shifts_today))}
-  </p>
-
-  <div id="pre-shift" class={ready ? '' : 'hidden'}>
-    <button id="start-shift" class="px-6 py-3 bg-nt-accent rounded font-semibold">{t(locale, 'shift.start')}</button>
-    <p class="text-nt-text-dim text-xs mt-3">{t(locale, 'shift.length_note')}</p>
-  </div>
-
-  {open.length === 0 && (
-    <div class="bg-nt-bg-2 p-6 rounded">
-      <p class="text-nt-accent mb-2">{t(locale, 'shift.inbox_zero_title')}</p>
-      <p class="text-nt-text-dim text-sm">{t(locale, 'shift.inbox_zero_body')}</p>
-    </div>
-  )}
-
-  {open.length > 0 && cap_remaining < 5 && (
-    <div class="bg-nt-bg-2 p-6 rounded">
-      <p class="text-yellow-400 mb-2">{t(locale, 'shift.low_budget_title').replace('{rem}', String(cap_remaining)).replace('{cap}', String(cap))}</p>
-      <p class="text-nt-text-dim text-sm">{t(locale, 'shift.low_budget_body')}</p>
-    </div>
-  )}
-
-  <div id="shift-area" class="hidden mt-6">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <aside class="bg-nt-bg-2 p-4 rounded col-span-1 max-h-[70vh] overflow-y-auto">
-        <h2 class="font-bold mb-2 text-sm uppercase text-nt-text-dim">{t(locale, 'shift.queue_head')}</h2>
-        <ul id="queue-list" class="space-y-2 text-sm"></ul>
-      </aside>
-      <section class="md:col-span-2 bg-nt-bg-2 p-4 rounded flex flex-col h-[70vh]">
-        <header class="border-b border-nt-border pb-2 mb-2">
-          <h3 id="active-customer" class="font-bold">—</h3>
-          <p id="active-meta" class="text-xs text-nt-text-dim"></p>
-        </header>
-        <div id="messages" class="flex-1 overflow-y-auto space-y-2 mb-2"></div>
-        <div class="flex gap-2 flex-wrap mb-2 text-xs">
-          <button data-action="refund_30" class="px-2 py-1 bg-nt-bg-3 rounded">{t(locale, 'shift.action.refund_30')}</button>
-          <button data-action="refund_50" class="px-2 py-1 bg-nt-bg-3 rounded">{t(locale, 'shift.action.refund_50')}</button>
-          <button data-action="refund_100" class="px-2 py-1 bg-nt-bg-3 rounded">{t(locale, 'shift.action.refund_100')}</button>
-          <button data-action="escalate" class="px-2 py-1 bg-nt-bg-3 rounded">{t(locale, 'shift.action.escalate')}</button>
-          <button data-action="investigate" class="px-2 py-1 bg-nt-bg-3 rounded">{t(locale, 'shift.action.investigate')}</button>
-          <button data-action="close" class="px-2 py-1 bg-red-500/20 text-red-300 rounded">{t(locale, 'shift.action.close')}</button>
+<PlayLayout title={t(locale, 'shift.title')} active="shift" crumbs={[pt(locale, 'nav.shift')]}>
+  <div class="sx" id="sx" data-phase="pre">
+    <section class="panel sx-hud">
+      <div class="sx-title">
+        <h1>{t(locale, 'shift.title')}</h1>
+        <div class="sub">{pt(locale, 'sx.pre.rules', { left: shiftsLeft })}</div>
+      </div>
+      <div class="sx-stats">
+        <div class="sx-stat" data-stat="resolved"><div class="k">{pt(locale, 'sx.hud.resolved')}</div><div class="v">0/{Math.min(10, openCount)}</div></div>
+        <div class="sx-stat" data-stat="cash"><div class="k">{pt(locale, 'sx.hud.cash')}</div><div class="v">$0</div></div>
+        <div class="sx-stat" data-stat="mood"><div class="k">{pt(locale, 'sx.hud.mood')}</div><div class="v">+0</div></div>
+        <div class="sx-stat" data-stat="ai"><div class="k">{pt(locale, 'sx.hud.ai_left')}</div><div class="v">{capRemaining}/{cap}</div></div>
+      </div>
+      <div class="sx-right">
+        <button type="button" class="sx-iconbtn" id="sx-sound" aria-pressed="false" title={pt(locale, 'sx.sound_off')}>🔇</button>
+        <button type="button" class="sx-endbtn" id="sx-end" hidden>{pt(locale, 'sx.end_btn')}</button>
+        <div class="sx-timer" id="sx-timer" role="timer" aria-label={pt(locale, 'sx.hud.time_left')}>
+          <svg viewBox="0 0 80 80" aria-hidden="true"><circle class="track" cx="40" cy="40" r="34"></circle><circle class="bar" cx="40" cy="40" r="34" stroke-dasharray="213.6" stroke-dashoffset="0"></circle></svg>
+          <div class="t"><span><b id="sx-time">30:00</b><small>{pt(locale, 'sx.hud.time_left')}</small></span></div>
         </div>
-        <div class="flex gap-2">
-          <input id="msg-input" type="text" placeholder={t(locale, 'shift.compose_ph')} class="flex-1 px-3 py-2 bg-nt-bg-3 border border-nt-border rounded" />
-          <button id="msg-send" class="px-3 py-2 bg-nt-accent rounded text-sm font-semibold">{t(locale, 'shift.send')}</button>
+      </div>
+    </section>
+
+    {canStart && (
+      <section class="panel sx-pre" id="sx-pre">
+        <div class="l">
+          <div class="ico">🎧</div>
+          <h2>{pt(locale, 'sx.pre.title')}</h2>
+          <div class="wait" set:html={pt(locale, 'sx.pre.waiting', { n: `<b>${Math.min(10, openCount)}</b>` })}></div>
+          <p class="how">{pt(locale, 'sx.pre.how')}</p>
+          <button type="button" class="sx-start" id="sx-start">▶ {pt(locale, 'dash.shift.start')}</button>
         </div>
-        <p id="shift-notice" class="hidden text-sm text-amber-300 mt-2" aria-live="polite"></p>
+        <div class="r">
+          <h4>{pt(locale, 'sx.queue.title')}</h4>
+          {peek.map((w) => (
+            <div class="peek">
+              <div class="sx-av" style={`--av1:hsl(${hue(w.name)} 70% 55%);--av2:hsl(${(hue(w.name) + 60) % 360} 70% 45%)`}>{initials(w.name)}</div>
+              <div class="who"><b>{w.name}</b><span>{w.summary}</span></div>
+              <span class={`sx-chip ${w.archetype}`}>{ARCH(w.archetype)}</span>
+            </div>
+          ))}
+          {Math.min(10, openCount) > peek.length && <div class="more">{pt(locale, 'sx.pre.more', { n: Math.min(10, openCount) - peek.length })}</div>}
+        </div>
+      </section>
+    )}
+    {!canStart && openCount === 0 && (
+      <section class="panel sx-note"><b>{t(locale, 'shift.inbox_zero_title')}</b>{t(locale, 'shift.inbox_zero_body')}</section>
+    )}
+    {!canStart && openCount > 0 && shiftsLeft <= 0 && (
+      <section class="panel sx-note"><b>{pt(locale, 'nav.shift')}</b>{pt(locale, 'sx.pre.no_shift', { t: durText })}</section>
+    )}
+    {!canStart && openCount > 0 && shiftsLeft > 0 && lowBudget && (
+      <section class="panel sx-note">
+        <b>{t(locale, 'shift.low_budget_title').replace('{rem}', String(capRemaining)).replace('{cap}', String(cap))}</b>
+        {t(locale, 'shift.low_budget_body')}
+      </section>
+    )}
+
+    <div class="sx-live" id="sx-live" hidden>
+      <div class="panel sx-queue" id="sx-queue" role="region" aria-label={pt(locale, 'sx.queue.title')}></div>
+      <section class="panel sx-chat">
+        <header class="sx-head" id="sx-head"></header>
+        <div class="sx-msgs" id="sx-msgs" aria-live="polite"></div>
+        <div class="sx-actions" id="sx-actions">
+          <div class="sx-group"><span>{pt(locale, 'sx.group.resolve')}</span><div>
+            <button type="button" class="sx-act close good" data-action="close">✓ {t(locale, 'shift.action.close')}</button>
+            <button type="button" class="sx-act" data-action="escalate">⇪ {t(locale, 'shift.action.escalate').replace(/\s*\(.*\)/, '')} <span class="cost">−$50</span></button>
+            <button type="button" class="sx-act" data-action="refund_100">↺ {t(locale, 'shift.action.refund_100')} <span class="cost">−$5</span></button>
+          </div></div>
+          <div class="sx-group"><span>{pt(locale, 'sx.group.compensate')}</span><div>
+            <button type="button" class="sx-act" data-action="refund_30">{t(locale, 'shift.action.refund_30')} <span class="cost">−$1.50</span></button>
+            <button type="button" class="sx-act" data-action="refund_50">{t(locale, 'shift.action.refund_50')} <span class="cost">−$2.50</span></button>
+          </div></div>
+          <div class="sx-group"><span>{pt(locale, 'sx.group.check')}</span><div>
+            <button type="button" class="sx-act good" data-action="investigate">🔍 {t(locale, 'shift.action.investigate').replace(/\s*\(.*\)/, '')} <span class="cost">$0</span></button>
+          </div></div>
+        </div>
+        <div class="sx-quick" id="sx-quick" aria-label={pt(locale, 'sx.quick.label')}>
+          <button type="button" data-quick="1">{pt(locale, 'sx.quick.1')}</button>
+          <button type="button" data-quick="2">{pt(locale, 'sx.quick.2')}</button>
+          <button type="button" data-quick="3">{pt(locale, 'sx.quick.3')}</button>
+        </div>
+        <div class="sx-compose">
+          <textarea id="sx-input" rows="1" maxlength="1000" placeholder={t(locale, 'shift.compose_ph')}></textarea>
+          <button type="button" class="sx-send" id="sx-send">{t(locale, 'shift.send')}</button>
+        </div>
+        <p class="sx-notice" id="sx-notice" hidden aria-live="polite"></p>
       </section>
     </div>
-    <div id="shift-end" class="hidden bg-nt-bg-2 p-6 rounded mt-6">
-      <h2 class="font-bold text-lg mb-2">{t(locale, 'shift.end_title')}</h2>
-      <p id="end-summary" class="text-nt-text-dim"></p>
-      <a href="/play" class="inline-block mt-4 px-4 py-2 bg-nt-accent rounded">{t(locale, 'shift.back_dashboard')}</a>
-    </div>
   </div>
-
-  <script type="application/json" id="shift-labels" set:html={jsonForScript(shiftLabels)}></script>
+  <div class="sx-fx" id="sx-fx" aria-hidden="true"></div>
+  <script type="application/json" id="sx-labels" set:html={jsonForScript(labels)}></script>
+  <script type="application/json" id="sx-boot" set:html={jsonForScript(boot)}></script>
   <script>
-    // Vite/Astro bundles this import into a hashed asset at build time —
-    // unlike `<script src="/src/scripts/...">` which 404s in production.
     import '../../scripts/shift/shift-app';
   </script>
-</Layout>
+</PlayLayout>

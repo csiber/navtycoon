@@ -15,6 +15,7 @@
     "@astrojs/sitemap": "^3.2.1",
     "@astrojs/tailwind": "^5.1.4",
     "astro": "^5.0.0",
+    "canvas-confetti": "1.9.4",
     "tailwindcss": "^3.4.16",
     "three": "0.187.0",
     "typescript": "^5.7.2"
