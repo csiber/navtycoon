@@ -103,3 +103,40 @@ describe('maybeAdvanceEra DB', () => {
     expect(refreshed?.current_era).toBe(2);
   });
 });
+
+// 2026-11-11: eraProgress — az egyetlen forrás, amit a vezérlő, az oldalsáv, a csapat- és hálózat-lap mutat.
+import { eraProgress, daysAlive, ERA_REQUIREMENTS } from '../era-progress';
+
+describe('eraProgress (single source of truth for the UI)', () => {
+  const base = { current_era: 1 as const, mrr_usd_cents: 1500, server_count: 1, days_alive: 0, reputation: 50 };
+  it('lists exactly the four meetsNextEra requirements with real targets', () => {
+    const p = eraProgress(base)!;
+    expect(p.target_era).toBe(2);
+    expect(p.reqs.map((r) => r.key)).toEqual(['mrr', 'servers', 'days', 'reputation']);
+    const t = ERA_REQUIREMENTS[0];
+    expect(p.reqs.map((r) => r.needed)).toEqual([t.min_mrr_cents / 100, t.min_servers, t.min_days_alive, t.min_reputation]);
+  });
+  it('checkmark only when the requirement is really met', () => {
+    const p = eraProgress(base)!;
+    const done = Object.fromEntries(p.reqs.map((r) => [r.key, r.done]));
+    expect(done).toEqual({ mrr: false, servers: true, days: false, reputation: false });
+    expect(p.met_count).toBe(1);
+  });
+  it('MRR checkmark uses cents (99.99 is not 100)', () => {
+    const p = eraProgress({ ...base, mrr_usd_cents: 9999 })!;
+    expect(p.reqs[0].current).toBe(99);
+    expect(p.reqs[0].done).toBe(false);
+  });
+  it('all met ⇔ meetsNextEra advances', () => {
+    const input = { current_era: 1 as const, mrr_usd_cents: 10000, server_count: 1, days_alive: 7, reputation: 60 };
+    expect(eraProgress(input)!.met_count).toBe(4);
+    expect(meetsNextEra(input)?.era).toBe(2);
+  });
+  it('null at max era', () => {
+    expect(eraProgress({ ...base, current_era: 4 })).toBeNull();
+  });
+  it('daysAlive counts whole real days', () => {
+    expect(daysAlive(1000, 1000 + 86399)).toBe(0);
+    expect(daysAlive(1000, 1000 + 86400)).toBe(1);
+  });
+});

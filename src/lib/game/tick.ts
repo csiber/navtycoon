@@ -25,7 +25,7 @@ import { tryConsumeLlmCall } from './llm-cap';
 import type { WorkersAIBinding } from '../ai/workers-ai';
 import { maybeAdvanceEra } from './era-progress';
 
-const TICK_MINUTES = 5;
+export const TICK_MINUTES = 5;
 const CHURN_HOURS = 48;
 const TICKET_SPAWN_PROB_PER_TICK = 0.004;
 const CHURN_ROLL_PROB = 0.30;
@@ -37,7 +37,7 @@ const RANDOM_EVENT_PROB_PER_TICK = 0.007;
 // Pro perk: 2× acquisition + 0.5× churn.
 const ACQUISITION_BASE_PROB = 0.025;
 const ERA_FACTOR: Record<number, number> = { 1: 1, 2: 1.5, 3: 2, 4: 3 };
-const PPC_FULL_COST_PER_TICK_CENTS = 100;
+export const PPC_FULL_COST_PER_TICK_CENTS = 100;
 const PRO_ACQUISITION_MULTIPLIER = 2;
 const PRO_CHURN_MULTIPLIER = 0.5;
 // Welcome-boost: first 7 days of a player's run get 2× acquisition rate so

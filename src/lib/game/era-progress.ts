@@ -46,6 +46,62 @@ export function nextEraTarget(currentEra: EraId): EraRequirements | null {
   return ERA_REQUIREMENTS.find((r) => r.era === currentEra + 1) ?? null;
 }
 
+export interface EraRequirementRow {
+  /** Stabil kulcs a fordításhoz: mrr | servers | days | reputation. */
+  key: 'mrr' | 'servers' | 'days' | 'reputation';
+  current: number;
+  needed: number;
+  pct: number;
+  done: boolean;
+}
+
+export interface EraProgress {
+  target_era: EraId;
+  target_display: string;
+  reqs: EraRequirementRow[];
+  met_count: number;
+  total: number;
+}
+
+/** Napok az alapítás óta — UGYANAZ, amit a maybeAdvanceEra használ. */
+export function daysAlive(foundedAt: number, now: number): number {
+  return Math.max(0, Math.floor((now - foundedAt) / 86400));
+}
+
+/**
+ * A következő korszak feltételei a játékos valós állapotából — az EGYETLEN forrás, amit a vezérlő, a csapat-,
+ * a hálózat-lap és az oldalsáv is mutat (2026-11-11). Pontosan a meetsNextEra szabályait tükrözi:
+ * a pipa csak akkor jár, ha az adott feltétel tényleg teljesül. Max korszakban null.
+ */
+export function eraProgress(input: EraCheckInput): EraProgress | null {
+  const target = nextEraTarget(input.current_era);
+  if (!target) return null;
+  const rows: Array<Omit<EraRequirementRow, 'pct' | 'done'>> = [
+    { key: 'mrr', current: Math.floor(input.mrr_usd_cents / 100), needed: Math.floor(target.min_mrr_cents / 100) },
+    { key: 'servers', current: input.server_count, needed: target.min_servers },
+    { key: 'days', current: input.days_alive, needed: target.min_days_alive },
+    { key: 'reputation', current: input.reputation, needed: target.min_reputation },
+  ];
+  const doneOf: Record<EraRequirementRow['key'], boolean> = {
+    mrr: input.mrr_usd_cents >= target.min_mrr_cents,
+    servers: input.server_count >= target.min_servers,
+    days: input.days_alive >= target.min_days_alive,
+    reputation: input.reputation >= target.min_reputation,
+  };
+  const reqs = rows.map((r) => ({
+    ...r,
+    pct: Math.max(0, Math.min(100, Math.round((r.current / Math.max(1, r.needed)) * 100))),
+    done: doneOf[r.key],
+  }));
+  return {
+    target_era: target.era,
+    target_display: target.display,
+    reqs,
+    met_count: reqs.filter((r) => r.done).length,
+    total: reqs.length,
+  };
+}
+
 /**
  * True if the player meets ALL next-era requirements.
  */
@@ -79,12 +135,11 @@ export async function maybeAdvanceEra(
     'SELECT COUNT(*) AS n FROM servers WHERE player_id = ?',
   ).bind(player.user_id).first<{ n: number }>();
   const serverCount = srvRow?.n ?? 0;
-  const daysAlive = Math.floor((now - player.founded_at) / 86400);
   const target = meetsNextEra({
     current_era: player.current_era,
     mrr_usd_cents: player.mrr_usd_cents,
     server_count: serverCount,
-    days_alive: daysAlive,
+    days_alive: daysAlive(player.founded_at, now),
     reputation: player.reputation,
   });
   if (!target) return null;
