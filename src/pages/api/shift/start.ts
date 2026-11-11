@@ -5,6 +5,7 @@ import { legacyError } from '../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getPlayer } from '../../../lib/game/db';
+import { shiftsUsedToday } from '../../../lib/game/shift-score';
 
 export const prerender = false;
 
@@ -20,8 +21,14 @@ export const POST = async (c: APIContext): Promise<Response> => {
   // Daily shift cap
   const isPro = player.is_pro === 1;
   const cap = isPro ? 5 : 1;
-  const todayUsed = player.free_shifts_today + player.paid_shifts_today;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const todayUsed = shiftsUsedToday(player as Parameters<typeof shiftsUsedToday>[0], nowSec);
   if (todayUsed >= cap) return jerr(429, `daily shift cap reached (${cap})`);
+  if (todayUsed === 0 && player.free_shifts_today + player.paid_shifts_today > 0) {
+    // A tick még nem nullázott ma (pl. friss fiók: a séma-alapérték 1) → itt nullázunk, mielőtt számolunk.
+    await db.prepare('UPDATE players SET free_shifts_today = 0, paid_shifts_today = 0, last_shift_reset_at = ? WHERE user_id = ?')
+      .bind(Math.floor(nowSec / 86400) * 86400, user.id).run();
+  }
 
   // Up to 10 tickets with their customers.
   // We accept BOTH 'open' and 'in_progress' so abandoned shifts (the

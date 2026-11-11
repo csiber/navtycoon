@@ -38,3 +38,15 @@ describe('shift-score', () => {
     expect(secondsUntilShiftReset(86400 * 10 + 3600)).toBe(86400 - 3600);
   });
 });
+
+import { shiftsUsedToday } from '../shift-score';
+describe('shiftsUsedToday', () => {
+  const day = 86400 * 20000;
+  it('stale counters (no reset yet today) count as 0 — fresh signup has free_shifts_today=1 by schema default', () => {
+    expect(shiftsUsedToday({ free_shifts_today: 1, paid_shifts_today: 0, last_shift_reset_at: 0 }, day + 100)).toBe(0);
+    expect(shiftsUsedToday({ free_shifts_today: 1, paid_shifts_today: 2, last_shift_reset_at: day - 86400 }, day + 5)).toBe(0);
+  });
+  it('after today\'s reset the counters count', () => {
+    expect(shiftsUsedToday({ free_shifts_today: 1, paid_shifts_today: 0, last_shift_reset_at: day }, day + 100)).toBe(1);
+  });
+});

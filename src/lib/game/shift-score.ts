@@ -53,3 +53,17 @@ export function shiftTip(o: ShiftOutcome): ShiftTip {
 export function secondsUntilShiftReset(nowSec: number): number {
   return (Math.floor(nowSec / 86400) + 1) * 86400 - nowSec;
 }
+
+/**
+ * Ma felhasznált műszakok. A napi nullázást a tick végzi (UTC éjfél); amíg az még nem futott le (pl. friss
+ * regisztráció, ahol a free_shifts_today séma-alapértéke 1, vagy egy reggel elsőként megnyitott /play/shift),
+ * a régi számláló nem számít — különben az új játékos „mára elfogyott" üzenetet kapott volna.
+ */
+export function shiftsUsedToday(
+  p: { free_shifts_today: number; paid_shifts_today: number; last_shift_reset_at?: number | null },
+  nowSec: number,
+): number {
+  const todayStart = Math.floor(nowSec / 86400) * 86400;
+  if ((p.last_shift_reset_at ?? 0) < todayStart) return 0;
+  return p.free_shifts_today + p.paid_shifts_today;
+}

@@ -1,6 +1,7 @@
 ---
 // /play/settings -- backend wiring complete.
 // Profile + LLM cap + Pro status from D1.
+import { shiftsUsedToday } from '../../lib/game/shift-score';
 import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
 import { renderSettingsContent } from '../../lib/play/settings-page';
 import { pt } from '../../lib/play/strings';
@@ -28,7 +29,7 @@ const isPro = player.is_pro === 1;
 // Cast to D1Database for the llm-cap helper (uses @cloudflare/workers-types).
 const llmUsed = await getLlmUsageToday(db as unknown as Parameters<typeof getLlmUsageToday>[0], user.id);
 const llmCap = getDailyCap(isPro);
-const shiftsToday = player.free_shifts_today + player.paid_shifts_today;
+const shiftsToday = shiftsUsedToday(player as Parameters<typeof shiftsUsedToday>[0], Math.floor(Date.now() / 1000));
 
 const companyName = player.company_name;
 const cashUsd = (player.cash_usd_cents / 100).toFixed(0);
