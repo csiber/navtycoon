@@ -5,14 +5,14 @@
 // aktív játékosra. UI: dashboard widget /play oldalon, csak admin-emailek
 // számára.
 //
-// Admin-gate: email '+admin' subaddress (pl. claude+admin@promnet.hu) VAGY
-// hardcoded owner (csiberius@gmail.com). Bármilyen más user → 403.
+// Admin-gate: ADMIN_USER_IDS env (users.id lista), lásd src/lib/admin.ts.
 //
 // Egyébként ugyanaz a logika, mint /api/cron/tick — `tickAllActivePlayers`-t
 // hívja az AI + Vectorize bindingokkal.
 
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
+import { isAdminUser } from '../../../lib/admin';
 import { tickAllActivePlayers } from '../../../lib/game/tick';
 import { tickAllNpcs } from '../../../lib/game/npc-tick';
 import type { WorkersAIBinding } from '../../../lib/ai/workers-ai';
@@ -27,14 +27,11 @@ function jerr(status: number, error: string): Response {
   });
 }
 
-function isAdmin(email: string): boolean {
-  return email.includes('+admin') || email === 'csiberius@gmail.com';
-}
 
 export const POST = async (c: APIContext): Promise<Response> => {
   const user = await getCurrentUser(c);
   if (!user) return jerr(401, 'auth');
-  if (!isAdmin(user.email)) return jerr(403, 'admin only');
+  if (!isAdminUser(user, c.locals.runtime?.env as { ADMIN_USER_IDS?: string } | undefined)) return jerr(403, 'admin only');
 
   const db = getDB(c);
   if (!db) return jerr(500, 'no DB');

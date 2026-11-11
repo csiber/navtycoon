@@ -2,8 +2,8 @@
 //
 // 2026-10-05-ig a fiókok a PromNET users/sessions tábláiban éltek (PROMNET_DB binding, PromNET-SSO);
 // Csaba döntése: a játék független a PromNET-től. A régi játékosok e-mail-címe a `legacy_accounts`
-// táblában van — ha ugyanazzal az e-mail-címmel regisztrálnak, a régi user_id-t (és vele a játékállást)
-// kapják vissza (migrations/0011_own_auth.sql). Jelszó-hash-t nem vittünk át.
+// táblában van (migrations/0011_own_auth.sql). 2026-11-11 óta a signup NEM köti vissza automatikusan
+// (e-mail-ellenőrzés nélkül fiókátvétel lett volna); a legacyUserId csak kézi, igazolt visszakötéshez kell.
 //
 // Cookie: `navtycoon_session`, értéke a sessions.token.
 // Hash-algoritmus: PBKDF2-SHA256 100k iter, 16-byte salt, 32-byte hash.
@@ -49,7 +49,8 @@ export function getAuthDB(context: APIContext): D1Like | null {
   return getDB(context);
 }
 
-/** A PromNET-korszakból megmaradt játékos-azonosító ehhez az e-mailhez (ha van, és még nincs új fiókja). */
+/** A PromNET-korszakból megmaradt játékos-azonosító ehhez az e-mailhez (ha van, és még nincs új fiókja).
+ *  Csak kézi visszakötéshez — a signup szándékosan nem hívja (nincs e-mail-ellenőrzés). */
 export async function legacyUserId(pdb: D1Like, email: string): Promise<string | null> {
   const row = await pdb.prepare(
     'SELECT l.user_id FROM legacy_accounts l LEFT JOIN users u ON u.id = l.user_id WHERE l.email = ? AND u.id IS NULL LIMIT 1',
@@ -241,6 +242,16 @@ export async function getCurrentUser(context: APIContext): Promise<User | null> 
 }
 
 // ── Validátorok ────────────────────────────────────────────────────
+
+/** Belépés utáni cél (?next=) — csak saját, relatív útvonal. Különben nyitott átirányítás
+ *  (`//evil.com`) vagy `javascript:` XSS lenne a login-oldal `location.href = next` sorából. */
+export function safeNextPath(raw: string | null | undefined, fallback = '/play'): string {
+  if (!raw || raw.length > 512) return fallback;
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return fallback;
+  if (/[\u0000-\u001f\\]/.test(raw)) return fallback;
+  return raw;
+}
+
 
 export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length < 255;

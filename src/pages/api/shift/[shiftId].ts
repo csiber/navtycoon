@@ -20,5 +20,9 @@ export const GET = async (c: APIContext): Promise<Response> => {
 
   const id = env.SHIFT_ROOM.idFromName(shiftId);
   const stub = env.SHIFT_ROOM.get(id);
-  return stub.fetch('https://room/ws', c.request);
+  // The DO checks that the shift belongs to this user (shift ids are random UUIDs, but a leaked id must not
+  // let another logged-in player drive someone else's shift). Header is set here, never by the browser.
+  const fwd = new Request('https://room/ws', c.request);
+  fwd.headers.set('x-hs-player', user.id);
+  return stub.fetch(fwd);
 };

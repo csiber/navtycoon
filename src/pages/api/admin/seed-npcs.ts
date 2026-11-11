@@ -1,13 +1,14 @@
 // POST /api/admin/seed-npcs — idempotent seeder for the 10 NPC competitors.
 //
-// Same admin-gate as force-tick: email '+admin' subaddress OR hardcoded
-// owner. Re-running is safe (uses INSERT OR IGNORE on user_id).
+// Same admin-gate as force-tick: ADMIN_USER_IDS env (src/lib/admin.ts).
+// Re-running is safe (uses INSERT OR IGNORE on user_id).
 //
 // Returns { ok, inserted, total } so we can verify the population is
 // healthy from the dashboard or a script.
 
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
+import { isAdminUser } from '../../../lib/admin';
 import { NPC_CHARACTERS } from '../../../lib/game/npc-characters';
 
 export const prerender = false;
@@ -19,14 +20,11 @@ function jerr(status: number, error: string): Response {
   });
 }
 
-function isAdmin(email: string): boolean {
-  return email.includes('+admin') || email === 'csiberius@gmail.com';
-}
 
 export const POST = async (c: APIContext): Promise<Response> => {
   const user = await getCurrentUser(c);
   if (!user) return jerr(401, 'auth');
-  if (!isAdmin(user.email)) return jerr(403, 'admin only');
+  if (!isAdminUser(user, c.locals.runtime?.env as { ADMIN_USER_IDS?: string } | undefined)) return jerr(403, 'admin only');
 
   const db = getDB(c);
   if (!db) return jerr(500, 'no DB');

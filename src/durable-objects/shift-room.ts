@@ -89,10 +89,14 @@ export class ShiftRoomDO {
     if (url.pathname === '/ws') {
       const upgrade = req.headers.get('Upgrade');
       if (upgrade !== 'websocket') return new Response('expected WS', { status: 426 });
+      if (!this.shift) this.shift = await this.state.storage.get<ShiftState>('shift') ?? null;
+      // Ownership: the Pages relay (/api/shift/[shiftId]) sets x-hs-player to the logged-in user's id.
+      if (this.shift && req.headers.get('x-hs-player') !== this.shift.player_id) {
+        return new Response('forbidden', { status: 403 });
+      }
       const pair = new WebSocketPair();
       const [client, server] = [pair[0], pair[1]];
       this.ws = server;
-      if (!this.shift) this.shift = await this.state.storage.get<ShiftState>('shift') ?? null;
       server.accept();
       server.addEventListener('message', (e) => {
         void this.handleMessage(typeof e.data === 'string' ? e.data : '');
