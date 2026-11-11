@@ -3,6 +3,7 @@
 // Auth-required; POST /api/game/pricing clamp-eli a bound-okat szerveroldalon.
 import { loadShell, applyShell } from '../../lib/play/shell';
 import { pt } from '../../lib/play/strings';
+import { localizeHtml, PRICING_TR } from '../../lib/play/static-tr';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { jsonForScript } from '../../lib/safe-json';
@@ -229,7 +230,8 @@ const pageHtml = `
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
-const shellHtml = applyShell(pageHtml, shell, 'pricing', [pt(locale, 'nav.pricing')]);
+const shellHtml = applyShell(localizeHtml(pageHtml, locale, PRICING_TR), shell, 'pricing', [pt(locale, 'nav.pricing')]);
+const msT = { saving: pt(locale, 'set.saving'), saved: pt(locale, 'ms.saved'), error: pt(locale, 'toast.error', { msg: '{msg}' }), perDay: pt(locale, 'ms.per_day'), zero: pt(locale, 'ms.zero'), welcome: pt(locale, 'ms.welcome'), ppcCost: pt(locale, 'ms.ppc_cost'), ppcOff: pt(locale, 'ms.ppc_off') };
 ---
 <!doctype html>
 <html lang="en">
@@ -251,8 +253,10 @@ const shellHtml = applyShell(pageHtml, shell, 'pricing', [pt(locale, 'nav.pricin
 </head>
 <body class="preload">
 <Fragment set:html={shellHtml} />
+<script type="application/json" id="ms-i18n" set:html={jsonForScript(msT)}></script>
 <script type="application/json" id="state" set:html={jsonForScript(stateObj)}></script>
 <script is:inline>
+  var MS = JSON.parse(document.getElementById('ms-i18n').textContent);
   try {
     const s = JSON.parse(document.getElementById('state').textContent);
 
@@ -288,7 +292,7 @@ const shellHtml = applyShell(pageHtml, shell, 'pricing', [pt(locale, 'nav.pricin
       saveBtn.addEventListener('click', async () => {
         const hobby = Number(hobbyInp.value);
         const business = Number(businessInp.value);
-        setStatus('Saving…', '');
+        setStatus(MS.saving, '');
         try {
           const r = await fetch('/api/game/pricing', {
             method: 'POST',
@@ -297,16 +301,16 @@ const shellHtml = applyShell(pageHtml, shell, 'pricing', [pt(locale, 'nav.pricin
           });
           const j = await r.json();
           if (!j.ok) {
-            setStatus('Error: ' + (j.error || 'unknown'), 'err');
+            setStatus(MS.error.replace('{msg}', j.message || j.error || '?'), 'err');
             return;
           }
           // Server clamp-eli — apply back to sliders.
           if (typeof j.hobby === 'number') hobbyInp.value = String(j.hobby);
           if (typeof j.business === 'number') businessInp.value = String(j.business);
           refresh();
-          setStatus('✓ Saved (hobby ' + fmt(j.hobby) + ' / business ' + fmt(j.business) + ')', 'ok');
+          setStatus(MS.saved, 'ok');
         } catch (e) {
-          setStatus('Network error', 'err');
+          setStatus(MS.error.replace('{msg}', 'network'), 'err');
         }
       });
     }

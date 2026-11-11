@@ -3,6 +3,7 @@
 // Server normalize-eli a mix-et (összeg=100%); ha mind 0, balanced default.
 import { loadShell, applyShell } from '../../lib/play/shell';
 import { pt } from '../../lib/play/strings';
+import { localizeHtml, MARKETING_TR } from '../../lib/play/static-tr';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { jsonForScript } from '../../lib/safe-json';
@@ -272,7 +273,8 @@ const pageHtml = `
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
-const shellHtml = applyShell(pageHtml, shell, 'marketing', [pt(locale, 'nav.marketing')]);
+const shellHtml = applyShell(localizeHtml(pageHtml, locale, MARKETING_TR), shell, 'marketing', [pt(locale, 'nav.marketing')]);
+const msT = { saving: pt(locale, 'set.saving'), saved: pt(locale, 'ms.saved'), error: pt(locale, 'toast.error', { msg: '{msg}' }), perDay: pt(locale, 'ms.per_day'), zero: pt(locale, 'ms.zero'), welcome: pt(locale, 'ms.welcome'), ppcCost: pt(locale, 'ms.ppc_cost'), ppcOff: pt(locale, 'ms.ppc_off') };
 ---
 <!doctype html>
 <html lang="en">
@@ -294,8 +296,10 @@ const shellHtml = applyShell(pageHtml, shell, 'marketing', [pt(locale, 'nav.mark
 </head>
 <body class="preload">
 <Fragment set:html={shellHtml} />
+<script type="application/json" id="ms-i18n" set:html={jsonForScript(msT)}></script>
 <script type="application/json" id="state" set:html={jsonForScript(stateObj)}></script>
 <script is:inline>
+  var MS = JSON.parse(document.getElementById('ms-i18n').textContent);
   try {
     const s = JSON.parse(document.getElementById('state').textContent);
 
@@ -346,9 +350,9 @@ const shellHtml = applyShell(pageHtml, shell, 'marketing', [pt(locale, 'nav.mark
       const perDay = acqProb * 288;
       let text;
       if (perDay <= 0) {
-        text = '0 — zero mix';
+        text = MS.zero;
       } else if (perDay >= 1) {
-        text = perDay.toFixed(1) + ' / day';
+        text = MS.perDay.replace('{n}', perDay.toFixed(1));
       } else {
         const hoursPer = 24 / perDay;
         if (hoursPer < 24) {
@@ -360,14 +364,14 @@ const shellHtml = applyShell(pageHtml, shell, 'marketing', [pt(locale, 'nav.mark
       }
       const tags = [];
       if (s.isPro) tags.push('Pro 2×');
-      if (welcomeFactor > 1) tags.push('welcome 2×');
+      if (welcomeFactor > 1) tags.push(MS.welcome);
       if (tags.length > 0) text += ' (' + tags.join(', ') + ')';
       previewEl.textContent = text;
       if (costEl) {
         // PPC cost: PPC_FULL_COST_PER_TICK_CENTS=100, scales linearly with ppc%, 288 ticks/day
         const dailyCents = Math.round(100 * (ppcVal / 100) * 288);
         const dailyUsd = (dailyCents / 100).toFixed(2);
-        costEl.textContent = '// PPC cost: $' + dailyUsd + '/day' + (ppcVal === 0 ? ' (PPC off)' : '');
+        costEl.textContent = '// ' + MS.ppcCost.replace('{v}', '$' + dailyUsd) + (ppcVal === 0 ? ' ' + MS.ppcOff : '');
       }
     }
     function refreshAll() {
@@ -392,7 +396,7 @@ const shellHtml = applyShell(pageHtml, shell, 'marketing', [pt(locale, 'nav.mark
         const seo = Number(seoInp.value);
         const ppc = Number(ppcInp.value);
         const referral = Number(refInp.value);
-        setStatus('Saving…', '');
+        setStatus(MS.saving, '');
         try {
           const r = await fetch('/api/game/marketing', {
             method: 'POST',
@@ -401,7 +405,7 @@ const shellHtml = applyShell(pageHtml, shell, 'marketing', [pt(locale, 'nav.mark
           });
           const j = await r.json();
           if (!j.ok) {
-            setStatus('Error: ' + (j.error || 'unknown'), 'err');
+            setStatus(MS.error.replace('{msg}', j.message || j.error || '?'), 'err');
             return;
           }
           // Server normalize-eli — apply back to sliders.
@@ -410,9 +414,9 @@ const shellHtml = applyShell(pageHtml, shell, 'marketing', [pt(locale, 'nav.mark
           if (typeof m.ppc === 'number') ppcInp.value = String(m.ppc);
           if (typeof m.referral === 'number') refInp.value = String(m.referral);
           refreshAll();
-          setStatus('✓ Saved (SEO ' + m.seo + '% · PPC ' + m.ppc + '% · Referral ' + m.referral + '%)', 'ok');
+          setStatus(MS.saved, 'ok');
         } catch (e) {
-          setStatus('Network error', 'err');
+          setStatus(MS.error.replace('{msg}', 'network'), 'err');
         }
       });
     }
