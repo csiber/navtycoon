@@ -1,0 +1,29 @@
+/* 3D rack (src/scripts/rack3d). A 2D sorok maradnak tartaléknak; 3D-ben elrejtjük őket. */
+.rack3d-host { position: relative; height: var(--rack3d-h, 340px); margin: 0; overflow: hidden;
+  background: radial-gradient(420px 260px at 50% 70%, rgba(99,102,241,.10), transparent 70%); }
+.rack3d-host[hidden] { display: none; }
+.rack3d-canvas { display: block; width: 100%; height: 100%; cursor: grab; outline: none; }
+.panel.rack3d-on .rack-body, .panel.rack3d-on .rack-vis { display: none !important; }
+.rack3d-toggle {
+  margin-left: 8px; height: 22px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line-2);
+  background: var(--panel-2); color: var(--muted); font-family: var(--mono); font-size: 10.5px; font-weight: 700; cursor: pointer;
+}
+.rack3d-toggle:hover { color: var(--text); border-color: var(--indigo-2); }
+.rack3d-toggle[aria-pressed="true"] { color: var(--mint); border-color: rgba(52,211,153,.45); }
+.rack3d-toggle[hidden] { display: none; }
+.rack3d-tip {
+  position: absolute; z-index: 5; pointer-events: none; min-width: 170px; max-width: 220px;
+  display: flex; flex-direction: column; gap: 2px; padding: 9px 11px; border-radius: 10px;
+  background: rgba(11,14,23,.94); border: 1px solid var(--line-2); box-shadow: 0 14px 30px -10px rgba(0,0,0,.8);
+  font-size: 12px; color: var(--muted);
+}
+.rack3d-tip[hidden] { display: none; }
+.rack3d-tip b { color: var(--text); font-family: var(--display); font-size: 13px; }
+.rack3d-tip .st { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; }
+.rack3d-tip .st.ok { color: var(--mint); } .rack3d-tip .st.warn { color: var(--amber); }
+.rack3d-tip .st.hot, .rack3d-tip .st.down { color: var(--pink); } .rack3d-tip .st.idle { color: var(--indigo-2); }
+.rack3d-tip small { color: var(--indigo-2); font-family: var(--mono); font-size: 10px; margin-top: 2px; }
+.rack3d-hint { position: absolute; left: 12px; bottom: 8px; font-family: var(--mono); font-size: 10px; color: var(--dim); pointer-events: none; }
+.rack3d-more { position: absolute; right: 12px; bottom: 8px; font-family: var(--mono); font-size: 10px; color: var(--amber); pointer-events: none; }
+.rack3d-dbg { position: absolute; right: 8px; top: 8px; font-family: var(--mono); font-size: 10px; color: var(--mint); background: rgba(0,0,0,.5); padding: 2px 6px; border-radius: 4px; }
+.panel.rack3d-loading .rack3d-toggle { opacity: .5; }

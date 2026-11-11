@@ -11,6 +11,9 @@ import { SERVER_SPECS, affordableServerTypes } from '../../lib/game/server-types
 import { availableUpgrades, UPGRADE_SPECS } from '../../lib/game/upgrade-tree';
 import I18nDashboard from '../../components/I18nDashboard.astro';
 import DashboardAnims from '../../components/DashboardAnims.astro';
+import { buildRackModel } from '../../lib/play/rack-model';
+import { serverName } from '../../lib/play/catalog';
+import { clientStrings } from '../../lib/play/strings';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -43,6 +46,14 @@ const serversContent = renderServersContent({
   upgrades: upgradesAvail.map((u) => ({ id: u.id, cost_usd_cents: u.cost_usd_cents })),
 });
 const shellHtml = applyContent(applyShell(pageHtml, shell, 'servers', [pt(locale, 'nav.servers')]), serversContent);
+// 3D rack (src/scripts/rack3d): ugyanaz a valós adat, mint a 2D soroké; a nyitott incidens „leállít" egy gépet.
+const openIncidents = ((await db.prepare('SELECT event_type FROM events WHERE player_id = ? AND resolved_at IS NULL')
+  .bind(user.id).all<{ event_type: string }>()).results ?? []).map((r) => r.event_type);
+const rack3d = {
+  page: 'servers',
+  model: buildRackModel({ servers, activeCustomers, openIncidents, nameOf: (t) => serverName(locale, t), minSlots: 12 }),
+  labels: { ...clientStrings(locale, ['r3.']), 'r3.empty': pt(locale, 'dash.fleet.empty') },
+};
 ---
 <!doctype html>
 <html lang="en">
@@ -136,6 +147,20 @@ const shellHtml = applyContent(applyShell(pageHtml, shell, 'servers', [pt(locale
   window.addEventListener('load', function () {
     setTimeout(function () { document.body.classList.remove('preload'); }, 30);
   });
+</script>
+<script type="application/json" id="rack3d-data" set:html={jsonForScript(rack3d)}></script>
+<script>
+  // 3D rack — a three.js csak akkor töltődik le, ha a gép bírja (src/scripts/rack3d/boot.ts).
+  import '../../scripts/rack3d/boot';
+</script>
+<script is:inline>
+  // /play/servers#srv-<id> (a vezérlő 3D rackjéből): az adott gép kiválasztása.
+  (function () {
+    var m = /^#srv-(\d+)$/.exec(location.hash);
+    if (!m) return;
+    var row = document.querySelector('.rack-vis [data-srv="' + m[1] + '"]');
+    if (row) row.click();
+  })();
 </script>
 <I18nDashboard />
 <DashboardAnims />

@@ -152,7 +152,7 @@ export function renderDashboardContent(d: DashboardData): string {
   const rows: string[] = [];
   for (let i = 0; i < Math.max(5, d.servers.length) && i < 8; i++) {
     const sv = loaded.servers[i];
-    const lbl = 'U' + (22 - i);
+    const lbl = 'U' + (24 - i); // ugyanaz a számozás, mint a Szerverek lapon és a 3D racken
     if (sv) {
       const util = sv.util;
       const cls = util >= 80 ? 'u hot' : util >= 60 ? 'u warn' : 'u';
@@ -167,8 +167,9 @@ export function renderDashboardContent(d: DashboardData): string {
           <div class="ph">
             <h3>${esc(pt(L, 'dash.fleet.title'))}</h3>
             <span class="ph-sub">// ${esc(pt(L, 'dash.fleet.sub', { n: d.servers.length }))}</span>
-            <div class="ph-right"><a class="more" href="/play/servers">${esc(pt(L, 'dash.fleet.open'))}</a></div>
+            <div class="ph-right"><a class="more" href="/play/servers">${esc(pt(L, 'dash.fleet.open'))}</a><button class="rack3d-toggle" type="button" data-rack3d-toggle hidden aria-pressed="false">3D</button></div>
           </div>
+          <div class="rack3d-host" data-rack3d hidden style="--rack3d-h:300px"><span class="rack3d-hint">${esc(pt(L, 'r3.hint'))}</span></div>
           <div class="rack-body">${rows.join('')}</div>
           <div class="rack-foot">
             <div class="mini-stat"><div class="k">${esc(pt(L, 'dash.fleet.slots'))}</div><div class="v">${totalCap}</div></div>

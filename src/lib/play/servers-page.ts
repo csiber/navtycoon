@@ -97,7 +97,8 @@ export function renderServersContent(d: ServersPageData): string {
       </div>
       <div class="layout">
         <section class="panel rack-panel">
-          <div class="ph"><h3>${esc(pt(L, 'srv.rack'))}</h3><span class="ph-sub">// ${esc(pt(L, 'srv.rack_sub'))}</span></div>
+          <div class="ph"><h3>${esc(pt(L, 'srv.rack'))}</h3><span class="ph-sub">// ${esc(pt(L, 'srv.rack_sub'))}</span><button class="rack3d-toggle" type="button" data-rack3d-toggle hidden aria-pressed="false" style="margin-left:auto">3D</button></div>
+          <div class="rack3d-host" data-rack3d hidden style="--rack3d-h:470px"><span class="rack3d-hint">${esc(pt(L, 'r3.hint'))}</span></div>
           <div class="rack-vis">${rows.join('')}</div>
           <div class="rack-foot">
             <div class="mini-stat"><div class="k">${esc(pt(L, 'srv.k.used'))}</div><div class="v">${used}U</div></div>

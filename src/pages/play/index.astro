@@ -186,6 +186,9 @@ const needsOnboarding = !(player as { onboarding_completed_at?: number | null })
 import { nextEraTarget } from '../../lib/game/era-progress';
 import I18nDashboard from '../../components/I18nDashboard.astro';
 import DashboardAnims from '../../components/DashboardAnims.astro';
+import { buildRackModel } from '../../lib/play/rack-model';
+import { serverName as serverName3d } from '../../lib/play/catalog';
+import { clientStrings as clientStrings3d } from '../../lib/play/strings';
 const nextEra = nextEraTarget(player.current_era);
 let eraProgress: null | {
   target_era: number;
@@ -260,6 +263,16 @@ const dashContent = renderDashboardContent({
   },
   cheapestUpgrade: cheapestUpg ? { id: cheapestUpg.id, cost_cents: cheapestUpg.cost_usd_cents } : null,
 });
+// 3D rack a Flotta-panelen (src/scripts/rack3d): minden gép (max. 24 látszik), valós terheléssel és incidenssel.
+const rack3dServers = (await db.prepare('SELECT id, type, capacity FROM servers WHERE player_id = ? ORDER BY purchased_at ASC LIMIT 30')
+  .bind(user.id).all<{ id: number; type: string; capacity: number }>()).results ?? [];
+const openIncidents3d = ((await db.prepare('SELECT event_type FROM events WHERE player_id = ? AND resolved_at IS NULL')
+  .bind(user.id).all<{ event_type: string }>()).results ?? []).map((r) => r.event_type);
+const rack3d = {
+  page: 'dashboard',
+  model: buildRackModel({ servers: rack3dServers, activeCustomers: allActiveCustomers.length, openIncidents: openIncidents3d, nameOf: (t) => serverName3d(locale, t), minSlots: 8 }),
+  labels: { ...clientStrings3d(locale, ['r3.']), 'r3.empty': pt(locale, 'dash.fleet.empty') },
+};
 const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard', [pt(locale, 'nav.dashboard')]), dashContent);
 ---
 <!doctype html>
@@ -717,6 +730,11 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
     })();
   </script>
 )}
+<script type="application/json" id="rack3d-data" set:html={jsonForScript(rack3d)}></script>
+<script>
+  // 3D rack — a three.js csak akkor töltődik le, ha a gép bírja (src/scripts/rack3d/boot.ts).
+  import '../../scripts/rack3d/boot';
+</script>
 <I18nDashboard />
 <DashboardAnims />
 <script is:inline src="/js/play-shell.js"></script>
