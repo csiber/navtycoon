@@ -35,7 +35,7 @@ describe('generateChatResponse — model fallback', () => {
       .mockResolvedValueOnce({ response: 'from fallback' });
     const r = await generateChatResponse({ run } as unknown as WorkersAIBinding, 's', 'm');
     expect(r).toBe('from fallback');
-    expect(run.mock.calls.map(c => c[0])).toEqual([...CHAT_MODELS]);
+    expect(run.mock.calls.map(c => c[0])).toEqual(CHAT_MODELS.slice(0, 2));
   });
 
   it('treats an empty answer as failure and reads OpenAI-shaped output', async () => {
@@ -48,6 +48,13 @@ describe('generateChatResponse — model fallback', () => {
   it('throws when every model fails (caller falls back to placeholder)', async () => {
     const run = vi.fn().mockRejectedValue(new Error('down'));
     await expect(generateChatResponse({ run } as unknown as WorkersAIBinding, 's', 'm')).rejects.toThrow('down');
+    expect(run).toHaveBeenCalledTimes(CHAT_MODELS.length);
+  });
+
+  it('has at least two distinct fallback models and none of the retired llama-3.1-8b family', () => {
+    expect(new Set(CHAT_MODELS).size).toBe(CHAT_MODELS.length);
+    expect(CHAT_MODELS.length).toBeGreaterThanOrEqual(3);
+    for (const m of CHAT_MODELS) expect(m).not.toMatch(/llama-3\.1-8b-instruct(-fast)?$/);
   });
 });
 

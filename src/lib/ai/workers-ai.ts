@@ -1,4 +1,4 @@
-// CF Workers AI client wrappers — chat (Llama-3.3-70b, fallback 3.1-8b-fast) + embed (bge-base-en).
+// CF Workers AI client wrappers — chat (Llama-3.3-70b, fallback Llama-4-Scout → Mistral-Small-3.1) + embed (bge-base-en).
 
 export interface WorkersAIBinding {
   run(model: string, input: Record<string, unknown>): Promise<unknown>;
@@ -8,7 +8,14 @@ export interface WorkersAIBinding {
 // and reply had silently fallen back to placeholder text since then. 3.3-70b writes good Hungarian/German;
 // the 8b-fast model is the fallback if the primary is ever retired too. Failures are logged, never silent.
 // (gemma-4 / glm-4.7 were tried: reasoning models, they spend max_tokens on thinking and return empty text.)
-export const CHAT_MODELS = ['@cf/meta/llama-3.3-70b-instruct-fp8-fast', '@cf/meta/llama-3.1-8b-instruct-fast'] as const;
+// 2026-11-11: llama-3.1-8b-instruct-fast is no longer in the Workers AI catalog (on its way out), so the
+// fallbacks are now llama-4-scout-17b and mistral-small-3.1-24b — both checked live with a Hungarian prompt
+// (fast, plain text, non-reasoning). Check the catalog: GET /accounts/{acct}/ai/models/search?search=<name>.
+export const CHAT_MODELS = [
+  '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+  '@cf/meta/llama-4-scout-17b-16e-instruct',
+  '@cf/mistralai/mistral-small-3.1-24b-instruct',
+] as const;
 const EMBED_MODEL = '@cf/baai/bge-base-en-v1.5';
 const MAX_RESPONSE_LENGTH = 1500;
 
