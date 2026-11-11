@@ -1,6 +1,5 @@
 // POST /api/auth/delete — törli a felhasználói fiókot teljes egészében.
-// Törli a játékállást (player + customers + tickets + events + servers + achievements + upgrades + llm_usage),
-// a fiókot (users, sessions, legacy_accounts — 2026-10-05 óta saját táblák), majd kijelentkeztet.
+// Törli a játékállást, a fórum- és piactér-tartalmat és a fiókot (src/lib/auth/delete-account.ts), majd kijelentkeztet.
 
 import type { APIContext } from 'astro';
 import {
@@ -8,6 +7,7 @@ import {
   getAuthDB, getSessionCookie, clearSessionCookie, deleteSession,
 } from '../../../lib/auth';
 import { localeFromRequest, jsonError } from '../../../lib/i18n/api-errors';
+import { deleteAccountData, type DeleteDb } from '../../../lib/auth/delete-account';
 
 export const prerender = false;
 
@@ -19,20 +19,7 @@ export async function POST(context: APIContext): Promise<Response> {
   if (!db) return jsonError(500, loc, 'db_missing');
 
   try {
-    await db.prepare('DELETE FROM tickets WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM customers WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM servers WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM events WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM achievements WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM upgrades WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM llm_usage WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM players WHERE user_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM legacy_accounts WHERE user_id = ?').bind(user.id).run();
-    // AikaHub-kötés: tokent nem tárolunk (src/lib/aikahub.ts), így visszavonni sincs mit; a kötés sora megy.
-    await db.prepare('DELETE FROM account_links WHERE user_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM oauth_pending WHERE link_user_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM users WHERE id = ?').bind(user.id).run();
+    await deleteAccountData(db as unknown as DeleteDb, user.id);
   } catch (e) {
     console.error('delete-account failed', e);
     return jsonError(500, loc, 'internal');
