@@ -4,6 +4,7 @@ import { loadShell, applyShell } from '../../lib/play/shell';
 import { pt } from '../../lib/play/strings';
 import { renderDashboardContent, applyDashboardContent } from '../../lib/play/dashboard';
 import { availableUpgrades } from '../../lib/game/upgrade-tree';
+import { achievementMap } from '../../lib/play/achievements-i18n';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { jsonForScript } from '../../lib/safe-json';
@@ -304,6 +305,7 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
     });
   </script>
 )}
+<script type="application/json" id="ach-i18n" set:html={jsonForScript({ map: achievementMap(locale), unlocked: pt(locale, 'ach.unlocked') })}></script>
 <div id="achievement-toasts" style="position:fixed;top:80px;right:20px;z-index:95;display:flex;flex-direction:column;gap:8px;max-width:320px;"></div>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script is:inline>
@@ -315,6 +317,7 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
       const r = await fetch('/api/game/achievements');
       if (!r.ok) return;
       const j = await r.json();
+      const ACH = JSON.parse(document.getElementById('ach-i18n').textContent);
       const newly = Array.isArray(j.newly_unlocked) ? j.newly_unlocked : [];
       if (newly.length === 0) return;
       const container = document.getElementById('achievement-toasts');
@@ -339,13 +342,13 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
           const inner = document.createElement('div');
           const lbl = document.createElement('div');
           lbl.style.cssText = 'font-family:var(--mono);font-size:10px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em;font-weight:700;';
-          lbl.textContent = 'Achievement unlocked';
+          lbl.textContent = ACH.unlocked;
           const title = document.createElement('div');
           title.style.cssText = 'font-family:var(--display);font-weight:700;font-size:14px;color:var(--text);margin-top:2px;';
-          title.textContent = a.title || a.id;
+          title.textContent = (ACH.map[a.id] && ACH.map[a.id].title) || a.title || a.id;
           const desc = document.createElement('div');
           desc.style.cssText = 'font-size:11px;color:var(--muted);margin-top:2px;';
-          desc.textContent = a.description || '';
+          desc.textContent = (ACH.map[a.id] && ACH.map[a.id].desc) || a.description || '';
           inner.append(lbl, title, desc);
           card.append(emo, inner);
           card.addEventListener('click', () => card.remove());

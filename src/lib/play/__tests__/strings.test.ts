@@ -75,3 +75,17 @@ describe('achievement names are readable in every language', () => {
     expect(achievementTitle('de', 'some_new_one')).toBe('Some new one');
   });
 });
+
+import { MARKETING_TR, PRICING_TR, localizeHtml } from '../static-tr';
+describe('static page tables (marketing, pricing)', () => {
+  it('every entry has hu and de', () => {
+    for (const t of [MARKETING_TR, PRICING_TR]) for (const [en, v] of Object.entries(t)) {
+      expect(v.hu, en).toBeTruthy();
+      expect(v.de, en).toBeTruthy();
+    }
+  });
+  it('localizeHtml replaces exact segments and leaves en untouched', () => {
+    expect(localizeHtml('<b>Save mix</b>', 'hu', MARKETING_TR)).toBe('<b>Mix mentése</b>');
+    expect(localizeHtml('<b>Save mix</b>', 'en', MARKETING_TR)).toBe('<b>Save mix</b>');
+  });
+});
