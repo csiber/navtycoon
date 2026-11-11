@@ -12,29 +12,35 @@
 // preferred_lang column is set in the same insert.
 import Base from '../layouts/Base.astro';
 import { getCurrentUser } from '../lib/auth';
-import { t, type Locale, LOCALES } from '../lib/i18n';
+import { t, type Locale } from '../lib/i18n';
+import { localeFromRequest } from '../lib/i18n/api-errors';
 
 const existing = await getCurrentUser(Astro);
 if (existing) return Astro.redirect('/play');
 
-function detectLocale(): Locale {
-  const url = new URL(Astro.request.url);
-  const qLang = url.searchParams.get('lang');
-  if (qLang && (LOCALES as readonly string[]).includes(qLang)) return qLang as Locale;
-  const al = Astro.request.headers.get('accept-language') ?? '';
-  const first = al.split(',')[0]?.slice(0, 2).toLowerCase();
-  if (first && (LOCALES as readonly string[]).includes(first)) return first as Locale;
-  return 'en';
-}
-const locale: Locale = detectLocale();
+// Nyelv: ?lang= (a landing CTA viszi) → hs_lang süti → Accept-Language → en.
+const locale: Locale = localeFromRequest(Astro.request);
 // „Belépés AikaHub-fiókkal" (src/lib/aikahub.ts): a /auth/callback hiba esetén ide küld vissza ?aikahub_error=…-ral.
 const aikahubErrRaw = new URL(Astro.request.url).searchParams.get('aikahub_error');
 const aikahubError = aikahubErrRaw && ['access_denied','state_mismatch','invalid_grant','bad_profile','network','provider_error'].includes(aikahubErrRaw) ? aikahubErrRaw : null;
 const nextQs = '';
+const langHref = (l: string) => `/signup?lang=${l}`;
+const LEGAL = {
+  en: { terms: '/legal/terms', privacy: '/legal/privacy' },
+  hu: { terms: '/hu/aszf', privacy: '/hu/adatkezeles' },
+  de: { terms: '/de/agb', privacy: '/de/datenschutz' },
+}[locale];
 
 ---
-<Base title={t(locale, 'auth.tab.signup')}>
+<Base title={t(locale, 'auth.tab.signup')} locale={locale}>
   <div class="max-w-md mx-auto py-10 px-4" data-locale={locale}>
+    <div class="flex justify-end items-center gap-2 mb-3 text-xs text-nt-text-dim" id="lang-select">
+      <span>{t(locale, 'auth.lang_label')}:</span>
+      {(['en', 'hu', 'de'] as const).map((l) => (
+        <a href={langHref(l)} data-lang={l} aria-current={l === locale ? 'true' : undefined}
+           class={`px-2 py-1 rounded border uppercase ${l === locale ? 'border-nt-accent text-nt-text' : 'border-nt-border hover:text-nt-text'}`}>{l}</a>
+      ))}
+    </div>
     <div class="flex gap-2 mb-8 p-1 bg-nt-bg-2 border border-nt-border rounded-lg">
       <button class="flex-1 px-4 py-2 rounded font-semibold text-sm bg-nt-accent text-white">
         {t(locale, 'auth.tab.signup')}
@@ -101,12 +107,15 @@ const nextQs = '';
 
     <p class="mt-8 text-center text-nt-text-dim text-xs">
       {t(locale, 'auth.signup.legal')}
-      <a href="/legal/terms" class="text-nt-accent hover:underline">{t(locale, 'auth.signup.legal.terms')}</a>
+      <a href={LEGAL.terms} class="text-nt-accent hover:underline">{t(locale, 'auth.signup.legal.terms')}</a>
       {t(locale, 'auth.signup.legal.and')}
-      <a href="/legal/privacy" class="text-nt-accent hover:underline">{t(locale, 'auth.signup.legal.privacy')}</a>.
+      <a href={LEGAL.privacy} class="text-nt-accent hover:underline">{t(locale, 'auth.signup.legal.privacy')}</a>.
     </p>
 
-    <script define:vars={{ locale, creatingMsg: t(locale, 'auth.status.creating') }}>
+    <script define:vars={{ locale, creatingMsg: t(locale, 'auth.status.creating'), errLabel: t(locale, 'auth.status.error'), failedMsg: t(locale, 'auth.status.failed') }}>
+      // A választott nyelv megmarad: localStorage (kliens) + hs_lang süti (szerver: /play, API-hibák).
+      try { localStorage.setItem('hs_lang', locale); } catch {}
+      try { document.cookie = 'hs_lang=' + locale + '; path=/; max-age=31536000; samesite=lax'; } catch {}
       document.getElementById('signup-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
@@ -115,9 +124,6 @@ const nextQs = '';
           status.textContent = creatingMsg;
           status.className = 'text-sm text-nt-text-dim';
         }
-        // Persist locale to localStorage so the dashboard inherits it
-        // immediately after the redirect.
-        try { localStorage.setItem('hs_lang', locale); } catch {}
         const r = await fetch('/api/auth/signup', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
@@ -130,13 +136,13 @@ const nextQs = '';
           }),
         });
         if (!r.ok) {
-          let err = 'Signup failed.';
+          let err = failedMsg;
           try {
             const j = await r.json();
             err = (j && j.error) ?? err;
           } catch {}
           if (status) {
-            status.textContent = 'Error: ' + err;
+            status.textContent = errLabel + ' ' + err;
             status.className = 'text-sm text-red-400';
           }
           return;
