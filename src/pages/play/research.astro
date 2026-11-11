@@ -1,7 +1,8 @@
 ---
 // /play/research -- backend wiring complete.
 // Tech-tree state: which UPGRADE_SPECS are owned / available / locked per player.
-import { loadShell, applyShell } from '../../lib/play/shell';
+import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
+import { renderResearchContent } from '../../lib/play/research-page';
 import { pt } from '../../lib/play/strings';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
@@ -71,7 +72,11 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
-const shellHtml = applyShell(pageHtml, shell, 'research', [pt(locale, 'nav.research')]);
+const researchContent = renderResearchContent(shell, UPGRADE_SPECS.map((u) => ({
+  id: u.id, era: u.era, cost_usd_cents: u.cost_usd_cents, prereq: u.prereq ?? null,
+  status: treeNodes.find((n) => n.id === u.id)?.status ?? 'locked',
+})));
+const shellHtml = applyContent(applyShell(pageHtml, shell, 'research', [pt(locale, 'nav.research')]), researchContent);
 ---
 <!doctype html>
 <html lang="en">
@@ -93,97 +98,41 @@ const shellHtml = applyShell(pageHtml, shell, 'research', [pt(locale, 'nav.resea
 </head>
 <body class="preload">
 <Fragment set:html={shellHtml} />
-<script type="application/json" id="state" set:html={jsonForScript(stateObj)}></script>
+<script type="application/json" id="rs-i18n" set:html={jsonForScript({
+  bought: pt(locale, 'toast.bought_upgrade', { name: '{name}' }),
+  error: pt(locale, 'toast.error', { msg: '{msg}' }),
+})}></script>
 <script is:inline>
-  try {
-    const s = JSON.parse(document.getElementById('state').textContent);
-
-    // Pagehead count
-    const phCount = document.querySelector('.pagehead .count');
-    if (phCount) {
-      phCount.textContent = s.ownedCount + ' of ' + s.totalNodes + ' unlocked · '
-        + s.availableCount + ' available now';
-    }
-
-    // Header points pill
-    const points = document.querySelector('.tree-wrap .points b');
-    if (points) points.textContent = String(s.availableCount);
-
-    // Replace tree nodes — rebuild from spec list grouped by era.
-    const tree = document.querySelector('.tree');
-    if (tree) {
-      // Remove existing nodes (keep SVG lines element).
-      const existing = tree.querySelectorAll('.node');
-      existing.forEach(n => n.parentNode && n.parentNode.removeChild(n));
-
-      // Layout: 4 cols × N rows per era, era1 on top, era2 below
-      const era1 = s.nodes.filter(n => n.era === 1);
-      const era2 = s.nodes.filter(n => n.era === 2);
-      const colX = [30, 210, 390, 570];
-      const rowY1 = 16;
-      const rowY2 = 145;
-      const era1Row2Y = 290;
-
-      function makeNode(n, x, y) {
-        const el = document.createElement('div');
-        el.className = 'node ' + (n.status === 'owned' ? 'acquired' : (n.status === 'available' ? 'available' : 'locked'));
-        el.style.left = x + 'px';
-        el.style.top = y + 'px';
-        const ico = document.createElement('div'); ico.className = 'ico'; ico.textContent = '⚙';
-        const nm = document.createElement('div'); nm.className = 'name'; nm.textContent = n.name;
-        const cost = document.createElement('div'); cost.className = 'cost';
-        if (n.status === 'owned') {
-          while (cost.firstChild) cost.removeChild(cost.firstChild);
-          const b = document.createElement('b'); b.textContent = 'Acquired'; cost.appendChild(b);
-        } else {
-          const c = document.createElement('span'); c.textContent = '$' + n.costUsd;
-          cost.appendChild(c);
-          const e = document.createElement('span'); e.className = 'ttl'; e.textContent = 'Era ' + n.era;
-          cost.appendChild(e);
-        }
-        el.appendChild(ico); el.appendChild(nm); el.appendChild(cost);
-        el.title = n.effect + (n.prereq ? ' (req: ' + n.prereq + ')' : '');
-        return el;
+  (function () {
+    const T = JSON.parse(document.getElementById('rs-i18n').textContent);
+    // Csomópont kiválasztása → részletek (korábban a kattintás semmit sem csinált).
+    document.querySelectorAll('[data-node]').forEach((n) => {
+      n.addEventListener('click', () => {
+        const id = n.getAttribute('data-node');
+        document.querySelectorAll('[data-node]').forEach((x) => x.classList.toggle('selected', x === n));
+        document.querySelectorAll('[data-node-detail]').forEach((d) => { d.hidden = d.getAttribute('data-node-detail') !== id; });
+        if (window.innerWidth <= 900) document.querySelector('.rs-side')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    document.addEventListener('click', async (ev) => {
+      const btn = ev.target instanceof HTMLElement ? ev.target.closest('[data-buy-upgrade]') : null;
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      const orig = btn.textContent;
+      btn.textContent = '…';
+      try {
+        const r = await fetch('/api/game/upgrade', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ upgrade_id: btn.dataset.buyUpgrade }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status));
+        window.hsMoney && window.hsMoney(-parseInt(btn.dataset.cost || '0', 10), T.bought.replace('{name}', btn.dataset.name || ''));
+        btn.textContent = '✓';
+        setTimeout(() => location.reload(), 1400);
+      } catch (e) {
+        btn.disabled = false; btn.textContent = orig;
+        window.hsToast && window.hsToast(T.error.replace('{msg}', e.message), 'bad');
       }
-
-      era1.slice(0, 4).forEach((n, i) => tree.appendChild(makeNode(n, colX[i], rowY1)));
-      era1.slice(4, 8).forEach((n, i) => tree.appendChild(makeNode(n, colX[i], rowY2)));
-      era2.slice(0, 4).forEach((n, i) => tree.appendChild(makeNode(n, colX[i], era1Row2Y)));
-      era2.slice(4, 8).forEach((n, i) => tree.appendChild(makeNode(n, colX[i], era1Row2Y + 140)));
-      era2.slice(8, 12).forEach((n, i) => tree.appendChild(makeNode(n, colX[i], era1Row2Y + 280)));
-
-      tree.style.height = Math.max(600, era1Row2Y + 280 + 120) + 'px';
-    }
-
-    // Replace right-side detail panel with summary
-    const detHead = document.querySelector('.det-head h2');
-    if (detHead) detHead.textContent = 'Research overview';
-    const detCat = document.querySelector('.det-head .cat');
-    if (detCat) detCat.textContent = 'Era ' + s.era + ' · ' + s.ownedCount + ' owned';
-    const detSections = document.querySelectorAll('.det-section');
-    if (detSections[0]) {
-      const p = detSections[0].querySelector('p');
-      if (p) p.textContent = 'Click a node in the tree to acquire it (when you have the cash and prereqs).';
-    }
-    if (detSections[1]) {
-      const eff = detSections[1].querySelector('.det-effects');
-      if (eff) {
-        while (eff.firstChild) eff.removeChild(eff.firstChild);
-        const summary = [
-          { lbl: 'Owned', val: s.ownedCount + ' / ' + s.totalNodes, pos: true },
-          { lbl: 'Available now', val: String(s.availableCount), pos: s.availableCount > 0 },
-          { lbl: 'Current Era', val: String(s.era), pos: true },
-        ];
-        summary.forEach(it => {
-          const div = document.createElement('div'); div.className = 'effect';
-          const sp = document.createElement('span'); sp.className = it.pos ? 'pos' : 'neg'; sp.textContent = it.val;
-          const lb = document.createElement('span'); lb.className = 'lbl'; lb.textContent = it.lbl;
-          div.appendChild(sp); div.appendChild(lb);
-          eff.appendChild(div);
-        });
-      }
-    }
-  } catch (e) { console.error('hydrate', e); }
+    });
+  })();
 </script>
 <script is:inline>
   // Hide mock-data flash: remove preload-class once hydrators have run.
