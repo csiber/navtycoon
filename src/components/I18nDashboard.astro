@@ -1202,11 +1202,16 @@ import SidebarUser from './SidebarUser.astro';
 
         // ── Tickets: only surface if count grew past last-seen ──
         let currentOpen = 0;
+        // Csak a játékos cégalapítása UTÁN aktív fórumszálak számítanak újnak — korábban egy 180 napos
+        // NPC-poszt is olvasatlanként jelent meg egy vadonatúj játékosnál (2026-11-11).
+        let since = Math.floor(Date.now() / 1000) - 7 * 86400;
         try {
           const r = await fetch('/api/game/state', { cache: 'no-store' });
           if (r.ok) {
             const j = await r.json();
             currentOpen = (j && j.counts && j.counts.openTickets) || 0;
+            const fa = j && j.player && j.player.founded_at;
+            if (typeof fa === 'number') since = Math.max(since, fa);
           }
         } catch {}
         if (currentOpen > seenTickets) {
@@ -1228,6 +1233,7 @@ import SidebarUser from './SidebarUser.astro';
             const threads = (j && j.threads) || [];
             for (const t of threads) {
               if (seenThreads.includes(t.id)) continue;
+              if ((t.last_reply_at || t.created_at || 0) < since) continue;
               items.push({
                 icon: '💬',
                 title: String(t.title || '').slice(0, 50),
