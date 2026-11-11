@@ -1,7 +1,8 @@
 ---
 // /play/devlog -- backend wiring complete.
 // Real event-feed + recent upgrades + customer joins from D1.
-import { loadShell, applyShell } from '../../lib/play/shell';
+import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
+import { renderDevlogContent } from '../../lib/play/devlog-page';
 import { pt } from '../../lib/play/strings';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
@@ -32,7 +33,7 @@ interface EventRow {
 }
 const eventsRaw = (await db.prepare(
   'SELECT id, event_type, data_json, spawned_at, resolved_at, outcome FROM events ' +
-  'WHERE player_id = ? ORDER BY spawned_at DESC LIMIT 20',
+  'WHERE player_id = ? ORDER BY spawned_at DESC LIMIT 40',
 ).bind(user.id).all<EventRow>()).results ?? [];
 
 interface UpgradeJoinRow { upgrade_id: string; purchased_at: number }
@@ -42,7 +43,7 @@ const upgradesRaw = (await db.prepare(
 
 interface CustomerJoinRow { name: string; persona_archetype: PersonaArchetype; joined_at: number }
 const customerJoins = (await db.prepare(
-  'SELECT name, persona_archetype, joined_at FROM customers WHERE player_id = ? ORDER BY joined_at DESC LIMIT 10',
+  'SELECT name, persona_archetype, joined_at FROM customers WHERE player_id = ? ORDER BY joined_at DESC LIMIT 30',
 ).bind(user.id).all<CustomerJoinRow>()).results ?? [];
 
 const upgradeMap = new Map(UPGRADE_SPECS.map(u => [u.id, u]));
@@ -111,7 +112,16 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
-const shellHtml = applyShell(pageHtml, shell, 'devlog', [pt(locale, 'nav.devlog')]);
+const devlogContent = renderDevlogContent({
+  shell, now: Math.floor(Date.now() / 1000),
+  events: eventsRaw.map((e) => {
+    let d: Record<string, unknown> = {};
+    try { d = e.data_json ? JSON.parse(e.data_json) : {}; } catch { /* hibás JSON */ }
+    return { id: e.id, type: e.event_type, spawned_at: e.spawned_at, resolved: e.resolved_at !== null, outcome: e.outcome, data: d };
+  }),
+  upgrades: upgradesRaw, joins: customerJoins,
+});
+const shellHtml = applyContent(applyShell(pageHtml, shell, 'devlog', [pt(locale, 'nav.devlog')]), devlogContent);
 ---
 <!doctype html>
 <html lang="en">
@@ -133,170 +143,6 @@ const shellHtml = applyShell(pageHtml, shell, 'devlog', [pt(locale, 'nav.devlog'
 </head>
 <body class="preload">
 <Fragment set:html={shellHtml} />
-<script type="application/json" id="state" set:html={jsonForScript(stateObj)}></script>
-<script is:inline>
-  try {
-    const s = JSON.parse(document.getElementById('state').textContent);
-
-    // Pagehead count
-    const phCount = document.querySelector('.pagehead .count');
-    if (phCount) {
-      phCount.textContent = s.totalEvents + ' events · ' + s.totalUpgrades + ' upgrades · '
-        + s.totalCustomers + ' customer joins';
-    }
-    const phSub = document.querySelector('.pagehead .sub');
-    if (phSub) phSub.textContent = 'Your real timeline — events, upgrades, customer joins.';
-
-    // Build dynamic feed: replace pinned + patches.
-    const panel = document.querySelector('section.panel');
-    if (panel) {
-      // Pinned: show latest event or "no activity"
-      const pinned = panel.querySelector('.pinned');
-      if (pinned) {
-        const ver = pinned.querySelector('.ver');
-        const h2 = pinned.querySelector('h2');
-        const metaSpans = pinned.querySelectorAll('.meta span b');
-        const ps = pinned.querySelectorAll('p');
-        if (s.events.length > 0) {
-          const e0 = s.events[0];
-          if (ver) ver.textContent = 'Event #' + (s.events.length) + ' · ' + e0.type;
-          if (h2) h2.textContent = formatEventTitle(e0.type, e0.outcome);
-          if (metaSpans[0]) metaSpans[0].textContent = 'Day ' + s.day;
-          if (metaSpans[1]) metaSpans[1].textContent = e0.rel;
-          if (metaSpans[2]) metaSpans[2].textContent = String(s.totalEvents);
-          if (metaSpans[3]) metaSpans[3].textContent = String(s.totalUpgrades);
-          if (ps[0]) ps[0].textContent = 'Latest activity from your save. ' +
-            (e0.resolved ? 'Resolved (' + e0.outcome + ').' : 'Currently open.');
-          if (ps[1]) ps[1].textContent = 'Below: full event-feed, upgrades purchased, and customer joins.';
-        } else {
-          if (ver) ver.textContent = 'No activity yet';
-          if (h2) h2.textContent = 'Your devlog will fill as you play.';
-          if (metaSpans[0]) metaSpans[0].textContent = 'Day ' + s.day;
-          if (metaSpans[1]) metaSpans[1].textContent = '—';
-          if (metaSpans[2]) metaSpans[2].textContent = '0';
-          if (metaSpans[3]) metaSpans[3].textContent = '0';
-          if (ps[0]) ps[0].textContent = 'No events spawned, no upgrades bought, no customers signed yet. Start a shift to see things move.';
-          if (ps[1] && ps[1].parentNode) ps[1].parentNode.removeChild(ps[1]);
-        }
-        // Hide highlights row
-        const hl = pinned.querySelector('.highlights');
-        if (hl) hl.style.display = 'none';
-        const actions = pinned.querySelector('.actions');
-        if (actions) actions.style.display = 'none';
-      }
-
-      // Patch entries (4 in template) → replace with our 3 groups (events / upgrades / customers).
-      const patches = panel.querySelectorAll('.patch');
-      // Group 1: events
-      if (patches[0]) renderPatch(patches[0], 'Event feed', 'last ' + s.events.length + ' events',
-        s.events.length === 0 ? [{ pre: 'lore', text: 'No events yet — events spawn during shifts.' }] :
-        s.events.map(e => ({
-          pre: e.outcome === 'positive' ? 'new' : e.outcome === 'negative' ? 'brk' : 'lore',
-          text: formatEventTitle(e.type, e.outcome) + ' · ' + e.rel + (e.resolved ? ' (' + e.outcome + ')' : ' (open)'),
-        })));
-      // Group 2: upgrades
-      if (patches[1]) renderPatch(patches[1], 'Upgrades acquired', s.upgrades.length + ' total',
-        s.upgrades.length === 0 ? [{ pre: 'fix', text: 'No upgrades purchased yet.' }] :
-        s.upgrades.map(u => ({
-          pre: 'new',
-          text: u.name + ' (Era ' + u.era + ') · ' + u.rel + (u.effect ? ' — ' + u.effect : ''),
-        })));
-      // Group 3: customer joins
-      if (patches[2]) renderPatch(patches[2], 'Customer joins', s.customers.length + ' tracked',
-        s.customers.length === 0 ? [{ pre: 'lore', text: 'No customers have signed up yet.' }] :
-        s.customers.map(c => ({
-          pre: 'bal',
-          text: c.name + ' · ' + c.archetype + '-type · ' + c.rel,
-        })));
-      // Group 4: hide
-      if (patches[3]) patches[3].style.display = 'none';
-    }
-
-    function formatEventTitle(type, outcome) {
-      const labels = {
-        ddos_attempt: 'DDoS attempt',
-        viral_blog: 'Viral blog post',
-        electricity_spike: 'Electricity spike',
-        recruit_ad: 'Recruit ad placed',
-        intern_incident: 'Intern incident',
-        dmca: 'DMCA notice',
-        cooling_failure: 'Cooling failure',
-        security_breach: 'Security breach',
-      };
-      return labels[type] || type;
-    }
-    function renderPatch(patch, title, sub, items) {
-      const h3 = patch.querySelector('h3'); if (h3) h3.textContent = title;
-      const author = patch.querySelector('.author');
-      if (author) author.textContent = '// ' + sub;
-      const gutterVer = patch.querySelector('.gutter .ver');
-      if (gutterVer) gutterVer.textContent = title.split(' ')[0];
-      const gutterDate = patch.querySelector('.gutter .date');
-      if (gutterDate) gutterDate.textContent = 'Day ' + s.day;
-      const gutterTag = patch.querySelector('.gutter .tag');
-      if (gutterTag) gutterTag.textContent = 'Live';
-      const ul = patch.querySelector('ul');
-      if (ul) {
-        // Clear and re-populate
-        while (ul.firstChild) ul.removeChild(ul.firstChild);
-        items.forEach(it => {
-          const li = document.createElement('li');
-          const pre = document.createElement('span');
-          pre.className = 'pre ' + it.pre;
-          pre.textContent = it.pre.toUpperCase();
-          const div = document.createElement('div');
-          div.textContent = it.text;
-          li.appendChild(pre);
-          li.appendChild(div);
-          ul.appendChild(li);
-        });
-      }
-      const rx = patch.querySelector('.reactions');
-      if (rx) rx.style.display = 'none';
-    }
-  } catch (e) { console.error('hydrate', e); }
-</script>
-<div id="achievements-wrap" style="max-width: 1100px; margin: 24px auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px;">
-  <h3 style="font-family: var(--display); margin: 0 0 16px;">🏆 Achievements</h3>
-  <div id="ach-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;"></div>
-</div>
-<script is:inline>
-  (function () {
-    var grid = document.getElementById('ach-grid');
-    if (!grid) return;
-    fetch('/api/game/achievements')
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (!j || !j.ok || !Array.isArray(j.achievements)) return;
-        j.achievements.forEach(function (a) {
-          var card = document.createElement('div');
-          card.style.cssText = 'background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;opacity:' + (a.unlocked ? '1' : '.4') + ';';
-          var head = document.createElement('div');
-          head.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;font-family:var(--display);font-weight:600;font-size:13px;';
-          var emoji = document.createElement('span');
-          emoji.style.fontSize = '20px';
-          emoji.textContent = a.emoji || '';
-          var title = document.createElement('span');
-          title.textContent = a.title || '';
-          head.appendChild(emoji);
-          head.appendChild(title);
-          if (a.unlocked) {
-            var tag = document.createElement('span');
-            tag.style.cssText = 'margin-left:auto;font-size:10px;background:var(--mint);color:#000;padding:1px 6px;border-radius:99px;';
-            tag.textContent = 'UNLOCKED';
-            head.appendChild(tag);
-          }
-          var desc = document.createElement('div');
-          desc.style.cssText = 'color:var(--muted);font-size:12px;';
-          desc.textContent = a.description || '';
-          card.appendChild(head);
-          card.appendChild(desc);
-          grid.appendChild(card);
-        });
-      })
-      .catch(function () {});
-  })();
-</script>
 <script is:inline>
   // Hide mock-data flash: remove preload-class once hydrators have run.
   window.addEventListener('load', function () {
