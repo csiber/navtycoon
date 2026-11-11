@@ -9,6 +9,7 @@
 export { ShiftRoomDO } from './durable-objects/shift-room';
 
 import { tickAllActivePlayers } from './lib/game/tick';
+import { tickAllNpcs } from './lib/game/npc-tick';
 import type { WorkersAIBinding } from './lib/ai/workers-ai';
 import type { VectorizeBinding } from './lib/ai/vectorize';
 
@@ -71,6 +72,14 @@ export default {
         .catch((e) => {
           console.error('cron-tick error', e);
         }),
+    );
+    // NPC competitors (leaderboard rivals). Until 2026-11-11 only /api/cron/tick ran them, and nothing calls
+    // that endpoint — so the NPCs had been frozen since 2026-05-15. Archetype-driven, no AI call; at most one
+    // decision per NPC per NPC_DECISION_INTERVAL_SEC, no catch-up burst after the long pause.
+    ctx.waitUntil(
+      tickAllNpcs(env.DB, now)
+        .then((r) => { if (r.npcs_decided > 0) console.log('npc-tick', r); })
+        .catch((e) => { console.error('npc-tick error', e); }),
     );
   },
 };

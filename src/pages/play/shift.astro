@@ -7,6 +7,7 @@
 // footer) so the page can be rendered inside an <iframe> modal on /play
 // without the redundant outer header.
 import Base from '../../layouts/Base.astro';
+import { jsonForScript } from '../../lib/safe-json';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer, listTickets } from '../../lib/game/db';
 import { getLlmUsageToday, getDailyCap } from '../../lib/game/llm-cap';
@@ -21,7 +22,7 @@ if (!user) return Astro.redirect('/login?next=/play/shift');
 const db = getDB(ctx);
 if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
-if (!player) return Astro.redirect('/signup');
+if (!player) return Astro.redirect('/play'); // a /play hozza létre a kezdőállást
 
 // Mirror /api/shift/start: both 'open' AND 'in_progress' count toward
 // the shift-ready check. Otherwise abandoned in_progress tickets leave
@@ -69,6 +70,7 @@ const shiftLabels = {
   end_unlocked: t(locale, 'shift.end.unlocked'),
   err_could_not_start: t(locale, 'shift.error.could_not_start'),
   err_generic: t(locale, 'shift.error.generic'),
+  err_llm_cap: t(locale, 'shift.error.llm_cap'),
   arch_newbie: t(locale, 'shift.archetype.newbie'),
   arch_pro: t(locale, 'shift.archetype.pro'),
   arch_cheapskate: t(locale, 'shift.archetype.cheapskate'),
@@ -169,6 +171,7 @@ const shiftLabels = {
           <input id="msg-input" type="text" placeholder={t(locale, 'shift.compose_ph')} class="flex-1 px-3 py-2 bg-nt-bg-3 border border-nt-border rounded" />
           <button id="msg-send" class="px-3 py-2 bg-nt-accent rounded text-sm font-semibold">{t(locale, 'shift.send')}</button>
         </div>
+        <p id="shift-notice" class="hidden text-sm text-amber-300 mt-2" aria-live="polite"></p>
       </section>
     </div>
     <div id="shift-end" class="hidden bg-nt-bg-2 p-6 rounded mt-6">
@@ -178,7 +181,7 @@ const shiftLabels = {
     </div>
   </div>
 
-  <script type="application/json" id="shift-labels" set:html={JSON.stringify(shiftLabels)}></script>
+  <script type="application/json" id="shift-labels" set:html={jsonForScript(shiftLabels)}></script>
   <script>
     // Vite/Astro bundles this import into a hashed asset at build time —
     // unlike `<script src="/src/scripts/...">` which 404s in production.

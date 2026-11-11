@@ -1,6 +1,7 @@
 ---
 // /play/servers -- auth-required.
 import { getCurrentUser, getDB } from '../../lib/auth';
+import { jsonForScript } from '../../lib/safe-json';
 import { getPlayer, listServers, listUpgrades } from '../../lib/game/db';
 import { SERVER_SPECS, affordableServerTypes } from '../../lib/game/server-types';
 import { availableUpgrades, UPGRADE_SPECS } from '../../lib/game/upgrade-tree';
@@ -15,7 +16,7 @@ if (!user) return Astro.redirect('/login?next=/play/servers');
 const db = getDB(ctx);
 if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
-if (!player) return Astro.redirect('/signup');
+if (!player) return Astro.redirect('/play'); // a /play hozza létre a kezdőállást
 
 const servers = await listServers(db, user.id);
 const ownedUpgradeIds = new Set((await listUpgrades(db, user.id)).map(u => u.upgrade_id));
@@ -67,7 +68,7 @@ const pageHtml = "\n<div class=\"app\">\n\n  <!-- Sidebar -->\n  <aside>\n    <a
 </head>
 <body class="preload">
 <Fragment set:html={pageHtml} />
-<script type="application/json" id="state" set:html={JSON.stringify({
+<script type="application/json" id="state" set:html={jsonForScript({
     company: companyName, initials, founded, day: dayNum, era: player.current_era,
     cashUsd, mrrUsd, rep: player.reputation,
     servers: serversData, buyable: buyableData, upgrades: upgradesData,

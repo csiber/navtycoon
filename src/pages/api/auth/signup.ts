@@ -3,22 +3,20 @@
 // Body: { email, password, company_name, city? }
 // 1. Validáció (email, password ≥8, company_name ≥2)
 // 2. Email-foglaltság check a users táblában
-// 3. createUser — ha az e-mail a PromNET-korszak egyik játékosáé (legacy_accounts), a régi user_id-t kapja,
-//    így a meglévő játékállás (players) visszakerül hozzá
+// 3. createUser — mindig új user_id (a legacy_accounts-visszakötés 2026-11-11 óta csak kézi, lásd lent)
 // 4. createSession
 // 5. createPlayer, ha még nincs játékos-rekord
 // 6. setSessionCookie + return { ok, redirect: '/play' }
 import type { APIContext } from 'astro';
 import {
   getDB, getAuthDB,
-  isEmailTaken, createUser, createSession, legacyUserId,
+  isEmailTaken, createUser, createSession,
   setSessionCookie,
   isValidEmail, passwordIssue, companyNameIssue,
 } from '../../../lib/auth';
-import { createPlayer, getPlayer } from '../../../lib/game/db';
-import { spawnCustomer } from '../../../lib/game/customer-spawn';
+import { getPlayer } from '../../../lib/game/db';
+import { bootstrapStarterPlayer } from '../../../lib/game/bootstrap';
 import { checkHostingNameBlacklist } from '../../../lib/auth/hosting-blacklist';
-import { SERVER_SPECS } from '../../../lib/game/server-types';
 import { computeAchievementInput } from '../../../lib/game/achievements-helper';
 import { checkAndUnlockAchievements } from '../../../lib/game/achievements';
 import type { D1Database } from '@cloudflare/workers-types/experimental';
@@ -67,8 +65,10 @@ export async function POST(context: APIContext): Promise<Response> {
       return jerr(409, 'Ezzel az email-címmel már regisztráltak.');
     }
 
-    // 1) User (display_name = company_name); régi játékosnál a régi azonosítóval
-    const user = await createUser(pdb, email, password, companyName, await legacyUserId(pdb, email));
+    // 1) User (display_name = company_name). A PromNET-korszak régi játékállását (legacy_accounts) NEM
+    // kötjük vissza automatikusan: e-mail-ellenőrzés nélkül bárki megszerezhetné más régi fiókját csak azzal,
+    // hogy az ő e-mail-címével regisztrál (2026-11-11). Visszakötés csak kézzel, igazolt kérésre.
+    const user = await createUser(pdb, email, password, companyName);
 
     // 2) Session
     const ip = context.request.headers.get('cf-connecting-ip') ?? undefined;
@@ -82,61 +82,10 @@ export async function POST(context: APIContext): Promise<Response> {
     try {
       const existing = await getPlayer(db, user.id);
       if (!existing) {
-        await createPlayer(db, {
-          user_id: user.id,
-          company_name: companyName,
-          city,
-        });
-        // Persist signup-time language preference. createPlayer doesn't
-        // accept preferred_lang yet (would need a schema-aware refactor),
-        // so we UPDATE in place — the row is fresh, race-free.
-        await db.prepare(
-          'UPDATE players SET preferred_lang = ? WHERE user_id = ?',
-        ).bind(preferredLang, user.id).run();
-
-        // === Starter bootstrap ===
-        const userId = user.id;
-        const now = Math.floor(Date.now() / 1000);
-        const starter = SERVER_SPECS.lamp_box;
-
-        // 1× starter szerver (ingyen — purchase_cost_cents nem terhel,
-        // monthly_cost_cents 0-ra állítva, hogy a kezdő ne fogyjon ki azonnal)
-        await db.prepare(
-          'INSERT INTO servers (player_id, era, type, capacity, current_load, ' +
-          'monthly_cost_cents, purchased_at) VALUES (?, 1, \'lamp_box\', ?, 0, 0, ?)',
-        ).bind(userId, starter.capacity, now).run();
-
-        // 3× kezdő customer (hobby plan), mindegyiknek 1 nyitott ticket.
-        // Starter-tickets ALWAYS use the persona-specific placeholder text —
-        // we deliberately do NOT consume the daily LLM-cap here, otherwise
-        // a fresh user would land on /play/shift with only 2/5 budget and
-        // be locked out of their very first shift (need 5). The AI-flavour
-        // kicks in on the next cron-tick + during shift-mode interactions.
-        for (let i = 0; i < 3; i++) {
-          const sc = spawnCustomer('hobby');
-          const cRes = await db.prepare(
-            'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, ' +
-            'joined_at, satisfaction, churn_risk) ' +
-            'VALUES (?, ?, ?, \'hobby\', ?, ?, 0) RETURNING id',
-          ).bind(userId, sc.name, sc.persona_archetype, now, sc.starting_satisfaction)
-            .first<{ id: number }>();
-          if (!cRes) continue; // best-effort
-
-          const summary = sc.initial_ticket_text.slice(0, 80);
-          const fullText = sc.initial_ticket_text;
-
-          await db.prepare(
-            'INSERT INTO tickets (customer_id, player_id, summary, full_text, status, created_at) ' +
-            'VALUES (?, ?, ?, ?, \'open\', ?)',
-          ).bind(cRes.id, userId, summary, fullText, now).run();
-        }
-
-        // Initial MRR: 3 × $5 hobby = $15 = 1500 cents
-        await db.prepare('UPDATE players SET mrr_usd_cents = 1500 WHERE user_id = ?')
-          .bind(userId).run();
+        await bootstrapStarterPlayer(db, { user_id: user.id, company_name: companyName, city, lang: preferredLang });
       }
     } catch (e) {
-      // A user létrejött; player később a /play first-hit-en pótlódhat
+      // A user létrejött; a kezdőállást a /play első betöltése pótolja (ensurePlayer).
       console.warn('signup: createPlayer/bootstrap hiba (best-effort):', (e as Error).message);
     }
 

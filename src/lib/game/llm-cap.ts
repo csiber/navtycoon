@@ -1,6 +1,7 @@
 // src/lib/game/llm-cap.ts
 // Hyperscales — Plan 2 Task 4: per-user daily LLM-call budget tracker.
-// Free=5/day, Pro=50/day. UPSERT-pattern atomi-inkrementtel; cap-túllépéskor
+// Free=30/day, Pro=100/day (2026-11-11: 5 volt — a háttér-tick AI-ticketjei is ebből fogynak, így
+// az első műszak 3 kezdő ügyfelének sem jutott válasz; a 70b-modell ára ennél a forgalomnál elhanyagolható). UPSERT-pattern atomi-inkrementtel; cap-túllépéskor
 // rollback-decrement, hogy a counter ne ússzon el a cap fölé.
 //
 // Konvenció: nap-kulcs UTC YYYY-MM-DD; 00:00 UTC reset.
@@ -9,8 +10,8 @@
 
 import type { D1Database } from '@cloudflare/workers-types/experimental';
 
-export const FREE_DAILY_CAP = 5;
-export const PRO_DAILY_CAP = 50;
+export const FREE_DAILY_CAP = 30;
+export const PRO_DAILY_CAP = 100;
 
 function todayKey(): string {
   const d = new Date();

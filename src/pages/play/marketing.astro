@@ -2,6 +2,7 @@
 // /play/marketing -- 3-channel marketing-mix sliders. Dark template style.
 // Server normalize-eli a mix-et (összeg=100%); ha mind 0, balanced default.
 import { getCurrentUser, getDB } from '../../lib/auth';
+import { jsonForScript } from '../../lib/safe-json';
 import { getPlayer } from '../../lib/game/db';
 import I18nDashboard from '../../components/I18nDashboard.astro';
 import DashboardAnims from '../../components/DashboardAnims.astro';
@@ -14,7 +15,7 @@ if (!user) return Astro.redirect('/login?next=/play/marketing');
 const db = getDB(ctx);
 if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
-if (!player) return Astro.redirect('/signup');
+if (!player) return Astro.redirect('/play'); // a /play hozza létre a kezdőállást
 
 const companyName = player.company_name;
 const cashUsd = (player.cash_usd_cents / 100).toFixed(0);
@@ -285,7 +286,7 @@ const pageHtml = `
 </head>
 <body class="preload">
 <Fragment set:html={pageHtml} />
-<script type="application/json" id="state" set:html={JSON.stringify(stateObj)}></script>
+<script type="application/json" id="state" set:html={jsonForScript(stateObj)}></script>
 <script is:inline>
   try {
     const s = JSON.parse(document.getElementById('state').textContent);

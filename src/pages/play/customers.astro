@@ -1,6 +1,7 @@
 ---
 // /play/customers -- auth-required.
 import { getCurrentUser, getDB } from '../../lib/auth';
+import { jsonForScript } from '../../lib/safe-json';
 import { getPlayer, listCustomers } from '../../lib/game/db';
 import I18nDashboard from '../../components/I18nDashboard.astro';
 import DashboardAnims from '../../components/DashboardAnims.astro';
@@ -13,7 +14,7 @@ if (!user) return Astro.redirect('/login?next=/play/customers');
 const db = getDB(ctx);
 if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
-if (!player) return Astro.redirect('/signup');
+if (!player) return Astro.redirect('/play'); // a /play hozza létre a kezdőállást
 
 const customers = await listCustomers(db, user.id, true);
 const customerCount = customers.length;
@@ -64,7 +65,7 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
     </div>
   </div>
 )}
-<script type="application/json" id="state" set:html={JSON.stringify({
+<script type="application/json" id="state" set:html={jsonForScript({
     company: companyName, initials, founded, day: dayNum, era: player.current_era,
     cashUsd, mrrUsd, rep: player.reputation, customers: customerData,
   })}></script>

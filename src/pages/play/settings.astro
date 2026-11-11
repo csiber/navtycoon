@@ -2,6 +2,8 @@
 // /play/settings -- backend wiring complete.
 // Profile + LLM cap + Pro status from D1.
 import { getCurrentUser, getDB } from '../../lib/auth';
+import { jsonForScript } from '../../lib/safe-json';
+import { FREE_DAILY_CAP, PRO_DAILY_CAP } from '../../lib/game/llm-cap';
 import { getPlayer } from '../../lib/game/db';
 import { getLlmUsageToday, getDailyCap } from '../../lib/game/llm-cap';
 import I18nDashboard from '../../components/I18nDashboard.astro';
@@ -15,7 +17,7 @@ if (!user) return Astro.redirect('/login?next=/play/settings');
 const db = getDB(ctx);
 if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
-if (!player) return Astro.redirect('/signup');
+if (!player) return Astro.redirect('/play'); // a /play hozza létre a kezdőállást
 
 const isPro = player.is_pro === 1;
 // Cast to D1Database for the llm-cap helper (uses @cloudflare/workers-types).
@@ -78,7 +80,7 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 </head>
 <body class="preload">
 <Fragment set:html={pageHtml} />
-<script type="application/json" id="state" set:html={JSON.stringify(stateObj)}></script>
+<script type="application/json" id="state" set:html={jsonForScript(stateObj)}></script>
 <script is:inline>
   try {
     const s = JSON.parse(document.getElementById('state').textContent);
@@ -541,14 +543,14 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
           ✓ Pro active{proUntilStr ? ` until ${proUntilStr}` : ''}
         </p>
         <p style="margin: 0 0 12px; font-size: 12px; color: var(--muted);">
-          Pro grants 5 shifts/day, 50 LLM calls/day, <b style="color:var(--text)">2× customer-acquisition</b>, and
+          Pro grants 5 shifts/day, {PRO_DAILY_CAP} AI customer replies/day, <b style="color:var(--text)">2× customer-acquisition</b>, and
           <b style="color:var(--text)">0.5× churn</b> on idle tickets.
         </p>
       </div>
     ) : (
       <div>
         <p style="margin: 0 0 13px; font-size: 13px; color: var(--muted);">
-          You're on the Free tier: 1 shift/day, 5 LLM calls/day. Pro is not available right now.
+          You're on the Free tier: 1 shift/day, {FREE_DAILY_CAP} AI customer replies/day. Pro is not available right now.
         </p>
       </div>
     )}

@@ -1,6 +1,7 @@
 ---
 // /play/network -- backend wiring complete (player-data overview + Era-gated placeholder).
 import { getCurrentUser, getDB } from '../../lib/auth';
+import { jsonForScript } from '../../lib/safe-json';
 import { getPlayer } from '../../lib/game/db';
 import I18nDashboard from '../../components/I18nDashboard.astro';
 import DashboardAnims from '../../components/DashboardAnims.astro';
@@ -13,7 +14,7 @@ if (!user) return Astro.redirect('/login?next=/play/network');
 const db = getDB(ctx);
 if (!db) return new Response('No DB', { status: 500 });
 const player = await getPlayer(db, user.id);
-if (!player) return Astro.redirect('/signup');
+if (!player) return Astro.redirect('/play'); // a /play hozza létre a kezdőállást
 
 const totalPlayersRow = await db.prepare('SELECT COUNT(*) AS n FROM players').first<{ n: number }>();
 const totalPlayers = totalPlayersRow?.n ?? 1;
@@ -79,7 +80,7 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 </head>
 <body class="preload">
 <Fragment set:html={pageHtml} />
-<script type="application/json" id="state" set:html={JSON.stringify(stateObj)}></script>
+<script type="application/json" id="state" set:html={jsonForScript(stateObj)}></script>
 <script is:inline>
   try {
     const s = JSON.parse(document.getElementById('state').textContent);

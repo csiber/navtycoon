@@ -43,7 +43,7 @@ interface ShiftLabels {
   sat: string; active_subject: string; active_sat: string;
   end_tickets: string; end_total_sat: string; end_refunds: string;
   end_rep: string; end_unlocked: string;
-  err_could_not_start: string; err_generic: string;
+  err_could_not_start: string; err_generic: string; err_llm_cap?: string;
   arch_newbie: string; arch_pro: string; arch_cheapskate: string;
   arch_karen: string; arch_loyalist: string; arch_ghost: string;
   arch_drama: string; arch_crypto: string;
@@ -137,7 +137,14 @@ function attachWs(sock: WebSocket) {
     } else if (msg.type === 'shift_end') showShiftEnd(msg.summary, msg.newly_unlocked);
     else if (msg.type === 'error') {
       console.error('shift error', msg.error);
-      alert(LABELS.err_generic + ': ' + msg.error);
+      // Napi AI-keret: nem blokkoló alert, hanem tartós megjegyzés a válaszmező alatt — a műszak megy tovább.
+      const notice = document.getElementById('shift-notice');
+      if (msg.error === 'daily LLM cap reached' && notice) {
+        notice.textContent = LABELS.err_llm_cap ?? 'Daily AI reply budget used up.';
+        notice.classList.remove('hidden');
+      } else {
+        alert(LABELS.err_generic + ': ' + msg.error);
+      }
     }
   };
   sock.onclose = () => {
