@@ -1,23 +1,20 @@
 // PATCH /api/game/settings — update player-profile fields (company_name, city).
 // Per-user scope (uses user.id from session). Validates length/types.
 
+import { legacyError } from '../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { updatePlayer } from '../../../lib/game/db';
 
 export const prerender = false;
 
-function jerr(s: number, e: string): Response {
-  return new Response(JSON.stringify({ ok: false, error: e }), {
-    status: s,
-    headers: { 'content-type': 'application/json' },
-  });
-}
 
 const PATCHABLE_FIELDS = ['company_name', 'city'] as const;
 type PatchableField = (typeof PATCHABLE_FIELDS)[number];
 
 export const PATCH = async (c: APIContext): Promise<Response> => {
+  // Hibaüzenet a játékos nyelvén (src/lib/i18n/api-errors.ts legacyError).
+  const jerr = (s: number, e: string): Response => legacyError(c.request, s, e);
   const user = await getCurrentUser(c);
   if (!user) return jerr(401, 'auth');
   const db = getDB(c);

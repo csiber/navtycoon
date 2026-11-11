@@ -1,19 +1,17 @@
 // src/pages/api/shift/start.ts
 // Creates a new shift: gathers up to 10 open tickets, populates a ShiftRoomDO,
 // returns the WS URL. Daily-shift cap: free=1, pro=5.
+import { legacyError } from '../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getPlayer } from '../../../lib/game/db';
 
 export const prerender = false;
 
-function jerr(s: number, e: string) {
-  return new Response(JSON.stringify({ ok: false, error: e }), {
-    status: s, headers: { 'content-type': 'application/json' },
-  });
-}
 
 export const POST = async (c: APIContext): Promise<Response> => {
+  // Hibaüzenet a játékos nyelvén (src/lib/i18n/api-errors.ts legacyError).
+  const jerr = (s: number, e: string): Response => legacyError(c.request, s, e);
   const user = await getCurrentUser(c); if (!user) return jerr(401, 'auth');
   const db = getDB(c); if (!db) return jerr(500, 'no DB');
   const player = await getPlayer(db, user.id);

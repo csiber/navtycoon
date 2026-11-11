@@ -1,5 +1,6 @@
 // POST /api/game/upgrade — upgrade-buy endpoint.
 // Auth + era-gate + prereq-gate + owned-check + cash-gate + atomic insert+deduct.
+import { legacyError } from '../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getPlayer } from '../../../lib/game/db';
@@ -10,14 +11,10 @@ import type { D1Database } from '@cloudflare/workers-types/experimental';
 
 export const prerender = false;
 
-function jerr(s: number, e: string): Response {
-  return new Response(JSON.stringify({ ok: false, error: e }), {
-    status: s,
-    headers: { 'content-type': 'application/json' },
-  });
-}
 
 export const POST = async (c: APIContext): Promise<Response> => {
+  // Hibaüzenet a játékos nyelvén (src/lib/i18n/api-errors.ts legacyError).
+  const jerr = (s: number, e: string): Response => legacyError(c.request, s, e);
   const user = await getCurrentUser(c);
   if (!user) return jerr(401, 'auth');
   const db = getDB(c);

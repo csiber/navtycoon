@@ -4,12 +4,15 @@
 // upgrades, players. Új /play hit-en a player.signup-bootstrap újra
 // létrejön (kezdő 3 customer + 1 lamp_box + $1000 cash).
 
+import { legacyError } from '../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 
 export const prerender = false;
 
 export async function POST(context: APIContext): Promise<Response> {
+  // Hibaüzenet a játékos nyelvén (src/lib/i18n/api-errors.ts legacyError).
+  const jerr = (s: number, e: string): Response => legacyError(context.request, s, e);
   const user = await getCurrentUser(context);
   if (!user) return jerr(401, 'Be kell jelentkezned.');
   const db = getDB(context);
@@ -39,9 +42,3 @@ export async function POST(context: APIContext): Promise<Response> {
   );
 }
 
-function jerr(status: number, message: string): Response {
-  return new Response(
-    JSON.stringify({ ok: false, error: message }),
-    { status, headers: { 'Content-Type': 'application/json' } },
-  );
-}

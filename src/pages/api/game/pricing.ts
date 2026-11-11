@@ -2,6 +2,7 @@
 // Auth → JSON-validáció → clamp (PRICING_BOUNDS) → updatePlayer.
 // A clamp csendes: ha a kliens out-of-bounds értéket küld, befogjuk és
 // a befogott értékkel térünk vissza (nincs 422, csak ok=true).
+import { legacyError } from '../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { updatePlayer } from '../../../lib/game/db';
@@ -9,14 +10,10 @@ import { clampPricing } from '../../../lib/game/pricing';
 
 export const prerender = false;
 
-function jerr(s: number, e: string): Response {
-  return new Response(JSON.stringify({ ok: false, error: e }), {
-    status: s,
-    headers: { 'content-type': 'application/json' },
-  });
-}
 
 export const POST = async (c: APIContext): Promise<Response> => {
+  // Hibaüzenet a játékos nyelvén (src/lib/i18n/api-errors.ts legacyError).
+  const jerr = (s: number, e: string): Response => legacyError(c.request, s, e);
   const user = await getCurrentUser(c);
   if (!user) return jerr(401, 'auth');
   const db = getDB(c);

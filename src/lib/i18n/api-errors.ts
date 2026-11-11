@@ -37,6 +37,14 @@ const EN = {
   rate_limited: 'Too many requests. Please slow down a little.',
   not_enough_cash: 'Not enough cash.',
   internal: 'Something went wrong on our side. Please try again.',
+  era_locked: 'This unlocks in a later era.',
+  invalid_item: 'Unknown item.',
+  unavailable: 'Not available right now (era, prerequisite, or you already own it).',
+  already_resolved: 'This has already been decided.',
+  nothing_to_update: 'Nothing to change.',
+  bad_request: 'Invalid request.',
+  no_player: 'No company yet — open the dashboard first.',
+  invalid_value: 'Invalid value: {field}.',
 } as const;
 
 export type ApiMsgKey = keyof typeof EN;
@@ -64,6 +72,14 @@ export const API_MESSAGES: Record<ApiLocale, Record<ApiMsgKey, string>> = {
     rate_limited: 'Túl sok kérés. Lassíts egy kicsit.',
     not_enough_cash: 'Nincs elég pénzed.',
     internal: 'Valami hiba történt nálunk. Próbáld újra.',
+    era_locked: 'Ez egy későbbi korszakban nyílik meg.',
+    invalid_item: 'Ismeretlen elem.',
+    unavailable: 'Most nem elérhető (korszak, előfeltétel, vagy már a tiéd).',
+    already_resolved: 'Erről már döntöttél.',
+    nothing_to_update: 'Nincs mit módosítani.',
+    bad_request: 'Érvénytelen kérés.',
+    no_player: 'Még nincs céged — előbb nyisd meg a vezérlőt.',
+    invalid_value: 'Érvénytelen érték: {field}.',
   },
   de: {
     db_missing: 'Der Server ist nicht konfiguriert. Bitte versuche es später erneut.',
@@ -86,6 +102,14 @@ export const API_MESSAGES: Record<ApiLocale, Record<ApiMsgKey, string>> = {
     rate_limited: 'Zu viele Anfragen. Bitte etwas langsamer.',
     not_enough_cash: 'Nicht genug Geld.',
     internal: 'Bei uns ist etwas schiefgelaufen. Bitte versuche es erneut.',
+    era_locked: 'Das wird erst in einer späteren Ära freigeschaltet.',
+    invalid_item: 'Unbekanntes Element.',
+    unavailable: 'Gerade nicht verfügbar (Ära, Voraussetzung, oder schon in deinem Besitz).',
+    already_resolved: 'Darüber hast du schon entschieden.',
+    nothing_to_update: 'Nichts zu ändern.',
+    bad_request: 'Ungültige Anfrage.',
+    no_player: 'Noch keine Firma — öffne zuerst die Übersicht.',
+    invalid_value: 'Ungültiger Wert: {field}.',
   },
 };
 
@@ -146,3 +170,36 @@ export function jsonError(
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
   });
 }
+
+// A /api/game/* végpontok régi, gépi angol hibakódjai → lefordított üzenet (2026-11-11, UX-javítás).
+// A válaszban az `error` a játékos nyelvén olvasható szöveg, a `code` a stabil kulcs.
+const LEGACY_CODES: Record<string, ApiMsgKey> = {
+  'auth': 'unauthorized',
+  'no DB': 'db_missing',
+  'No DB': 'db_missing',
+  'no player': 'no_player',
+  'JSON': 'invalid_json',
+  'bad JSON': 'invalid_json',
+  'insufficient cash': 'not_enough_cash',
+  'era locked': 'era_locked',
+  'invalid server type': 'invalid_item',
+  'invalid upgrade': 'invalid_item',
+  'unavailable (era, prereq, or owned)': 'unavailable',
+  'already resolved': 'already_resolved',
+  'event not found': 'not_found',
+  'unknown option': 'invalid_item',
+  'unknown event type': 'invalid_item',
+  'bad event id': 'bad_request',
+  'option_id required': 'bad_request',
+  'nothing to update': 'nothing_to_update',
+  'company_name 2-60 chars': 'company_too_short',
+  'company_name cannot be null': 'company_too_short',
+  'admin only': 'forbidden',
+};
+
+export function legacyError(request: Request, status: number, code: string): Response {
+  const loc = localeFromRequest(request);
+  const key = LEGACY_CODES[code] ?? (status === 401 ? 'unauthorized' : status === 404 ? 'not_found' : status >= 500 ? 'internal' : 'bad_request');
+  return jsonError(status, loc, key, { field: code });
+}
+export const LEGACY_ERROR_CODES = LEGACY_CODES;
