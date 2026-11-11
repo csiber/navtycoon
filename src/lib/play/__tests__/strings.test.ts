@@ -60,3 +60,18 @@ describe('starter / placeholder tickets follow the player language', () => {
     expect(all).toContain(spawnCustomer('hobby', 'de').initial_ticket_text);
   });
 });
+
+import { ACHIEVEMENT_TRANSLATIONS, achievementTitle } from '../achievements-i18n';
+import { ACHIEVEMENTS } from '../../game/achievements';
+describe('achievement names are readable in every language', () => {
+  it('every achievement has hu and de title + description', () => {
+    for (const lang of ['hu', 'de'] as const) for (const a of ACHIEVEMENTS) {
+      expect(ACHIEVEMENT_TRANSLATIONS[lang][a.id]?.[0], `${lang}:${a.id}`).toBeTruthy();
+    }
+  });
+  it('never shows a raw id', () => {
+    expect(achievementTitle('hu', 'first_shift')).toBe('Az első műszak');
+    expect(achievementTitle('en', 'first_shift')).toBe('First Shift');
+    expect(achievementTitle('de', 'some_new_one')).toBe('Some new one');
+  });
+});
