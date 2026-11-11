@@ -19,6 +19,7 @@ if (existing) return Astro.redirect(next);
 
 // Nyelv: ?lang= (a landing CTA viszi) → hs_lang süti → Accept-Language → en.
 const locale: Locale = localeFromRequest(Astro.request);
+const explicitLang = !!url.searchParams.get('lang') || /(?:^|;\s*)hs_lang=/.test(Astro.request.headers.get('cookie') ?? '');
 // „Belépés AikaHub-fiókkal" (src/lib/aikahub.ts): a /auth/callback hiba esetén ide küld vissza ?aikahub_error=…-ral.
 const aikahubErrRaw = new URL(Astro.request.url).searchParams.get('aikahub_error');
 const aikahubError = aikahubErrRaw && ['access_denied','state_mismatch','invalid_grant','bad_profile','network','provider_error'].includes(aikahubErrRaw) ? aikahubErrRaw : null;
@@ -83,10 +84,14 @@ const langHref = (l: string) => `/login?lang=${l}${nextQs ? '&' + nextQs.slice(1
       <p id="status" class="text-sm" aria-live="polite"></p>
     </form>
 
-    <script define:vars={{ next, locale, checkingMsg: t(locale, 'auth.status.checking'), failedMsg: t(locale, 'auth.status.failed') }}>
-      // A választott nyelv megmarad: localStorage (kliens) + hs_lang süti (szerver: /play, API-hibák).
-      try { localStorage.setItem('hs_lang', locale); } catch {}
-      try { document.cookie = 'hs_lang=' + locale + '; path=/; max-age=31536000; samesite=lax'; } catch {}
+    <script define:vars={{ next, locale, explicitLang, checkingMsg: t(locale, 'auth.status.checking'), failedMsg: t(locale, 'auth.status.failed') }}>
+      // A választott nyelv megmarad: localStorage (kliens) + hs_lang süti (szerver: /play, API-hibák) — de csak ha
+      // tényleg választás (?lang= vagy már meglévő süti). Puszta Accept-Language-ből nem: akkor belépés után a fiók
+      // mentett nyelve (players.preferred_lang) nyer, nem az új eszköz böngészőnyelve.
+      if (explicitLang) {
+        try { localStorage.setItem('hs_lang', locale); } catch {}
+        try { document.cookie = 'hs_lang=' + locale + '; path=/; max-age=31536000; samesite=lax'; } catch {}
+      }
       document.getElementById('login-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);

@@ -12,19 +12,40 @@
 // keyboard-shortcut modal + animated logout transition.
 import { TRANSLATIONS } from '../lib/i18n';
 import SidebarUser from './SidebarUser.astro';
+import { getCurrentUser, getDB } from '../lib/auth';
+import { resolveLocale } from '../lib/i18n/server';
+
+// A szerver szerinti nyelv (?lang= → hs_lang süti → players.preferred_lang → Accept-Language). Ez a tartalék, ha a
+// böngészőben nincs localStorage-választás (új eszköz, privát ablak, Safari-törlés) — korábban ilyenkor a
+// navigator.language nyert, és felülírta a sütit és a DB-t is (2026-11-11 füstpróba: HU-fiók angolra váltott,
+// az AI-ügyfelek is angolul válaszoltak).
+type AnyCtx = Parameters<typeof getCurrentUser>[0];
+const ctx = Astro as unknown as AnyCtx;
+let SERVER_LOCALE: string | null = null;
+try {
+  const u = await getCurrentUser(ctx);
+  const db = getDB(ctx);
+  SERVER_LOCALE = await resolveLocale({ request: Astro.request, db: db as never, userId: u?.id });
+} catch { SERVER_LOCALE = null; }
 ---
 <SidebarUser />
-<script is:inline define:vars={{ DASH_TRANSLATIONS: TRANSLATIONS }}>
+<script is:inline define:vars={{ DASH_TRANSLATIONS: TRANSLATIONS, SERVER_LOCALE }}>
   (function () {
     const SUPPORTED = ['en', 'hu', 'de'];
+    // explicit = a játékos választotta (?lang= vagy localStorage) → csak ekkor írjuk vissza a DB-be.
+    let explicit = false;
     function resolveLocale() {
       try {
         const url = new URL(window.location.href);
         const q = url.searchParams.get('lang');
-        if (q && SUPPORTED.includes(q)) return q;
+        if (q && SUPPORTED.includes(q)) { explicit = true; return q; }
         const saved = localStorage.getItem('hs_lang');
-        if (saved && SUPPORTED.includes(saved)) return saved;
+        if (saved && SUPPORTED.includes(saved)) { explicit = true; return saved; }
       } catch { /* sandboxed */ }
+      if (SERVER_LOCALE && SUPPORTED.includes(SERVER_LOCALE)) {
+        try { localStorage.setItem('hs_lang', SERVER_LOCALE); } catch { /* sandboxed */ }
+        return SERVER_LOCALE;
+      }
       const nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
       if (SUPPORTED.includes(nav)) return nav;
       return 'en';
@@ -49,7 +70,7 @@ import SidebarUser from './SidebarUser.astro';
       // 5s debounce via session-storage so we don't spam the endpoint
       // on every page load.
       const lastSync = sessionStorage.getItem('hs_lang_last_sync');
-      if (lastSync !== locale) {
+      if (explicit && lastSync !== locale) {
         sessionStorage.setItem('hs_lang_last_sync', locale);
         fetch('/api/game/settings', {
           method: 'PATCH',
