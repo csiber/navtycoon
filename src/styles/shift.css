@@ -54,7 +54,8 @@
 .sx-endbtn:hover { background: rgba(244,63,94,.12); }
 
 /* ─── Pre-shift ─── */
-.sx-pre { display: grid; grid-template-columns: 1.1fr 1fr; gap: 0; overflow: hidden; }
+.sx-pre { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 0; overflow: hidden; }
+.sx-pre > div { min-width: 0; }
 .sx-pre .l { padding: 30px 32px; display: flex; flex-direction: column; gap: 14px; justify-content: center;
   background: radial-gradient(500px 260px at 0% 100%, rgba(99,102,241,.16), transparent 70%); }
 .sx-pre .ico { font-size: 34px; }
@@ -254,7 +255,8 @@
   .sx-stat .v { font-size: 15px; }
   .sx-right { grid-column: 1 / -1; justify-content: flex-end; }
   .sx-right .sx-timer { order: -1; margin-right: auto; }
-  .sx-pre { grid-template-columns: 1fr; }
+  .sx-pre { grid-template-columns: minmax(0, 1fr); }
+  .sx[data-phase="pre"] .sx-stats { display: none; }
   .sx-pre .l { padding: 22px 18px; }
   .sx-pre h2 { font-size: 24px; }
   .sx-pre .r { border-left: 0; border-top: 1px solid var(--line); }

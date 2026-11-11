@@ -68,9 +68,10 @@ async function boot() {
     try {
       const { mountRack } = await import('./rack3d');
       if (document.fonts?.ready) await document.fonts.ready;
-      handle = mountRack(host!, data.model, { labels: data.labels, onOpen, fresh, debug: q === 'debug' });
-      panel!.classList.add('rack3d-on');
+      // Előbb látható legyen a tartó, hogy az első képkocka már a valódi méretre illesszen.
       host!.hidden = false;
+      panel!.classList.add('rack3d-on');
+      handle = mountRack(host!, data.model, { labels: data.labels, onOpen, fresh, debug: q === 'debug' });
       (window as unknown as { __rack3d?: RackHandle }).__rack3d = handle;
       host!.querySelector('canvas')?.addEventListener('webglcontextlost', () => off(false), { once: true });
     } catch (e) {

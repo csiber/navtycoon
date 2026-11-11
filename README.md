@@ -28,6 +28,23 @@ Helyi teszt: `wrangler pages dev dist --port 8788` → http://127.0.0.1:8788 (az
 mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d1 execute … --file`, mert a
 `wrangler d1 migrations apply` a `0010b_…`-t a `0010_…` elé sorolja és elhasal.
 
+## UX 2. fázis (ág: ux-2, 2026-11-11)
+
+- **Műszak 2.0** (`src/pages/play/shift.astro`, `src/scripts/shift/`, `src/styles/shift.css`): konzol-dizájn,
+  30 perces visszaszámláló, élő elégedettség-sávok, lebegő +$/hangulat jelzések, „gépel…” jelzés, gombállapotok,
+  záróképernyő 1–3 csillaggal (`src/lib/game/shift-score.ts`), opcionális hangok (alapból KI), mobilon vízszintes
+  ügyfél-sáv. A futó műszak újratöltés után folytatható.
+- **ShiftRoomDO**: `end_shift` üzenet, DO-alarm a lejáratkor, a megoldatlan ticketek visszakerülnek `open`-be,
+  a lejárt műszak is bekerül a `shift_history`-ba. → **a navtycoon-do workert újra kell telepíteni** (a régi DO
+  az új kliens `end_shift` üzenetére nem válaszol, a visszaszámláló végén nem zárna).
+- **3D rack** (`src/scripts/rack3d/`, `src/lib/play/rack-model.ts`): three.js 0.187.0, csak dinamikus importtal;
+  2D tartalék mobilon, `prefers-reduced-motion` mellett, WebGL / erős gép nélkül. `?rack3d=1` kényszeríti,
+  `?rack3d=debug` fps-kijelzővel.
+- Migráció nincs. A fióktörlés a fórum-, piactér-, műszak-történet- és audit-sorokat is törli.
+- TODO: a `public/css/*.css` 4 órás böngésző-gyorsítótárral megy ki (CF Pages alapérték) — a `play-shell.css`
+  változása (ticket-sáv helye) visszatérő játékosnál pár óráig a régi lehet. Hosszabb távon verziózott/bundolt CSS.
+- TODO: a Google Fonts még CDN-ről jön (minden /play lap) — önkiszolgálás (GDPR, LG München 2022) külön körben.
+
 ## Állapot (2026-11-11)
 
 - Átvizsgálás + javítás: „Mentés törlése" utáni végtelen átirányítás (a /play most újra létrehozza a kezdőállást),
