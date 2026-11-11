@@ -1,7 +1,8 @@
 // src/durable-objects/shift-room.ts
 // Durable Object: hosts a shift-mode room. Single WS-connection per shift.
 import type { ShiftState, ShiftCustomerState } from '../lib/game/shift-state';
-import { advanceToNext, isShiftExpired, SHIFT_DURATION_SEC } from '../lib/game/shift-state';
+import { advanceToNext, isShiftExpired, switchTo, unresolvedTicketIds, SHIFT_DURATION_SEC } from '../lib/game/shift-state';
+import { shiftStars, shiftScore, shiftTip, type ShiftTip } from '../lib/game/shift-score';
 import { applyAction, type ShiftAction } from '../lib/game/action-handler';
 import { generateAiReply, ratePlayerResponse } from '../lib/ai/reply-generator';
 import { tryConsumeLlmCall } from '../lib/game/llm-cap';
@@ -29,13 +30,27 @@ interface InitMessage {
 type WsInbound =
   | { type: 'msg'; text: string }
   | { type: 'action'; action: ShiftAction }
-  | { type: 'switch_ticket'; index: number };
+  | { type: 'switch_ticket'; index: number }
+  // 2026-11-11 (ux-2): a játékos maga zárhatja a műszakot; a megoldatlan ticketek visszakerülnek 'open'-be.
+  | { type: 'end_shift' };
+
+export interface ShiftEndSummary {
+  tickets_handled: number;
+  tickets_total: number;
+  satisfaction_total: number;
+  refunds_cents: number;
+  rep_delta: number;
+  stars: 1 | 2 | 3;
+  score: number;
+  tip: ShiftTip;
+  ended_by: 'completed' | 'expired' | 'player';
+}
 
 type WsOutbound =
-  | { type: 'state'; state: ShiftState }
+  | { type: 'state'; state: ShiftState; server_now: number }
   | { type: 'reply'; ticket_id: number; text: string; satisfaction_delta: number; new_satisfaction: number }
   | { type: 'action_result'; ticket_id: number; result: { satisfaction_delta: number; cash_delta_cents: number; resolves_ticket: boolean; message: string } }
-  | { type: 'shift_end'; summary: { tickets_handled: number; satisfaction_total: number; refunds_cents: number; rep_delta: number }; newly_unlocked: string[] }
+  | { type: 'shift_end'; summary: ShiftEndSummary; newly_unlocked: string[] }
   | { type: 'error'; error: string };
 
 export class ShiftRoomDO {
@@ -81,6 +96,8 @@ export class ShiftRoomDO {
         })),
       };
       await this.state.storage.put('shift', this.shift);
+      // Lejáratkor magától zár (akkor is, ha a játékos bezárta a lapot) — lásd alarm().
+      try { await this.state.storage.setAlarm(this.shift.expires_at * 1000); } catch { /* helyi teszt: nincs alarm */ }
       return new Response(JSON.stringify({ ok: true, shift_id: init.shift_id }), {
         headers: { 'content-type': 'application/json' },
       });
@@ -102,7 +119,12 @@ export class ShiftRoomDO {
         void this.handleMessage(typeof e.data === 'string' ? e.data : '');
       });
       server.addEventListener('close', () => { this.ws = null; });
-      if (this.shift) this.send({ type: 'state', state: this.shift });
+      if (this.shift) {
+        this.sendState();
+        // Újracsatlakozás egy már lezárt műszakhoz: a záróképernyő adatai újra.
+        const ended = await this.state.storage.get<{ summary: ShiftEndSummary; newly_unlocked: string[] }>('end');
+        if (ended) this.send({ type: 'shift_end', summary: ended.summary, newly_unlocked: ended.newly_unlocked });
+      }
       return new Response(null, { status: 101, webSocket: client });
     }
 
@@ -110,7 +132,45 @@ export class ShiftRoomDO {
   }
 
   send(msg: WsOutbound) {
-    if (this.ws) this.ws.send(JSON.stringify(msg));
+    if (this.ws) {
+      try { this.ws.send(JSON.stringify(msg)); } catch { /* lezárt socket */ }
+    }
+  }
+
+  sendState() {
+    if (this.shift) this.send({ type: 'state', state: this.shift, server_now: Math.floor(Date.now() / 1000) });
+  }
+
+  /** DO-alarm a műszak lejártakor: ha még fut, lezárjuk (történet, hírnév, ticketek vissza 'open'-be). */
+  async alarm() {
+    if (!this.shift) this.shift = await this.state.storage.get<ShiftState>('shift') ?? null;
+    if (this.shift && this.shift.status === 'active') await this.finalize('expired');
+  }
+
+  /**
+   * A műszak lezárása — egyszer fut le (utána a tárolt eredményt küldjük újra).
+   * Korábban a lejárt műszak nem került a shift_history-ba és nem adott hírnevet, a megoldatlan ticketek
+   * pedig 'in_progress'-ben ragadtak.
+   */
+  async finalize(endedBy: ShiftEndSummary['ended_by']) {
+    if (!this.shift) return;
+    const prev = await this.state.storage.get<{ summary: ShiftEndSummary; newly_unlocked: string[] }>('end');
+    if (prev) { this.send({ type: 'shift_end', summary: prev.summary, newly_unlocked: prev.newly_unlocked }); return; }
+    this.shift.status = endedBy === 'expired' ? 'expired' : 'completed';
+    const reopen = unresolvedTicketIds(this.shift);
+    for (const c of this.shift.queue) if (c.status === 'pending' || c.status === 'active') c.status = 'abandoned';
+    this.shift.active_index = -1;
+    await this.state.storage.put('shift', this.shift);
+    for (const id of reopen) {
+      await this.env.DB.prepare("UPDATE tickets SET status = 'open' WHERE id = ? AND player_id = ? AND status = 'in_progress'")
+        .bind(id, this.shift.player_id).run();
+    }
+    await this.persistShiftHistory();
+    const summary = this.summary(endedBy);
+    const end = { summary, newly_unlocked: this.pendingAchievementUnlocks };
+    await this.state.storage.put('end', end);
+    this.sendState();
+    this.send({ type: 'shift_end', ...end });
   }
 
   async handleMessage(raw: string) {
@@ -119,9 +179,11 @@ export class ShiftRoomDO {
       return;
     }
     if (isShiftExpired(this.shift, Math.floor(Date.now() / 1000))) {
-      this.shift.status = 'expired';
-      await this.state.storage.put('shift', this.shift);
-      this.send({ type: 'shift_end', summary: this.summary(), newly_unlocked: this.pendingAchievementUnlocks });
+      await this.finalize('expired');
+      return;
+    }
+    if (this.shift.status !== 'active') {
+      await this.finalize(this.shift.status === 'expired' ? 'expired' : 'completed');
       return;
     }
     let m: WsInbound;
@@ -133,15 +195,14 @@ export class ShiftRoomDO {
     // resolving the current one first. Resolved/abandoned tickets are
     // skipped server-side so a stale click can't desync the queue.
     if (m.type === 'switch_ticket') {
-      const i = m.index;
-      if (i >= 0 && i < this.shift.queue.length) {
-        const target = this.shift.queue[i];
-        if (target.status === 'pending' || target.status === 'active') {
-          this.shift.active_index = i;
-          await this.state.storage.put('shift', this.shift);
-          this.send({ type: 'state', state: this.shift });
-        }
+      if (switchTo(this.shift, m.index)) {
+        await this.state.storage.put('shift', this.shift);
+        this.sendState();
       }
+      return;
+    }
+    if (m.type === 'end_shift') {
+      await this.finalize('player');
       return;
     }
 
@@ -156,8 +217,9 @@ export class ShiftRoomDO {
     } else if (m.type === 'action') {
       await this.handleAction(active, m.action);
     }
+    if (this.shift.status !== 'active') return; // finalize() már elküldte az állapotot és a záróképet
     await this.state.storage.put('shift', this.shift);
-    this.send({ type: 'state', state: this.shift });
+    this.sendState();
   }
 
   async handlePlayerMessage(c: ShiftCustomerState, text: string) {
@@ -248,11 +310,7 @@ export class ShiftRoomDO {
       c.status = 'resolved';
       this.shift.tickets_handled++;
       const hasNext = advanceToNext(this.shift);
-      if (!hasNext) {
-        this.shift.status = 'completed';
-        await this.persistShiftHistory();
-        this.send({ type: 'shift_end', summary: this.summary(), newly_unlocked: this.pendingAchievementUnlocks });
-      }
+      if (!hasNext) await this.finalize('completed');
     }
   }
 
@@ -356,13 +414,24 @@ export class ShiftRoomDO {
     }
   }
 
-  summary() {
-    if (!this.shift) return { tickets_handled: 0, satisfaction_total: 0, refunds_cents: 0, rep_delta: 0 };
+  summary(endedBy: ShiftEndSummary['ended_by'] = 'completed'): ShiftEndSummary {
+    const q = this.shift?.queue ?? [];
+    const outcome = {
+      resolved: this.shift?.tickets_handled ?? 0,
+      total: q.length,
+      satisfaction_total: q.reduce((s, c) => s + c.satisfaction_delta_total, 0),
+      refunds_cents: q.reduce((s, c) => s + c.refund_given_cents, 0),
+    };
     return {
-      tickets_handled: this.shift.tickets_handled,
-      satisfaction_total: this.shift.queue.reduce((s, c) => s + c.satisfaction_delta_total, 0),
-      refunds_cents: this.shift.queue.reduce((s, c) => s + c.refund_given_cents, 0),
+      tickets_handled: outcome.resolved,
+      tickets_total: outcome.total,
+      satisfaction_total: outcome.satisfaction_total,
+      refunds_cents: outcome.refunds_cents,
       rep_delta: this.lastShiftRepDelta,
+      stars: shiftStars(outcome),
+      score: shiftScore(outcome),
+      tip: shiftTip(outcome),
+      ended_by: endedBy,
     };
   }
 

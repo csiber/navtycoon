@@ -36,9 +36,17 @@ export function getActiveCustomer(s: ShiftState): ShiftCustomerState | null {
   return s.queue[s.active_index];
 }
 
+// A következő megoldatlan ticket (pending VAGY félbehagyott active), körbefordulva a sor végén.
+// Korábban csak előre és csak 'pending'-et keresett: ha a játékos átkattintott egy későbbi ticketre és azt
+// zárta le, a korábbi (és az otthagyott 'active') ticketek kimaradtak, a műszak idő előtt véget ért.
 export function advanceToNext(s: ShiftState): boolean {
-  for (let i = s.active_index + 1; i < s.queue.length; i++) {
-    if (s.queue[i].status === 'pending') {
+  const n = s.queue.length;
+  const from = s.active_index >= 0 ? s.active_index : -1;
+  for (let k = 1; k <= n; k++) {
+    const i = (from + k + n) % n;
+    if (i === s.active_index) continue;
+    const st = s.queue[i].status;
+    if (st === 'pending' || st === 'active') {
       s.active_index = i;
       s.queue[i].status = 'active';
       return true;
@@ -46,4 +54,21 @@ export function advanceToNext(s: ShiftState): boolean {
   }
   s.active_index = -1;
   return false;
+}
+
+/** A műszak végén megoldatlanul maradt ticketek (ezeket a DB-ben vissza kell nyitni 'open'-re). */
+export function unresolvedTicketIds(s: ShiftState): number[] {
+  return s.queue.filter((c) => c.status === 'pending' || c.status === 'active').map((c) => c.ticket_id);
+}
+
+/** Kézi ticket-váltás: a cél aktív lesz, az előző (ha nem zárult le) visszakerül a várakozók közé. */
+export function switchTo(s: ShiftState, index: number): boolean {
+  if (index < 0 || index >= s.queue.length) return false;
+  const target = s.queue[index];
+  if (target.status !== 'pending' && target.status !== 'active') return false;
+  const prev = s.queue[s.active_index];
+  if (prev && prev !== target && prev.status === 'active') prev.status = 'pending';
+  target.status = 'active';
+  s.active_index = index;
+  return true;
 }

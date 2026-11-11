@@ -45,3 +45,30 @@ describe('shift-state', () => {
     expect(s.active_index).toBe(-1);
   });
 });
+
+import { switchTo, unresolvedTicketIds } from '../shift-state';
+
+describe('shift-state: switching and wrap-around', () => {
+  it('after switching ahead and resolving, the earlier tickets are not skipped', () => {
+    const s = baseState();
+    expect(switchTo(s, 2)).toBe(true);
+    expect(s.queue[0].status).toBe('pending');
+    expect(s.queue[2].status).toBe('active');
+    s.queue[2].status = 'resolved';
+    expect(advanceToNext(s)).toBe(true);
+    expect(s.active_index).toBe(0);
+    expect(s.queue[0].status).toBe('active');
+  });
+  it('switchTo refuses resolved or out-of-range tickets', () => {
+    const s = baseState();
+    s.queue[1].status = 'resolved';
+    expect(switchTo(s, 1)).toBe(false);
+    expect(switchTo(s, 9)).toBe(false);
+    expect(s.active_index).toBe(0);
+  });
+  it('unresolvedTicketIds lists pending + active tickets', () => {
+    const s = baseState();
+    s.queue[1].status = 'resolved';
+    expect(unresolvedTicketIds(s)).toEqual([1, 3]);
+  });
+});
