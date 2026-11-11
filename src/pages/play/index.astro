@@ -570,17 +570,19 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
             });
             var j = await r.json();
             if (!j.ok) {
-              alert('Error: ' + (j.error || 'unknown'));
+              if (window.hsToast) window.hsToast(String(j.message || j.error || '?'), 'bad'); else alert(j.error || '?');
               card.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
               return;
             }
             var msg = (j.message || 'Resolved.') +
               (j.newly_unlocked_achievement ? ' · 🎉 ' + j.newly_unlocked_achievement : '');
-            showToast(msg);
+            // Pénzmozgás: toast + a pénz-szám animációja (play-shell.js); pénz nélküli döntésnél sima toast.
+            if (j.cash_delta_cents && window.hsMoney) window.hsMoney(j.cash_delta_cents, msg);
+            else showToast(msg);
             card.remove();
             setTimeout(function () { location.reload(); }, 1500);
           } catch (e) {
-            alert('Network error');
+            if (window.hsToast) window.hsToast(String(e && e.message || e), 'bad');
             card.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
           }
         };

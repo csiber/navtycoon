@@ -48,10 +48,10 @@ export const POST = async (c: APIContext): Promise<Response> => {
   // Load + ownership-check
   const event = await db
     .prepare(
-      'SELECT id, event_type, resolved_at FROM events WHERE id = ? AND player_id = ?',
+      'SELECT id, event_type, resolved_at, data_json FROM events WHERE id = ? AND player_id = ?',
     )
     .bind(eventId, user.id)
-    .first<{ id: number; event_type: string; resolved_at: number | null }>();
+    .first<{ id: number; event_type: string; resolved_at: number | null; data_json: string | null }>();
   if (!event) return jerr(404, 'event not found');
   if (event.resolved_at !== null) return jerr(409, 'already resolved');
 
@@ -87,9 +87,13 @@ export const POST = async (c: APIContext): Promise<Response> => {
       .run();
   }
 
+  // A döntés pénzhatása az eseménysorba kerül, hogy a Pénzügy lap „Pénzmozgások" listája valós legyen (2026-11-11).
+  let prevData: Record<string, unknown> = {};
+  try { prevData = event.data_json ? JSON.parse(event.data_json) : {}; } catch { /* hibás JSON */ }
+  const newData = JSON.stringify({ ...prevData, option_id: optionId, cash_delta_cents: result.cash_delta_cents, reputation_delta: result.reputation_delta });
   await db
-    .prepare('UPDATE events SET resolved_at = ?, outcome = ? WHERE id = ?')
-    .bind(now, result.outcome, eventId)
+    .prepare('UPDATE events SET resolved_at = ?, outcome = ?, data_json = ? WHERE id = ?')
+    .bind(now, result.outcome, newData, eventId)
     .run();
 
   // Narrative-driven achievement (best-effort, idempotent) — counts-driven
