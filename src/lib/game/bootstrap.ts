@@ -10,6 +10,10 @@ import type { Player } from './types';
 import { createPlayer, getPlayer, type D1Like } from './db';
 import { spawnCustomer } from './customer-spawn';
 import { SERVER_SPECS } from './server-types';
+import { companyNameIssue } from '../auth';
+import { checkHostingNameBlacklist } from '../auth/hosting-blacklist';
+
+export const DEFAULT_COMPANY_NAME = 'My Hosting Co.';
 
 export type StarterLang = 'en' | 'hu' | 'de';
 
@@ -69,10 +73,12 @@ export async function ensurePlayer(
 ): Promise<Player> {
   const existing = await getPlayer(db, user.id);
   if (existing) return existing;
-  const name = (user.display_name ?? '').trim().slice(0, 80);
+  // A display_name lehet AikaHub-becenév is: a nyilvános ranglistára ugyanazok a szabályok, mint a signup cégnevére.
+  const name = (user.display_name ?? '').trim();
+  const ok = !companyNameIssue(name) && !checkHostingNameBlacklist(name).blocked;
   return bootstrapStarterPlayer(db, {
     user_id: user.id,
-    company_name: name.length >= 2 ? name : 'My Hosting Co.',
+    company_name: ok ? name : DEFAULT_COMPANY_NAME,
     city: null,
     lang,
   });

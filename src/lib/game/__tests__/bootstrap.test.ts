@@ -52,6 +52,13 @@ describe('ensurePlayer (reset-save redirect-loop regression)', () => {
     expect(await count(d, 'customers', 'u-1')).toBe(3);
   });
 
+  it('an AikaHub nickname that breaks the company-name rules falls back to the default (leaderboard is public)', async () => {
+    expect((await ensurePlayer(d, { id: 'u-3', display_name: 'AWS', email: 'x@aikahub.invalid' })).company_name).toBe('My Hosting Co.');
+    expect((await ensurePlayer(d, { id: 'u-4', display_name: 'x'.repeat(81), email: 'x@aikahub.invalid' })).company_name).toBe('My Hosting Co.');
+    expect((await ensurePlayer(d, { id: 'u-5', display_name: 'R', email: 'x@aikahub.invalid' })).company_name).toBe('My Hosting Co.');
+    expect((await ensurePlayer(d, { id: 'u-6', display_name: 'Rókafül', email: 'x@aikahub.invalid' })).company_name).toBe('Rókafül');
+  });
+
   it('falls back to a default company name when display_name is missing', async () => {
     const p = await ensurePlayer(d, { id: 'u-2', display_name: null, email: 'a@b.hu' });
     expect(p.company_name).toBe('My Hosting Co.');
