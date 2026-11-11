@@ -22,6 +22,8 @@ OAuth 2.0 engedélykód + PKCE (S256), `client_id=hyperscales`, csak `profile` s
 `src/pages/auth/aikahub/start.ts`, `src/pages/auth/callback.ts` (törzs nélküli 302, `Referrer-Policy: no-referrer`),
 migráció `migrations/0012_aikahub_auth.sql` (`account_links`, `oauth_pending`). Tokent nem tárolunk: a profilt csak
 belépéskor olvassuk, a frissítő tokent azonnal visszavonjuk. Az e-mail+jelszavas belépés változatlan.
+Összekötés e-mailes fiókhoz: Beállítások → POST `/auth/aikahub/link` (CSRF-token). `src/middleware.ts`: www → apex 301
+(a state-süti host-only; www-ről indítva mindig state_mismatch lett volna).
 Helyi teszt: `wrangler pages dev dist --port 8788` → http://127.0.0.1:8788 (az AikaHubon regisztrált loopback;
 mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d1 execute … --file`, mert a
 `wrangler d1 migrations apply` a `0010b_…`-t a `0010_…` elé sorolja és elhasal.
