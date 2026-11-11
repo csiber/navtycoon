@@ -1,5 +1,6 @@
 ---
 // /play -- main dashboard. Auth-required.
+import { shiftsUsedToday } from '../../lib/game/shift-score';
 import { loadShell, applyShell } from '../../lib/play/shell';
 import { pt } from '../../lib/play/strings';
 import { renderDashboardContent, applyDashboardContent } from '../../lib/play/dashboard';
@@ -124,7 +125,7 @@ const eventsData = recentEvents.map((e) => {
 });
 
 // Shift-CTA: ha van open ticket és még van shift-kapacitás ma, nudge-oljuk a játékost.
-const totalShiftsToday = player.free_shifts_today + player.paid_shifts_today;
+const totalShiftsToday = shiftsUsedToday(player as Parameters<typeof shiftsUsedToday>[0], Math.floor(Date.now() / 1000));
 const shiftCap = player.is_pro === 1 ? 5 : 1;
 const showShiftCta = openTickets > 0 && totalShiftsToday < shiftCap;
 
@@ -283,7 +284,7 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
 <Fragment set:html={shellHtml} />
 <div id="events-overlay" style="position: fixed; top: 80px; right: 20px; width: 380px; max-width: calc(100vw - 40px); z-index: 100; max-height: calc(100vh - 100px); overflow-y: auto; pointer-events: none;"></div>
 {showShiftCta && (
-  <div id="shift-cta" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--indigo) 0%,#4f46e5 100%);color:#fff;padding:14px 24px;border-radius:12px;box-shadow:0 12px 32px -8px rgba(99,102,241,.6);z-index:80;display:flex;align-items:center;gap:14px;font-family:var(--display);font-weight:600;">
+  <div id="shift-cta" style="background:linear-gradient(135deg,var(--indigo) 0%,#4f46e5 100%);color:#fff;padding:14px 24px;border-radius:12px;box-shadow:0 12px 32px -8px rgba(99,102,241,.6);z-index:80;display:flex;align-items:center;gap:14px;font-family:var(--display);font-weight:600;">
     <span style="font-size:20px;">🔥</span>
     <span>{pt(locale, 'dash.shift.bar', { n: openTickets })}</span>
     <a href="/play/shift" id="shift-cta-link" style="background:rgba(255,255,255,.2);padding:6px 14px;border-radius:8px;color:#fff;text-decoration:none;font-size:13px;cursor:pointer;">{pt(locale, 'dash.shift.bar_btn')}</a>
@@ -307,7 +308,11 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
 )}
 <script type="application/json" id="ach-i18n" set:html={jsonForScript({ map: achievementMap(locale), unlocked: pt(locale, 'ach.unlocked') })}></script>
 <div id="achievement-toasts" style="position:fixed;top:80px;right:20px;z-index:95;display:flex;flex-direction:column;gap:8px;max-width:320px;"></div>
-<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script>
+  // Konfetti saját kiszolgálásból (npm canvas-confetti, pontos verzió) — nem CDN-ről.
+  import confetti from 'canvas-confetti';
+  (window as unknown as { confetti: typeof confetti }).confetti = confetti;
+</script>
 <script is:inline>
   // Achievement-toast: poll /api/game/achievements once on dashboard-load,
   // toast any items in newly_unlocked. Toasts auto-dismiss after 6s.
@@ -451,64 +456,9 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
       // mode (?embed=1) strips its outer header so it fits an iframe.
       // Open-on-demand: only create the dialog DOM the first time the
       // user clicks; close-on-ESC or click-outside.
-      function openShiftModal() {
-        let dlg = document.getElementById('shift-modal');
-        if (!dlg) {
-          // Inject the global ::backdrop dark-overlay once. Native <dialog>
-          // doesn't render a backdrop by default — without this the
-          // dashboard bleeds through and the user wrote "huu ez igy csúnya".
-          if (!document.getElementById('shift-modal-style')) {
-            const st = document.createElement('style');
-            st.id = 'shift-modal-style';
-            st.textContent = 'dialog#shift-modal::backdrop { background: rgba(0,0,0,.72); backdrop-filter: blur(4px); } dialog#shift-modal { color: var(--text); }';
-            document.head.appendChild(st);
-          }
-          dlg = document.createElement('dialog');
-          dlg.id = 'shift-modal';
-          // Height starts compact and grows to fit content via postMessage
-          // from the iframe (see shift.astro embed-mode auto-resize block).
-          // Width stays generous since the active-shift queue+chat layout
-          // needs ~960px to breathe; modal caps at 92vw on small screens.
-          dlg.style.cssText = 'padding:0;border:1px solid var(--line-2);border-radius:14px;background:var(--panel);width:min(960px,92vw);height:240px;max-width:none;max-height:86vh;overflow:hidden;position:relative;transition:height .25s ease;';
-          // Receive height updates from the iframe content.
-          const onShiftResize = (e) => {
-            if (!e.data || e.data.type !== 'shift-resize') return;
-            const h = Math.max(200, Math.min(window.innerHeight * 0.86, e.data.height || 240));
-            dlg.style.height = h + 'px';
-          };
-          window.addEventListener('message', onShiftResize);
-          dlg.addEventListener('close', () => window.removeEventListener('message', onShiftResize), { once: true });
-          // Close button — fixed top-right, never collides with iframe content.
-          const closeBtn = document.createElement('button');
-          closeBtn.textContent = '✕';
-          closeBtn.setAttribute('aria-label', 'Close');
-          closeBtn.style.cssText = 'position:absolute;top:10px;right:10px;z-index:10;width:32px;height:32px;border:1px solid var(--line-2);background:var(--panel-2);color:var(--text);border-radius:8px;font-size:16px;cursor:pointer;display:grid;place-items:center;line-height:1;';
-          closeBtn.addEventListener('click', () => dlg.close());
-          dlg.appendChild(closeBtn);
-          // The iframe loads /play/shift?embed=1 which renders without
-          // the outer Base layout header (see shift.astro frontmatter).
-          // Pass the current UI locale so labels match the dashboard —
-          // an iframe doesn't inherit parent localStorage automatically.
-          const _lang = (function () {
-            try {
-              const v = localStorage.getItem('hs_lang');
-              if (v === 'hu' || v === 'de' || v === 'en') return v;
-            } catch {}
-            return 'en';
-          })();
-          const frame = document.createElement('iframe');
-          frame.src = '/play/shift?embed=1&lang=' + _lang;
-          frame.style.cssText = 'width:100%;height:100%;border:0;background:var(--bg);display:block;';
-          dlg.appendChild(frame);
-          // Click on backdrop closes (only if click target is the dialog
-          // element itself — clicks inside content don't bubble here).
-          dlg.addEventListener('click', (e) => {
-            if (e.target === dlg) dlg.close();
-          });
-          document.body.appendChild(dlg);
-        }
-        dlg.showModal();
-      }
+      // 2026-11-11 (ux-2): a műszak teljes oldal lett (visszaszámláló, záróképernyő, mobil-elrendezés) — a korábbi
+      // iframe-ablak helyett oda navigálunk.
+      function openShiftModal() { window.location.href = '/play/shift'; }
       // Expose for any later hook that wants to programmatically open it.
       window.openShiftModal = openShiftModal;
 
