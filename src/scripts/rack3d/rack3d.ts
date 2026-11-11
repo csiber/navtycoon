@@ -276,7 +276,8 @@ export function mountRack(host: HTMLElement, model: RackModel, opt: MountOptions
   function frame(now: number) {
     raf = 0;
     const c0 = performance.now();
-    const realDt = (now - last) / 1000;
+    // A rAF-időbélyeg a képkocka kezdete — lehet korábbi, mint a láthatóvá váláskor mért `last` → sosem negatív.
+    const realDt = Math.max(0, (now - last) / 1000);
     const dt = Math.min(0.05, realDt); last = now;
     const t = (now - t0) / 1000;
     frames++; fpsAcc += realDt; fpsN++;
