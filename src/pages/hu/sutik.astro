@@ -25,8 +25,8 @@ const ALTS = { en: '/legal/cookies', hu: '/hu/sutik', de: '/de/cookies' };
   <p>
     A sütik kis kulcs-érték párok, amelyeket a böngésződ egy webhely számára tárol. Helyenként
     <code>localStorage</code>-ot is használunk (hasonló ötlet, más mechanizmus). Az EU-s
-    cookie-jog szempontjából a kettőt azonosan kezeljük: az essential-eket mindig elérjük,
-    minden mást opt-in alapon.
+    cookie-jog szempontjából a kettőt azonosan kezeljük: a feltétlenül szükségeseket mindig használjuk,
+    minden mást csak a hozzájárulásoddal.
   </p>
 
   <h2>2. Mit használunk</h2>
@@ -43,11 +43,12 @@ const ALTS = { en: '/legal/cookies', hu: '/hu/sutik', de: '/de/cookies' };
     <li><strong><code>hs_pwa_dismissed</code></strong> (localStorage) — elrejti az "Alkalmazás telepítése" pillát, miután bezártad.</li>
   </ul>
 
-  <h3>Analitika (opt-in)</h3>
+  <h3>Látogatásszámlálás (süti nélkül)</h3>
   <p>
-    Jelenleg <strong>nincs</strong>. Ha valaha hozzáadunk termékanalitikát, az
-    adatvédelem-tisztelő, aggregált és a banneren keresztüli kifejezett hozzájáruláshoz
-    kötött lesz.
+    Az oldallátogatásokat saját üzemeltetésű <strong>Umami</strong>-példánnyal (stats.aika.hu) számoljuk.
+    Ez <strong>nem tesz sütit</strong> és semmit nem tárol a böngésződben; csak összesített, névtelen
+    oldalmegtekintéseket rögzít (IP-cím tárolása, oldalakon átívelő követés és hirdetés nélkül). Sütit igénylő
+    termékanalitika: <strong>nincs</strong>.
   </p>
 
   <h3>Hirdetés</h3>
