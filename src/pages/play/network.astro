@@ -1,6 +1,7 @@
 ---
 // /play/network -- backend wiring complete (player-data overview + Era-gated placeholder).
-import { loadShell, applyShell } from '../../lib/play/shell';
+import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
+import { renderLockedFeature } from '../../lib/play/locked-page';
 import { pt } from '../../lib/play/strings';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
@@ -66,7 +67,7 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
-const shellHtml = applyShell(pageHtml, shell, 'network', [pt(locale, 'nav.network')]);
+const shellHtml = applyContent(applyShell(pageHtml, shell, 'network', [pt(locale, 'nav.network')]), renderLockedFeature(shell, 'network'));
 ---
 <!doctype html>
 <html lang="en">
@@ -88,35 +89,6 @@ const shellHtml = applyShell(pageHtml, shell, 'network', [pt(locale, 'nav.networ
 </head>
 <body class="preload">
 <Fragment set:html={shellHtml} />
-<script type="application/json" id="state" set:html={jsonForScript(stateObj)}></script>
-<script is:inline>
-  try {
-    const s = JSON.parse(document.getElementById('state').textContent);
-
-    // Lock-card sub: show real player count
-    const lockSub = document.querySelector('.lock-card .sub');
-    if (lockSub) {
-      lockSub.textContent = s.totalPlayers + ' tycoons online globally. Multiplayer + peering UI ' +
-        'unlocks at Era 2. For now: focus on Era 1 ops.';
-    }
-
-    // Requirements: show real progress
-    const reqs = document.querySelectorAll('.lock-card .req');
-    if (reqs[reqs.length - 1]) {
-      // Last req in template is "First customer signed" — already done in template.
-      // Adjust to "Reach Era 2"
-      const lbl = reqs[reqs.length - 1].querySelector('.lbl');
-      const prog = reqs[reqs.length - 1].querySelector('.progress');
-      if (lbl) lbl.textContent = 'Reach Era 2 (currently Era ' + s.era + ')';
-      if (prog) prog.textContent = s.era >= 2 ? 'done' : 'Era ' + s.era + ' / 2';
-      if (s.era >= 2) reqs[reqs.length - 1].classList.add('done');
-    }
-
-    // Pagehead count - simple
-    const phCount = document.querySelector('.pagehead .count');
-    if (phCount) phCount.textContent = '🔒 unlocks in Era 2 · ' + s.totalPlayers + ' tycoons online';
-  } catch (e) { console.error('hydrate', e); }
-</script>
 <script is:inline>
   // Hide mock-data flash: remove preload-class once hydrators have run.
   window.addEventListener('load', function () {

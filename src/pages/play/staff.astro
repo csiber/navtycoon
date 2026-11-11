@@ -1,6 +1,7 @@
 ---
 // /play/staff -- backend wiring complete (placeholder; hire feature ships post Plan 3).
-import { loadShell, applyShell } from '../../lib/play/shell';
+import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
+import { renderLockedFeature } from '../../lib/play/locked-page';
 import { pt } from '../../lib/play/strings';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
@@ -49,7 +50,7 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
-const shellHtml = applyShell(pageHtml, shell, 'staff', [pt(locale, 'nav.staff')]);
+const shellHtml = applyContent(applyShell(pageHtml, shell, 'staff', [pt(locale, 'nav.staff')]), renderLockedFeature(shell, 'staff'));
 ---
 <!doctype html>
 <html lang="en">
@@ -71,57 +72,6 @@ const shellHtml = applyShell(pageHtml, shell, 'staff', [pt(locale, 'nav.staff')]
 </head>
 <body class="preload">
 <Fragment set:html={shellHtml} />
-<script type="application/json" id="state" set:html={jsonForScript(stateObj)}></script>
-<script is:inline>
-  try {
-    const s = JSON.parse(document.getElementById('state').textContent);
-
-    // Lock-card sub: real "team manages X customers" stat
-    const lockSub = document.querySelector('.lock-card .sub');
-    if (lockSub) {
-      lockSub.textContent = 'Right now it is just you. You manage ' + s.customerCount +
-        ' customer' + (s.customerCount === 1 ? '' : 's') +
-        ' at MRR $' + s.mrrUsd + '. The hire-feature ships after Phase 1 — for now, no NPC teammates.';
-    }
-
-    // Requirements row: surface real MRR / customer progress
-    const reqs = document.querySelectorAll('.lock-card .req');
-    if (reqs[0]) {
-      const lbl = reqs[0].querySelector('.lbl');
-      const prog = reqs[0].querySelector('.progress');
-      const mrrUsdN = s.mrrCents / 100;
-      if (lbl) lbl.textContent = 'Reach $100 MRR';
-      if (prog) prog.textContent = '$' + mrrUsdN.toFixed(0) + ' / $100';
-      if (mrrUsdN >= 100) reqs[0].classList.add('done');
-    }
-    if (reqs[2]) {
-      const lbl = reqs[2].querySelector('.lbl');
-      const prog = reqs[2].querySelector('.progress');
-      if (lbl) lbl.textContent = 'Survive 30 consecutive days';
-      if (prog) prog.textContent = s.day + ' / 30';
-      if (s.day >= 30) reqs[2].classList.add('done');
-    }
-    if (reqs[3]) {
-      const lbl = reqs[3].querySelector('.lbl');
-      const prog = reqs[3].querySelector('.progress');
-      if (lbl) lbl.textContent = 'Reputation ≥ 65';
-      if (prog) prog.textContent = s.rep + ' / 65';
-      if (s.rep >= 65) reqs[3].classList.add('done');
-    }
-
-    // "You. Just you. And the pager." → personalize
-    const tail = document.querySelector('.panel:last-of-type [style*="padding: 60px 24px"]');
-    if (tail) {
-      tail.textContent = s.displayName + '. Just you. And the pager.';
-    }
-
-    // "Your team · 0 hired"
-    const teamHead = document.querySelector('.panel:last-of-type .ph h3');
-    if (teamHead) teamHead.textContent = 'Your team · 0 hired';
-    const teamSub = document.querySelector('.panel:last-of-type .ph .ph-sub');
-    if (teamSub) teamSub.textContent = '// solo founder mode · Era ' + s.era;
-  } catch (e) { console.error('hydrate', e); }
-</script>
 <script is:inline>
   // Hide mock-data flash: remove preload-class once hydrators have run.
   window.addEventListener('load', function () {
