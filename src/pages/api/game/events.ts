@@ -5,6 +5,8 @@
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getEventDefinition } from '../../../lib/game/event-options';
+import { localizeEvent } from '../../../lib/game/event-i18n';
+import { localeFromRequest } from '../../../lib/i18n/api-errors';
 import type { EventType } from '../../../lib/game/types';
 
 export const prerender = false;
@@ -33,20 +35,17 @@ export const GET = async (c: APIContext): Promise<Response> => {
       }>()
   ).results ?? [];
 
+  const locale = localeFromRequest(c.request);
   const events = rows.map((r) => {
     const def = getEventDefinition(r.event_type as EventType);
+    const loc = def ? localizeEvent(def, locale) : null;
     return {
       id: r.id,
       event_type: r.event_type,
       spawned_at: r.spawned_at,
-      title: def?.title ?? r.event_type,
-      narrative: def?.narrative ?? '',
-      options:
-        def?.options.map((o) => ({
-          id: o.id,
-          label: o.label,
-          description: o.description,
-        })) ?? [],
+      title: loc?.title ?? r.event_type,
+      narrative: loc?.narrative ?? '',
+      options: loc?.options ?? [],
     };
   });
 

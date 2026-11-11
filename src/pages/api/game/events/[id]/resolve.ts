@@ -5,9 +5,10 @@
 //   3. mark event resolved (resolved_at + outcome)
 //   4. (best-effort) unlock narrative achievement on first ddos resolve
 
-import { legacyError } from '../../../../../lib/i18n/api-errors';
+import { legacyError, localeFromRequest } from '../../../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../../../lib/auth';
+import { localizeEventMessage } from '../../../../../lib/game/event-i18n';
 import { getEventDefinition } from '../../../../../lib/game/event-options';
 import {
   unlockAchievement,
@@ -125,7 +126,7 @@ export const POST = async (c: APIContext): Promise<Response> => {
     JSON.stringify({
       ok: true,
       outcome: result.outcome,
-      message: result.message,
+      message: localizeEventMessage(event.event_type, optionId, localeFromRequest(c.request), result.message),
       cash_delta_cents: result.cash_delta_cents,
       reputation_delta: result.reputation_delta,
       satisfaction_delta: result.satisfaction_delta_global,
