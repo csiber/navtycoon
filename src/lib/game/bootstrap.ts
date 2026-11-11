@@ -43,7 +43,7 @@ export async function bootstrapStarterPlayer(db: D1Like, input: StarterInput): P
   // 3× hobby-ügyfél, mindegyiknek 1 nyitott ticket. A kezdő ticketek a persona-sablonszöveget kapják:
   // itt szándékosan nem fogyasztjuk a napi LLM-keretet (az az első műszakra kell).
   for (let i = 0; i < 3; i++) {
-    const sc = spawnCustomer('hobby');
+    const sc = spawnCustomer('hobby', input.lang ?? 'en');
     const cRes = await db.prepare(
       'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, ' +
       'joined_at, satisfaction, churn_risk) ' +

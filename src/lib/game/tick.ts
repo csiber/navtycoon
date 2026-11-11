@@ -186,7 +186,10 @@ export async function tickPlayer(
     }
 
     if (!usedAi) {
-      const placeholder = getPlaceholderTicketForPersona(c.persona_archetype as PersonaArchetype);
+      const placeholder = getPlaceholderTicketForPersona(
+        c.persona_archetype as PersonaArchetype,
+        ((player as { preferred_lang?: string }).preferred_lang as 'en' | 'hu' | 'de' | undefined) ?? 'en',
+      );
       summary = placeholder.slice(0, 80);
       fullText = placeholder;
     }

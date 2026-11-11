@@ -41,3 +41,22 @@ describe('play strings', () => {
     for (const bad of ['Futamidő', 'refund-ol', 'Élt napok', 'Égési', 'dícsér']) expect(hu).not.toContain(bad);
   });
 });
+
+import { PLACEHOLDER_TICKET_TABLES, localizePlaceholderTicket, spawnCustomer } from '../../game/customer-spawn';
+describe('starter / placeholder tickets follow the player language', () => {
+  it('hu and de tables mirror the en table', () => {
+    for (const lang of ['hu', 'de'] as const) {
+      for (const [arch, lines] of Object.entries(PLACEHOLDER_TICKET_TABLES.en)) {
+        expect((PLACEHOLDER_TICKET_TABLES[lang] as Record<string, string[]>)[arch].length, `${lang}:${arch}`).toBe(lines.length);
+      }
+    }
+  });
+  it('old English rows are translated on render, other text is untouched', () => {
+    expect(localizePlaceholderTicket('Disk usage is 51%. You said unlimited.', 'hu')).toBe('A tárhely 51%-on áll. Azt mondták, korlátlan.');
+    expect(localizePlaceholderTicket('An LLM-written ticket', 'hu')).toBe('An LLM-written ticket');
+  });
+  it('spawnCustomer writes the ticket in the requested language', () => {
+    const all = Object.values(PLACEHOLDER_TICKET_TABLES.de).flat();
+    expect(all).toContain(spawnCustomer('hobby', 'de').initial_ticket_text);
+  });
+});

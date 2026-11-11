@@ -25,7 +25,8 @@ if (!db) return new Response('No DB', { status: 500 });
 // a /signup a belépett usert visszaküldi ide, ez volt a végtelen átirányítás (2026-11-11).
 let initialPlayer;
 try {
-  initialPlayer = await ensurePlayer(db, user);
+  // Új/nullázott játékos: a kezdő ügyfelek ticketjei a játékos nyelvén (süti / Accept-Language).
+  initialPlayer = await ensurePlayer(db, user, await resolveLocale({ request: Astro.request, db, userId: user.id }));
 } catch (e) {
   console.error('play: ensurePlayer failed', e);
   return new Response('Could not create your company. Please try again later.', { status: 500 });
