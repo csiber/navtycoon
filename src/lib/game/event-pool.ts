@@ -20,8 +20,13 @@ const EVENT_POOL_BASE: ReadonlyArray<EventType> = [
 const EVENT_POOL_ERA2: ReadonlyArray<EventType> = ['compliance_audit', 'staff_drama'];
 const EVENT_POOL_ERA3: ReadonlyArray<EventType> = ['competitor_buyout'];
 
-export function eventPoolForEra(era: number): ReadonlyArray<EventType> {
-  if (era >= 3) return [...EVENT_POOL_BASE, ...EVENT_POOL_ERA2, ...EVENT_POOL_ERA3];
-  if (era >= 2) return [...EVENT_POOL_BASE, ...EVENT_POOL_ERA2];
+/**
+ * 2026-11-12 (csapat-kör): opts.has_staff === false → a staff_drama kimarad (csapat nélkül nincs kiről szólnia).
+ * Ha a hívó nem mondja meg (régi szabályok, régi hívások), a régi készlet marad.
+ */
+export function eventPoolForEra(era: number, opts: { has_staff?: boolean } = {}): ReadonlyArray<EventType> {
+  const era2 = opts.has_staff === false ? EVENT_POOL_ERA2.filter((e) => e !== 'staff_drama') : EVENT_POOL_ERA2;
+  if (era >= 3) return [...EVENT_POOL_BASE, ...era2, ...EVENT_POOL_ERA3];
+  if (era >= 2) return [...EVENT_POOL_BASE, ...era2];
   return EVENT_POOL_BASE;
 }

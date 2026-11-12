@@ -18,6 +18,12 @@
 // 2026-11-12 (dedikált-kör): a dedikált gépre csak egy nagy ügyfél (plan_tier = 'dedicated') jön, saját úton
 // (6.2. lépés); több ticketet hoz, az SLA-t (24 óra) és az elégedettségét félnaponta nézzük (2.2. lépés), és ha
 // elmegy, hírnevet visz és egy ideig nem jön új (dedicated.ts). A kapacitás csak a sima ügyfelekre vonatkozik.
+// 2026-11-12 (csapat- és hálózat-kör): a bérek és a hálózat havidíja a szerver-havidíjjal együtt fogy (2.5.);
+// a tartozás-határnál előbb a legkevésbé hasznos ember megy, aztán a DDoS-védelem, csak utána a gép. Félnaponta
+// (2.3.) az ügyfélszolgálat megold néhány ticketet, frissül a hangulat (felmondás, csapatdráma), és a kevés
+// sávszélesség (lassulás) −elégedettséget hoz; a lassulás a ticketeket is szaporítja (3.). Az SRE, az értékesítő és
+// a DDoS-védelem a fejlesztések hatás-kulcsain hat (combineEffects). Ha a 0013-as migráció még nem futott le, a
+// csapat üres és a hálózat az ingyenes alap (staff.loadStaff, network.loadNetwork): csendes visszaesés.
 //
 // Konvenciók:
 //  - Pénz INTEGER (USD cents)
@@ -35,8 +41,17 @@ import { maybeAdvanceEra } from './era-progress';
 import {
   ECONOMY, TICK_MINUTES, ppcSpendPerTick, acquisitionProb, ticketSpawnProb, churnProb, bridgeDue, isEngaged,
   serverFeeForTick, effectiveMonthlyFees, applyServerFee, pickServerToSell, overloadTicketFactor, overloadRatio,
+  fleetUtilPct,
 } from './economy';
-import { loadUpgradeEffects, eventAvoidProb, NO_EFFECTS } from './upgrade-effects';
+import { loadUpgradeEffects, eventAvoidProb, NO_EFFECTS, combineEffects } from './upgrade-effects';
+import {
+  type StaffMember, loadStaff, staffEffects, totalSalaryCents, staffSalaryCents, supportShare, supportPerDay,
+  supportResolveSat, moraleStep, pickLeastUseful,
+} from './staff';
+import {
+  type NetworkState, NO_NETWORK, loadNetwork, networkActive, networkEffects, networkMonthlyCents, bandwidthUnits,
+  trafficUnits, slowdownRatio, slowdownTicketFactor,
+} from './network';
 import { SERVER_SPECS, serverCapacity } from './server-types';
 import { assignFleetLoad } from './capacity';
 import {
@@ -78,6 +93,14 @@ export interface TickResult {
   /** Dedikált-kör: most jelentkezett / távozott nagy ügyfél (0/1, illetve darab). */
   dedicated_signed?: number;
   dedicated_lost?: number;
+  /** Csapat-kör: levont bér és hálózati díj (cent), az ügyfélszolgálat által megoldott ticketek, felmondások,
+   *  tartozás miatt elküldött munkatársak, és hogy lassult-e a hálózat. */
+  salaries_cents?: number;
+  network_fees_cents?: number;
+  staff_resolved?: number;
+  staff_quit?: number;
+  staff_cut?: number;
+  network_slow?: boolean;
   era_advanced_to: EraId | null;
   /** A tick végén feloldott achievementek (lásd achievement-tick.ts). */
   achievements_unlocked?: string[];
@@ -174,7 +197,19 @@ export async function tickPlayer(
   }
 
   // 0.6. A fejlesztések hatása és a gépek (kapacitás, havidíj) — egyszer kérjük le.
-  const eff = ECONOMY.upgrade_effects ? await loadUpgradeEffects(db, player.user_id) : NO_EFFECTS;
+  const upEff = ECONOMY.upgrade_effects ? await loadUpgradeEffects(db, player.user_id) : NO_EFFECTS;
+  // Csapat és hálózat (a 2. korszaktól; a migráció előtt üres csapat / alap-hálózat).
+  const SR = ECONOMY.staff;
+  const NR = ECONOMY.network;
+  let staff: StaffMember[] = SR && player.current_era >= SR.min_era ? await loadStaff(db, player.user_id) : [];
+  const netOn = networkActive(NR, player.current_era);
+  const net: NetworkState = netOn ? await loadNetwork(db, player.user_id) : { ...NO_NETWORK };
+  let eff = combineEffects(upEff, staffEffects(SR, staff, now), netOn ? networkEffects(NR, net) : {});
+  let salariesPaid = 0;
+  let networkPaid = 0;
+  let staffResolved = 0;
+  let staffQuitN = 0;
+  let staffCutN = 0;
   let fleet = ((await db.prepare(
     'SELECT id, type, capacity, monthly_cost_cents FROM servers WHERE player_id = ? ORDER BY purchased_at ASC, id ASC',
   ).bind(player.user_id).all<{ id: number; type: string; capacity: number; monthly_cost_cents: number }>()).results ?? []);
@@ -211,19 +246,59 @@ export async function tickPlayer(
   // A kapacitás csak a sima ügyfelekre vonatkozik; a dedikáltak a saját gépükön ülnek.
   let dedCustomers = (customers.results ?? []).filter((c) => isDedicatedCustomer(c.plan_tier));
   const generalNow = activeNow - dedCustomers.length;
-  if (ECONOMY.server_fees && fleet.length > 0) {
+  if (ECONOMY.server_fees && (fleet.length > 0 || staff.length > 0)) {
     const listed = fleet.reduce((a, sv) => a + Math.max(0, sv.monthly_cost_cents), 0);
-    const fee = serverFeeForTick(effectiveMonthlyFees(listed, eff.fee_pct), now);
+    const feeSrv = serverFeeForTick(effectiveMonthlyFees(listed, eff.fee_pct), now);
+    // A bér és a hálózat havidíja ugyanúgy, időarányosan (a szimulátor is így számol).
+    const feeSal = serverFeeForTick(totalSalaryCents(SR, staff, now), now);
+    const feeNet = netOn ? serverFeeForTick(networkMonthlyCents(NR, net), now) : 0;
+    const fee = feeSrv + feeSal + feeNet;
     if (fee > 0) {
       const cashRow = await db.prepare('SELECT cash_usd_cents FROM players WHERE user_id = ?')
         .bind(player.user_id).first<{ cash_usd_cents: number }>();
       const cashBefore = cashRow?.cash_usd_cents ?? player.cash_usd_cents;
       const res = applyServerFee(ECONOMY, cashBefore, fee);
-      serverFees = cashBefore - res.cash;
-      if (serverFees !== 0) {
-        await db.prepare('UPDATE players SET cash_usd_cents = cash_usd_cents - ? WHERE user_id = ?').bind(serverFees, player.user_id).run();
+      const paid = cashBefore - res.cash;
+      salariesPaid = Math.round((paid * feeSal) / fee);
+      networkPaid = Math.round((paid * feeNet) / fee);
+      serverFees = paid - salariesPaid - networkPaid;
+      if (paid !== 0) {
+        await db.prepare('UPDATE players SET cash_usd_cents = cash_usd_cents - ? WHERE user_id = ?').bind(paid, player.user_id).run();
       }
-      if (res.over_limit) {
+      // Tartozás-határ: előbb a legkevésbé hasznos ember megy (érthető üzenettel), aztán a DDoS-védelem, csak utána a gép.
+      let handled = false;
+      if (res.over_limit && SR && staff.length > 0) {
+        const fleetFull = fleetUtilPct(generalNow, fleetCapacity()) >= 95;
+        const i = pickLeastUseful(SR, staff, now, { fleet_full: fleetFull });
+        if (i >= 0) {
+          const gone = staff[i];
+          await db.prepare('DELETE FROM staff WHERE id = ? AND player_id = ?').bind(gone.id, player.user_id).run();
+          await db.prepare('UPDATE staff SET morale = MAX(0, morale - ?) WHERE player_id = ?').bind(SR.morale.fire_hit, player.user_id).run();
+          await db.prepare(
+            'INSERT INTO events (player_id, event_type, data_json, spawned_at, outcome, resolved_at) ' +
+            "VALUES (?, 'staff_cut_debt', ?, ?, 'negative', ?)",
+          ).bind(player.user_id, JSON.stringify({
+            name: gone.name, role: gone.role, salary_cents: staffSalaryCents(SR, gone, now), wasted: fleetFull && gone.role === 'sales',
+          }), now, now).run();
+          staff = staff.filter((_, k) => k !== i).map((m) => ({ ...m, morale: Math.max(0, m.morale - SR.morale.fire_hit) }));
+          eff = combineEffects(upEff, staffEffects(SR, staff, now), netOn ? networkEffects(NR, net) : {});
+          staffCutN = 1;
+          handled = true;
+        }
+      }
+      if (res.over_limit && !handled && netOn && net.ddos) {
+        try {
+          await db.prepare('UPDATE player_network SET ddos = 0, updated_at = ? WHERE player_id = ?').bind(now, player.user_id).run();
+          await db.prepare(
+            'INSERT INTO events (player_id, event_type, data_json, spawned_at, outcome, resolved_at) ' +
+            "VALUES (?, 'network_ddos_cancelled', '{}', ?, 'negative', ?)",
+          ).bind(player.user_id, now, now).run();
+          net.ddos = 0;
+          eff = combineEffects(upEff, staffEffects(SR, staff, now), networkEffects(NR, net));
+          handled = true;
+        } catch { /* nincs még tábla */ }
+      }
+      if (res.over_limit && !handled) {
         const loads = assignFleetLoad(
           fleet.map((sv) => ({ ...sv, capacity: serverCapacity(sv.type, sv.capacity, eff.capacity_pct) })), generalNow, dedCustomers.length,
         );
@@ -277,9 +352,112 @@ export async function tickPlayer(
   }
   const dedIds = new Set(dedCustomers.map((c) => c.id));
 
+  // 2.3. Hálózat: a forgalom a sima és a nagy ügyfelekből; ha több, mint a sávszélesség, lassulnak az oldalak
+  //      (félnaponta −elégedettség a sima ügyfeleknek, és több ticket a 3. lépésben).
+  let slowRatio = 0;
+  if (netOn && NR) {
+    const rows = customers.results ?? [];
+    const cnt = { hobby: 0, business: 0, dedicated: 0 };
+    for (const c of rows) {
+      if (isDedicatedCustomer(c.plan_tier)) { if (dedIds.has(c.id)) cnt.dedicated++; } else if (c.plan_tier === 'business') cnt.business++; else cnt.hobby++;
+    }
+    slowRatio = slowdownRatio(trafficUnits(NR, cnt), bandwidthUnits(NR, net));
+    if (slowRatio > 0 && halfDayTurn) {
+      await db.prepare(
+        'UPDATE customers SET satisfaction = MAX(-100, satisfaction - ?) WHERE player_id = ? AND is_active = 1 AND plan_tier != ?',
+      ).bind(NR.slowdown.sat_step, player.user_id, DEDICATED_TIER).run();
+    }
+  }
+
+  // 2.4. Csapat (félnaponta): az ügyfélszolgálat megoldja a legrégebbi ticketeket a nem morcos, nem nagy
+  //      ügyfelektől; aztán mindenki hangulata (túlterhelés, pénz); a túl rosszkedvű felmond, a 35 alatti szól.
+  if (SR && staff.length > 0 && halfDayTurn) {
+    const cap = staff.reduce((a, m) => a + supportShare(SR, m, now), 0);
+    const queueRow = await db.prepare(
+      "SELECT COUNT(*) AS n FROM tickets t JOIN customers c ON c.id = t.customer_id WHERE t.player_id = ? AND t.status = 'open' " +
+      'AND c.is_active = 1 AND c.plan_tier != ? AND c.satisfaction >= ?',
+    ).bind(player.user_id, DEDICATED_TIER, SR.support_min_sat).first<{ n: number }>();
+    const queueBefore = queueRow?.n ?? 0;
+    if (cap > 0 && queueBefore > 0) {
+      const pick = (await db.prepare(
+        "SELECT t.id, t.customer_id, c.satisfaction FROM tickets t JOIN customers c ON c.id = t.customer_id WHERE t.player_id = ? AND t.status = 'open' " +
+        'AND c.is_active = 1 AND c.plan_tier != ? AND c.satisfaction >= ? ORDER BY t.created_at ASC, t.id ASC LIMIT ?',
+      ).bind(player.user_id, DEDICATED_TIER, SR.support_min_sat, cap).all<{ id: number; customer_id: number; satisfaction: number }>()).results ?? [];
+      const sat = new Map<number, number>();
+      for (const t of pick) {
+        const before = sat.get(t.customer_id) ?? t.satisfaction;
+        const after = supportResolveSat(SR, before);
+        sat.set(t.customer_id, after);
+        await db.prepare(
+          "UPDATE tickets SET status = 'resolved', resolution = 'staff', satisfaction_delta = ?, resolved_at = ? WHERE id = ? AND status = 'open'",
+        ).bind(after - before, now, t.id).run();
+        staffResolved++;
+      }
+      for (const [cid, v] of sat) await db.prepare('UPDATE customers SET satisfaction = ? WHERE id = ?').bind(v, cid).run();
+      if (staffResolved > 0) {
+        // Napi egy sor a hírfolyamba (data_json.count gyűlik), ne félnaponként egy.
+        const dayStart = Math.floor(now / 86400) * 86400;
+        const row = await db.prepare(
+          "SELECT id, data_json FROM events WHERE player_id = ? AND event_type = 'staff_work' AND spawned_at >= ? ORDER BY id DESC LIMIT 1",
+        ).bind(player.user_id, dayStart).first<{ id: number; data_json: string | null }>();
+        if (row) {
+          let n = 0;
+          try { n = Number((JSON.parse(row.data_json ?? '{}') as { count?: number }).count) || 0; } catch { /* hibás JSON */ }
+          await db.prepare('UPDATE events SET data_json = ? WHERE id = ?').bind(JSON.stringify({ count: n + staffResolved }), row.id).run();
+        } else {
+          await db.prepare(
+            'INSERT INTO events (player_id, event_type, data_json, spawned_at, outcome, resolved_at) ' +
+            "VALUES (?, 'staff_work', ?, ?, 'positive', ?)",
+          ).bind(player.user_id, JSON.stringify({ count: staffResolved }), now, now).run();
+        }
+      }
+    }
+    // Hangulat
+    const cashRow = await db.prepare('SELECT cash_usd_cents FROM players WHERE user_id = ?').bind(player.user_id).first<{ cash_usd_cents: number }>();
+    const cashNowM = cashRow?.cash_usd_cents ?? player.cash_usd_cents;
+    const supportOver = queueBefore > SR.morale.overwork_queue_factor * Math.max(1, supportPerDay(SR, staff, now));
+    const sreOver = overloadRatio(generalNow, capacityNow) > 0 || slowRatio > 0;
+    const salesOver = fleetUtilPct(generalNow, capacityNow) >= 95;
+    const openDrama = new Set<number>();
+    try {
+      const rows = (await db.prepare(
+        "SELECT data_json FROM events WHERE player_id = ? AND event_type = 'staff_drama' AND resolved_at IS NULL",
+      ).bind(player.user_id).all<{ data_json: string | null }>()).results ?? [];
+      for (const r of rows) { try { const id = Number((JSON.parse(r.data_json ?? '{}') as { staff_id?: number }).staff_id); if (id) openDrama.add(id); } catch { /* */ } }
+    } catch { /* */ }
+    const kept: StaffMember[] = [];
+    for (const m of staff) {
+      const over = m.role === 'support' ? supportOver : m.role === 'sre' ? sreOver : salesOver;
+      const morale = moraleStep(SR, m, { overworked: over, cash_cents: cashNowM });
+      if (morale < SR.morale.quit_below) {
+        await db.prepare('DELETE FROM staff WHERE id = ? AND player_id = ?').bind(m.id, player.user_id).run();
+        await db.prepare(
+          'INSERT INTO events (player_id, event_type, data_json, spawned_at, outcome, resolved_at) ' +
+          "VALUES (?, 'staff_quit', ?, ?, 'negative', ?)",
+        ).bind(player.user_id, JSON.stringify({ name: m.name, role: m.role, why: cashNowM < 0 ? 'money' : over ? 'overwork' : 'mood' }), now, now).run();
+        // a még nyitott drámája okafogyott
+        await db.prepare(
+          "UPDATE events SET resolved_at = ?, outcome = 'negative' WHERE player_id = ? AND event_type = 'staff_drama' AND resolved_at IS NULL AND data_json LIKE ?",
+        ).bind(now, player.user_id, `%"staff_id":${m.id},%`).run();
+        staffQuitN++;
+        continue;
+      }
+      if (morale !== m.morale) await db.prepare('UPDATE staff SET morale = ? WHERE id = ?').bind(morale, m.id).run();
+      kept.push({ ...m, morale });
+      // 35 alatt szól: csapatdráma (egyszerre egy nyitott munkatársanként).
+      if (morale < SR.morale.drama_below && !openDrama.has(m.id)) {
+        await db.prepare('INSERT INTO events (player_id, event_type, data_json, spawned_at) VALUES (?, ?, ?, ?)')
+          .bind(player.user_id, 'staff_drama', JSON.stringify({ staff_id: m.id, name: m.name, role: m.role, why: over ? 'overwork' : cashNowM < 0 ? 'money' : 'mood' }), now).run();
+        openDrama.add(m.id);
+      }
+    }
+    staff = kept;
+    eff = combineEffects(upEff, staffEffects(SR, staff, now), netOn ? networkEffects(NR, net) : {});
+  }
+
   // 3. Ticket spawn — per-active-customer roll; AI first, placeholder fallback.
   //    A fejlesztések ticket_pct-je kevesebb ticketet hoz; túlterhelésnél (több ügyfél, mint hely) több jön.
-  const ovlFactor = overloadTicketFactor(ECONOMY, generalNow, capacityNow);
+  const ovlFactor = overloadTicketFactor(ECONOMY, generalNow, capacityNow) * (NR && slowRatio > 0 ? slowdownTicketFactor(NR, slowRatio) : 1);
   if (ECONOMY.capacity_limit && ECONOMY.overload && overloadRatio(generalNow, capacityNow) > 0 && halfDayTurn) {
     // Túlterhelés: 12 óránként −sat_step elégedettség minden aktív sima ügyfélnek (lassú oldalak, kiesések).
     await db.prepare(
@@ -542,7 +720,7 @@ export async function tickPlayer(
 
   // 7. Random event spawn — pool depends on player's current era.
   if (Math.random() < ECONOMY.random_event_prob_per_tick) {
-    const pool = eventPoolForEra(player.current_era);
+    const pool = eventPoolForEra(player.current_era, SR ? { has_staff: staff.length > 0 } : {});
     const type = pool[Math.floor(Math.random() * pool.length)];
     const avoid = ECONOMY.upgrade_effects ? eventAvoidProb(type, eff) : 0;
     if (avoid > 0 && Math.random() < avoid) {
@@ -553,9 +731,15 @@ export async function tickPlayer(
       ).bind(player.user_id, JSON.stringify({ avoided_type: type }), now, now).run();
       eventAvoided = type;
     } else {
+      // A csapatdráma egy valódi munkatársról szól: a legrosszabb kedvűről (élő szabályokkal csak csapattal jön).
+      let data: string | null = null;
+      if (type === 'staff_drama' && SR && staff.length > 0) {
+        const w = staff.reduce((a, m) => (m.morale < a.morale ? m : a));
+        data = JSON.stringify({ staff_id: w.id, name: w.name, role: w.role, why: 'random' });
+      }
       await db.prepare(
-        'INSERT INTO events (player_id, event_type, spawned_at) VALUES (?, ?, ?)',
-      ).bind(player.user_id, type, now).run();
+        'INSERT INTO events (player_id, event_type, data_json, spawned_at) VALUES (?, ?, ?, ?)',
+      ).bind(player.user_id, type, data, now).run();
       eventsSpawned++;
     }
   }
@@ -646,6 +830,12 @@ export async function tickPlayer(
     event_avoided: eventAvoided,
     dedicated_signed: dedSigned,
     dedicated_lost: dedLostN,
+    salaries_cents: salariesPaid,
+    network_fees_cents: networkPaid,
+    staff_resolved: staffResolved,
+    staff_quit: staffQuitN,
+    staff_cut: staffCutN,
+    network_slow: slowRatio > 0,
     era_advanced_to: eraAdvancedTo,
     achievements_unlocked: achievementsUnlocked,
   };

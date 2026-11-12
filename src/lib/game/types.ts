@@ -54,7 +54,16 @@ export type EventType =
   | 'event_avoided'
   // 2026-11-12 (dedikált-kör): nagy ügyfél bérli / felmondja a dedikált gépet (lezárt sorok).
   | 'dedicated_signed'
-  | 'dedicated_lost';
+  | 'dedicated_lost'
+  // 2026-11-12 (csapat- és hálózat-kör, lezárt sorok): felvétel, elbocsátás, felmondás, tartozás miatti elküldés,
+  // az ügyfélszolgálat napi munkája (data_json.count gyűlik), és a hálózat változásai.
+  | 'staff_hired'
+  | 'staff_fired'
+  | 'staff_quit'
+  | 'staff_cut_debt'
+  | 'staff_work'
+  | 'network_changed'
+  | 'network_ddos_cancelled';
 
 export type EventOutcome = 'positive' | 'neutral' | 'negative';
 

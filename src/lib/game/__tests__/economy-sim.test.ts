@@ -2,7 +2,18 @@
 // A szimulátor a valódi tick képleteit (economy.ts) használja; több seeden fut, hogy ne egy szerencsés dobás döntsön.
 import { describe, it, expect } from 'vitest';
 import { simulate, ALL_PROFILES, type ProfileId, type SimResult } from '../economy-sim';
-import { BALANCE_V2_RULES as ECONOMY, LEGACY_RULES, ECONOMY as LIVE, DEFAULT_PRICING } from '../economy';
+import { BALANCE_V2_RULES as ECONOMY, LEGACY_RULES, ECONOMY as LIVE, DEFAULT_PRICING, type EconomyRules } from '../economy';
+
+// A csapat- és hálózat-kör előtti élő szabályok (a 3. korszak „most" napjához: Csaba kérése, hogy ne jöjjön korábban).
+const PRE_TEAM: EconomyRules = { ...LIVE, staff: null, network: null };
+
+// A 90 napos futások drágák (~1 s): a blokkok közösen használják őket (ugyanaz a seed → bitre ugyanaz az eredmény).
+const memo = new Map<string, SimResult>();
+const sim90 = (rules: EconomyRules, profile: ProfileId, seed: number, buy_network?: boolean): SimResult => {
+  const k = `${rules === PRE_TEAM ? 'pre' : rules.id}:${profile}:${seed}:${buy_network ?? ''}`;
+  if (!memo.has(k)) memo.set(k, simulate(rules, profile, { days: 90, seed, buy_network }));
+  return memo.get(k)!;
+};
 import { SERVER_SPECS, serverCapacity } from '../server-types';
 import { dedicatedFeeCents, dedicatedFeeMid } from '../dedicated';
 
@@ -173,7 +184,7 @@ describe('v3 dedicated box: one big business client (2026-11-12, dedikált-kör)
   const runs = (profile: ProfileId): SimResult[] => {
     // 90 nap (a 3. korszak méréséhez); a 60 napos mutatók ugyanezekből a futásokból jönnek (a futás első 60 napja
     // bitre azonos egy 60 napos futással).
-    if (!cache.has(profile)) cache.set(profile, SEEDS10.map((seed) => simulate(LIVE, profile, { days: 90, seed })));
+    if (!cache.has(profile)) cache.set(profile, SEEDS10.map((seed) => sim90(LIVE, profile, seed)));
     return cache.get(profile)!;
   };
   const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -222,10 +233,14 @@ describe('v3 dedicated box: one big business client (2026-11-12, dedikált-kör)
   });
 
   it('the big client does not speed up Era 3: its fee does not count for the era MRR (Csaba: „nem hamar kipörgethető")', T, () => {
-    const act = runs('active');
     const ded = runs('dedicated');
     const eraDay = (r: SimResult, era: number) => r.days.find((d) => d.era >= era)?.day ?? 999;
-    expect(median(ded.map((r) => eraDay(r, 3)))).toBeGreaterThanOrEqual(median(act.map((r) => eraDay(r, 3))));
+    // 2026-11-12 (csapat-kör): a 3. korszak napja seedenként 40 és 85 közt szór, ezért 20 seeden, és a csapat-kör
+    // előtti szabályok aktív játékosához mérjük (a mostani „active" már csapatot is épít — lásd a csapat-blokkot).
+    const S20 = Array.from({ length: 20 }, (_, i) => i + 1);
+    const ded20 = S20.map((seed) => sim90(LIVE, 'dedicated', seed));
+    const pre20 = S20.map((seed) => sim90(PRE_TEAM, 'active', seed));
+    expect(median(ded20.map((r) => eraDay(r, 3)))).toBeGreaterThanOrEqual(median(pre20.map((r) => eraDay(r, 3))));
     expect(median(ded.map((r) => eraDay(r, 3)))).toBeGreaterThanOrEqual(35);
     // a kijelzett MRR viszont a teljes összeg: a nagy ügyfél díja benne van
     for (const r of ded) for (const d of r.days) expect(d.mrr_cents).toBeGreaterThanOrEqual(d.dedicated_mrr_cents);
@@ -235,11 +250,94 @@ describe('v3 dedicated box: one big business client (2026-11-12, dedikált-kör)
   it('buying the box and ignoring the client is not better than never buying it', T, () => {
     const act = runs('active');
     const neg = runs('dedicated_neglect');
-    expect(mean(neg.map(mrrMonth2))).toBeLessThanOrEqual(mean(act.map(mrrMonth2)));
+    // 2026-11-12 este ($350-os gép): a magára hagyott ügyfél díja a távozásáig hoz valamennyit, ezért a 2–3. hónap
+    // átlagát nézzük (hosszabb távon), nem csak a 2. hónapét.
+    const mrrMonths23 = (r: SimResult) => mean(r.days.filter((d) => d.day > 30 && d.day <= 90).map((d) => d.mrr_cents));
+    expect(mean(neg.map(mrrMonths23))).toBeLessThan(mean(act.map(mrrMonths23)));
     expect(median(neg.map(mrr60))).toBeLessThanOrEqual(median(act.map(mrr60)));
     // a nagy ügyfél nála nem marad meg
     expect(mean(neg.map((r) => r.dedicated_lost))).toBeGreaterThanOrEqual(1);
     for (const r of neg) expect(r.min_cash_cents).toBeGreaterThanOrEqual(-LIVE.debt_limit_cents);
+  });
+});
+
+describe('v3 team and network (2026-11-12, csapat- és hálózat-kör)', () => {
+  const S10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const cache = new Map<string, SimResult[]>();
+  const runs = (profile: ProfileId, opts: { buy_network?: boolean; rules?: EconomyRules } = {}): SimResult[] => {
+    const k = `${profile}:${opts.buy_network ?? ''}:${opts.rules ? 'pre' : ''}`;
+    if (!cache.has(k)) cache.set(k, S10.map((seed) => sim90(opts.rules ?? LIVE, profile, seed, opts.buy_network)));
+    return cache.get(k)!;
+  };
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const mrrMonth3 = (r: SimResult) => mean(r.days.filter((d) => d.day > 60 && d.day <= 90).map((d) => d.mrr_cents));
+  const mrr90 = (r: SimResult) => at(r, 90).mrr_cents;
+  const eraDay = (r: SimResult, era: number) => r.days.find((d) => d.era >= era)?.day ?? 999;
+  const T = { timeout: 300_000 };
+
+  it('Era 1 has no staff and no network costs: the idle player never hires, never pays, never goes broke', T, () => {
+    for (const r of runs('idle')) {
+      expect(r.broke_day).toBeNull();
+      expect(r.staff_hired).toBe(0);
+      expect(r.salaries_total_cents).toBe(0);
+      expect(r.network_fees_total_cents).toBe(0);
+      for (const d of r.days) expect(d.era).toBe(1);
+    }
+    // senki nem vesz fel embert az 1. korszakban
+    for (const profile of ['active', 'casual', 'overhire_staff'] as const) {
+      for (const r of runs(profile)) for (const d of r.days) if (d.era < 2) expect(d.staff).toBe(0);
+    }
+  });
+
+  it('a good team makes the active player measurably better than never hiring anyone', T, () => {
+    const team = runs('active');
+    const none = runs('no_staff');
+    expect(mean(team.map(mrrMonth3))).toBeGreaterThan(1.15 * mean(none.map(mrrMonth3)));
+    expect(median(team.map(mrr90))).toBeGreaterThan(median(none.map(mrr90)));
+    for (const r of team) {
+      expect(r.min_cash_cents).toBeGreaterThanOrEqual(0);
+      expect(r.sold_total).toBe(0);
+      expect(r.staff_cut_debt).toBe(0);
+    }
+    expect(mean(team.map((r) => r.staff_hired))).toBeGreaterThanOrEqual(1.5);
+    expect(mean(team.map((r) => r.support_resolved))).toBeGreaterThan(20);
+    // a csapat a korlátokon belül marad
+    for (const r of team) for (const d of r.days) expect(d.staff).toBeLessThanOrEqual(d.era >= 3 ? 6 : d.era >= 2 ? 3 : 0);
+    // a jó csapatépítő bérei az MRR kis részét viszik
+    for (const r of team) expect(at(r, 90).salary_monthly_cents).toBeLessThanOrEqual(0.35 * at(r, 90).mrr_cents);
+  });
+
+  it('overhiring hurts (wage spiral), but the safety nets hold: people go before machines, nobody goes bankrupt', T, () => {
+    const over = runs('overhire_staff');
+    const none = runs('no_staff');
+    expect(median(over.map(mrr90))).toBeLessThan(median(none.map(mrr90)));
+    expect(mean(over.map(mrrMonth3))).toBeLessThan(0.8 * mean(none.map(mrrMonth3)));
+    for (const r of over) {
+      expect(r.min_cash_cents).toBeGreaterThanOrEqual(-LIVE.debt_limit_cents);
+      expect(r.sold_total).toBe(0); // a tartozásnál előbb az ember megy, a gép nem
+      for (const d of r.days) expect(d.customers).toBeGreaterThanOrEqual(LIVE.churn_floor_customers);
+    }
+    // a spirál valóban fáj: többeknél elmegy valaki (felmond vagy a tartozás miatt el kell küldeni)
+    expect(over.filter((r) => r.staff_quit + r.staff_cut_debt >= 1).length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('too little bandwidth slows the sites: the same active player without network upgrades does much worse', T, () => {
+    const withNet = runs('active');
+    const noNet = runs('active', { buy_network: false });
+    expect(mean(noNet.map((r) => r.slow_halfdays))).toBeGreaterThan(5 * Math.max(1, mean(withNet.map((r) => r.slow_halfdays))));
+    expect(mean(noNet.map(mrrMonth3))).toBeLessThan(0.8 * mean(withNet.map(mrrMonth3)));
+    // a hálózat havidíja valódi költség, de kicsi a haszonhoz képest
+    for (const r of withNet) expect(r.network_fees_total_cents).toBeGreaterThan(0);
+  });
+
+  it('Era 3 does not come earlier than before the team round (Csaba: „nem hamar kipörgethető")', T, () => {
+    // 20 seed: a 3. korszak napja seedenként 40 és 85 közt szór.
+    const S20 = Array.from({ length: 20 }, (_, i) => i + 1);
+    const now20 = S20.map((seed) => sim90(LIVE, 'active', seed));
+    const pre20 = S20.map((seed) => sim90(PRE_TEAM, 'active', seed));
+    expect(median(now20.map((r) => eraDay(r, 3)))).toBeGreaterThanOrEqual(median(pre20.map((r) => eraDay(r, 3))));
+    expect(median(now20.map((r) => eraDay(r, 3)))).toBeGreaterThanOrEqual(55);
+    for (const r of runs('active')) expect(eraDay(r, 2)).toBeGreaterThanOrEqual(7);
   });
 });
 

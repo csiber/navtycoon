@@ -22,6 +22,18 @@
 //  - dedicated_neglect: ugyanígy megveszi a dedikált gépet, de a nagy ügyfél ticketjeit csak lezárja, nem
 //               beszélget vele (rossz döntés #3: „megvettem, majd lesz valahogy").
 //
+// 2026-11-12 (csapat- és hálózat-kör):
+//  - active (és a dedicated-profilok) = a jó csapatépítő: a 2. korszakban ügyfélszolgálatost vesz fel, ha a műszak
+//               után is marad ticket, SRE-t és értékesítőt, ha az MRR elbírja (a bérek legfeljebb az MRR negyede),
+//               a csapatdrámában akkor ad emelést, ha belefér. A hálózatot időben bővíti (85%-nál), 1 Gbiten
+//               peeringet köt, $400 MRR fölött DDoS-védelmet vesz.
+//  - no_staff:  mint az active, de soha nem vesz fel senkit (a csapat hasznának méréséhez).
+//  - overhire_staff: mint az active, de minden szabad helyre azonnal felvesz valakit (bármilyen szerepre), soha
+//               nem bocsát el, és minden emelést megad (rossz döntés #4: bérspirál).
+//  - casual:    egy ügyfélszolgálatost vesz fel, ha a ticketek kifutnak a műszakból; a hálózatot akkor bővíti,
+//               amikor a vezérlő szól (lassulás).
+//  - idle, never_buy: senkit, semmit. overbuy: hálózatot az active módján, csapatot nem.
+//
 // Egyszerűsítések (tudatosan): a műszak egy pillanat alatt lezajlik; a chat AI-értékelését a profil átlagos
 // értékével közelítjük; a Pro-előfizetést és a piacteret nem modellezzük.
 
@@ -42,9 +54,19 @@ import { UPGRADE_SPECS } from './upgrade-tree';
 import { effectsOf, eventAvoidProb, NO_EFFECTS, type UpgradeEffects } from './upgrade-effects';
 import type { EventType, EraId, ServerType } from './types';
 import { eventPoolForEra } from './event-pool';
+import { combineEffects } from './upgrade-effects';
+import {
+  type StaffMember, maxStaff, generateCandidates, hireFeeCents, candidateSalaryCents, staffSalaryCents, totalSalaryCents,
+  staffEffects, supportShare, supportPerDay, supportResolveSat, moraleStep, pickLeastUseful,
+} from './staff';
+import {
+  type NetworkState, networkActive, bandwidthUnits, trafficUnits, networkMonthlyCents, slowdownRatio, slowdownTicketFactor,
+  networkEffects,
+} from './network';
 
-export type ProfileId = 'idle' | 'casual' | 'active' | 'never_buy' | 'overbuy' | 'dedicated' | 'dedicated_neglect';
-export const ALL_PROFILES: readonly ProfileId[] = ['idle', 'casual', 'active', 'never_buy', 'overbuy', 'dedicated', 'dedicated_neglect'];
+export type ProfileId = 'idle' | 'casual' | 'active' | 'never_buy' | 'overbuy' | 'dedicated' | 'dedicated_neglect'
+  | 'no_staff' | 'overhire_staff';
+export const ALL_PROFILES: readonly ProfileId[] = ['idle', 'casual', 'active', 'never_buy', 'overbuy', 'dedicated', 'dedicated_neglect', 'no_staff', 'overhire_staff'];
 
 /** A jó döntéshozó (active) fejlesztési sorrendje: ami most a legtöbbet hozza, az előbb. */
 export const ACTIVE_UPGRADE_ORDER = [
@@ -72,6 +94,13 @@ export interface SimDay {
   /** Dedikált ügyfelek a nap végén, és az ő havidíjuk (az MRR része). */
   dedicated_customers: number;
   dedicated_mrr_cents: number;
+  /** Csapat-kör: munkatársak és a havi bérük a nap végén; a hálózat (csomag, forgalom, sávszélesség). */
+  staff: number;
+  salary_monthly_cents: number;
+  avg_morale: number;
+  net_tier: number;
+  traffic: number;
+  bandwidth: number;
 }
 
 export interface SimResult {
@@ -100,6 +129,15 @@ export interface SimResult {
   dedicated_income_cents: number;
   /** Az első dedikált gép vásárlásának napja (null = nem vett). */
   dedicated_bought_day: number | null;
+  /** Csapat-kör: felvett, felmondott, tartozás miatt elküldött munkatársak; az összes kifizetett bér és hálózati díj;
+   *  ennyi ticketet oldott meg az ügyfélszolgálat; a lassulásban töltött félnapok. */
+  staff_hired: number;
+  staff_quit: number;
+  staff_cut_debt: number;
+  salaries_total_cents: number;
+  network_fees_total_cents: number;
+  support_resolved: number;
+  slow_halfdays: number;
 }
 
 interface SimCustomer {
@@ -135,13 +173,15 @@ function pickPersonaSat(r: () => number): number {
 }
 
 const clampSat = (v: number) => Math.max(-100, Math.min(100, v));
-const PROFILE_SALT: Record<ProfileId, number> = { idle: 1, casual: 2, active: 3, never_buy: 4, overbuy: 5, dedicated: 6, dedicated_neglect: 7 };
+const PROFILE_SALT: Record<ProfileId, number> = { idle: 1, casual: 2, active: 3, never_buy: 4, overbuy: 5, dedicated: 6, dedicated_neglect: 7, no_staff: 8, overhire_staff: 9 };
 
 export interface SimOptions {
   days?: number;
   seed?: number;
   /** false = az active/overbuy profil nem vesz fejlesztést (a fejlesztések hasznának méréséhez). */
   buy_upgrades?: boolean;
+  /** false = a profil soha nem bővíti a hálózatot (a sávszélesség hasznának méréséhez). */
+  buy_network?: boolean;
 }
 
 export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptions = {}): SimResult {
@@ -149,13 +189,25 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
   const seed = opts.seed ?? 1;
   // A rossz döntéshozók ugyanazt a véletlen-sorozatot kapják, mint az active: a különbség csak a döntés.
   const salt = profile === 'never_buy' || profile === 'overbuy' || profile === 'dedicated' || profile === 'dedicated_neglect'
+    || profile === 'no_staff' || profile === 'overhire_staff'
     ? PROFILE_SALT.active : PROFILE_SALT[profile];
   const r = makeRng(seed * 7919 + salt);
   const v3 = rules.capacity_limit || rules.server_fees || rules.upgrade_effects;
   const plays = profile !== 'idle';
   const buysDedicated = profile === 'dedicated' || profile === 'dedicated_neglect';
-  const activeLike = profile === 'active' || profile === 'never_buy' || profile === 'overbuy' || buysDedicated;
+  const activeLike = profile === 'active' || profile === 'never_buy' || profile === 'overbuy' || buysDedicated
+    || profile === 'no_staff' || profile === 'overhire_staff';
   const ded = rules.dedicated;
+  const SR = rules.staff;
+  const NR = rules.network;
+  // Csapat-politika: ki vesz fel embert, és hogyan.
+  const staffPolicy: 'team' | 'casual' | 'overhire' | 'none' =
+    !SR ? 'none'
+      : profile === 'active' || buysDedicated ? 'team'
+        : profile === 'casual' ? 'casual'
+          : profile === 'overhire_staff' ? 'overhire' : 'none';
+  const netPolicy: 'good' | 'casual' | 'none' =
+    !NR || opts.buy_network === false ? 'none' : profile === 'casual' ? 'casual' : profile === 'idle' || profile === 'never_buy' ? 'none' : 'good';
 
   // Kezdőállás = bootstrap.ts: $1000, 3 hobby-ügyfél egy-egy nyitott tickettel, 1 ingyenes szerver, $15 MRR.
   const p = {
@@ -174,6 +226,14 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
   const customers: SimCustomer[] = [];
   for (let i = 0; i < 3; i++) customers.push({ sat: pickPersonaSat(r), tier: 'hobby', active: true, tickets: [0] });
   const pending: EventType[] = [];
+  const staff: StaffMember[] = [];
+  let nextStaffId = 1;
+  const net: NetworkState = { transit_tier: 0, peering: 0, ddos: 0 };
+  /** Csapatdráma-jelzések (munkatárs-azonosítók), amelyekre a játékos a következő belépéskor dönt. */
+  const dramaQueue: number[] = [];
+  let staffHired = 0, staffQuit = 0, staffCutDebt = 0, salariesTotal = 0, netFeesTotal = 0, supportResolved = 0, slowHalfDays = 0;
+  /** A műszak után ennyi ticket maradt (a felvételi döntéshez). */
+  let leftoverAfterShift = 0;
 
   const out: SimDay[] = [];
   let minCash = p.cash;
@@ -195,7 +255,19 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
   let dedLastLost: number | null = null;
   let nowSec = 0;
 
-  const eff = (): UpgradeEffects => (rules.upgrade_effects ? p.eff : NO_EFFECTS);
+  const upEff = (): UpgradeEffects => (rules.upgrade_effects ? p.eff : NO_EFFECTS);
+  // A fejlesztések + a csapat + a hálózat hatása (a csapaté szinttől és hangulattól függ, ezért mindig frissen).
+  // Tickenként egyszer számoljuk (a ticket-ciklus ügyfelenként kéri); változáskor (felvétel, fejlesztés…) érvénytelenítjük.
+  let effAt = -1;
+  let effVal: UpgradeEffects = NO_EFFECTS;
+  const eff = (): UpgradeEffects => {
+    if (effAt !== nowSec) {
+      effVal = combineEffects(upEff(), staffEffects(SR, staff, nowSec), networkActive(NR, p.era) ? networkEffects(NR, net) : {});
+      effAt = nowSec;
+    }
+    return effVal;
+  };
+  const dirtyEff = (): void => { effAt = -1; };
   const capacity = (): number => p.servers.reduce((s, sv) => s + serverCapacity(sv.type, 0, eff().capacity_pct), 0);
   const activeN = (): number => customers.reduce((s, c) => s + (c.active ? 1 : 0), 0);
   // A sima ügyfelek (a kapacitás csak rájuk vonatkozik) és a dedikáltak.
@@ -210,6 +282,17 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     if (ded) p.rep = Math.max(0, p.rep - ded.leave_rep);
   };
   const listedFees = (): number => p.servers.reduce((s, sv) => s + sv.monthly, 0);
+  const tierCounts = () => {
+    let hobby = 0, business = 0, dedicated = 0;
+    for (const c of customers) if (c.active) { if (c.tier === 'dedicated') dedicated++; else if (c.tier === 'business') business++; else hobby++; }
+    return { hobby, business, dedicated };
+  };
+  const netOn = (): boolean => networkActive(NR, p.era);
+  const traffic = (): number => (NR ? trafficUnits(NR, tierCounts()) : 0);
+  const bandwidth = (): number => (NR ? bandwidthUnits(NR, net) : 0);
+  const slowRatio = (): number => (netOn() ? slowdownRatio(traffic(), bandwidth()) : 0);
+  const netMonthly = (): number => (netOn() ? networkMonthlyCents(NR, net) : 0);
+  const removeStaff = (i: number): StaffMember => { dirtyEff(); return staff.splice(i, 1)[0]; };
 
   // A profil napi döntésének ideje (a nap hányadik tickje).
   const actTick = activeLike ? 12 * 12 : 19 * 12;
@@ -242,6 +325,14 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     if (rules.capacity_limit && rules.overload && halfDay && overloadRatio(generalN(), capacity()) > 0) {
       for (const c of customers) if (c.active && c.tier !== 'dedicated') c.sat = clampSat(c.sat - rules.overload.sat_step);
     }
+    // Hálózat (félnaponta): kevés sávszélesség → lassulás → −elégedettség a sima ügyfeleknek.
+    if (NR && halfDay && slowRatio() > 0) {
+      slowHalfDays++;
+      for (const c of customers) if (c.active && c.tier !== 'dedicated') c.sat = clampSat(c.sat - NR.slowdown.sat_step);
+    }
+    // Csapat (félnaponta): az ügyfélszolgálat megold néhány ticketet, aztán mindenki hangulata (túlterhelés,
+    // pénz), a túl rosszkedvű felmond, a 35 alatti szól (csapatdráma).
+    if (SR && halfDay && staff.length > 0) staffHalfDay(now);
     // Dedikált ügyfél (félnaponta): megszegett SLA → −elégedettség, −hírnév; túl elégedetlen → felmond.
     if (ded && halfDay) {
       const slaCut = now - ded.sla_hours * 3600;
@@ -264,22 +355,32 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
 
     // 1.5 szerver-havidíj (v3) + tartozás-határnál automatikus eladás
     if (rules.server_fees) {
-      const fee = serverFeeForTick(effectiveMonthlyFees(listedFees(), eff().fee_pct), now);
+      // Csapat- és hálózat-kör: a bér és a hálózat havidíja ugyanígy, időarányosan (tick.ts 2.5. lépés).
+      const feeSrv = serverFeeForTick(effectiveMonthlyFees(listedFees(), eff().fee_pct), now);
+      const feeSal = serverFeeForTick(totalSalaryCents(SR, staff, now), now);
+      const feeNet = serverFeeForTick(netMonthly(), now);
+      const fee = feeSrv + feeSal + feeNet;
       if (fee > 0) {
         const res = applyServerFee(rules, p.cash, fee);
-        feesToday += p.cash - res.cash;
-        feesTotal += p.cash - res.cash;
+        const paid = p.cash - res.cash;
+        // A szerver-havidíj (fees_*) külön marad a bértől és a hálózattól (a régi mutatók jelentése nem változik).
+        const paidSal = Math.round((paid * feeSal) / fee);
+        const paidNet = Math.round((paid * feeNet) / fee);
+        feesToday += paid - paidSal - paidNet;
+        feesTotal += paid - paidSal - paidNet;
+        salariesTotal += paidSal;
+        netFeesTotal += paidNet;
         p.cash = res.cash;
         if (res.over_limit) {
           if (brokeDay === null) brokeDay = dayIdx;
-          sellOne();
+          cutOne();
         }
       }
     }
 
     // 3. ticketek
     {
-      const ovl = overloadTicketFactor(rules, generalN(), capacity());
+      const ovl = overloadTicketFactor(rules, generalN(), capacity()) * (NR && slowRatio() > 0 ? slowdownTicketFactor(NR, slowRatio()) : 1);
       for (const c of customers) {
         if (!c.active) continue;
         // A dedikált ügyfél saját gépen ül (nincs túlterhelés), de ticket_factor-szor annyi ticketet hoz.
@@ -361,7 +462,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
 
     // 7. véletlen esemény (v3: a fejlesztések egy részét kivédik)
     if (r() < rules.random_event_prob_per_tick) {
-      const pool = eventPoolForEra(p.era);
+      const pool = eventPoolForEra(p.era, SR ? { has_staff: staff.length > 0 } : {});
       const ev = pool[Math.floor(r() * pool.length)];
       const avoid = rules.upgrade_effects ? eventAvoidProb(ev, eff()) : 0;
       if (!(avoid > 0 && r() < avoid)) pending.push(ev);
@@ -389,7 +490,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       current_era: p.era, mrr_usd_cents: p.mrr - dedMrr(), server_count: p.servers.length,
       days_alive: Math.floor(now / 86400), reputation: p.rep,
     });
-    if (target) p.era = target.era;
+    if (target) { p.era = target.era; dirtyEff(); }
 
     minCash = Math.min(minCash, p.cash);
     if (!rules.server_fees && brokeDay === null && p.cash < 100) brokeDay = dayIdx;
@@ -411,6 +512,12 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
         lost_total: lostTotal,
         dedicated_customers: dedN(),
         dedicated_mrr_cents: dedMrr(),
+        staff: staff.length,
+        salary_monthly_cents: totalSalaryCents(SR, staff, now),
+        avg_morale: staff.length ? Math.round(staff.reduce((a, m) => a + m.morale, 0) / staff.length) : 0,
+        net_tier: net.transit_tier,
+        traffic: traffic(),
+        bandwidth: netOn() ? bandwidth() : 0,
       });
       ppcToday = 0;
       feesToday = 0;
@@ -423,7 +530,139 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     churned_total: churnedTotal, acquired_total: acquiredTotal, bridge_day: bridgeDay,
     lost_total: lostTotal, sold_total: soldTotal, invested_cents: invested, fees_total_cents: feesTotal,
     dedicated_signed: dedSigned, dedicated_lost: dedLost, dedicated_income_cents: dedIncome, dedicated_bought_day: dedBoughtDay,
+    staff_hired: staffHired, staff_quit: staffQuit, staff_cut_debt: staffCutDebt, salaries_total_cents: salariesTotal,
+    network_fees_total_cents: netFeesTotal, support_resolved: supportResolved, slow_halfdays: slowHalfDays,
   };
+
+  // ——— csapat ———
+  function staffHalfDay(now: number): void {
+    const rule = SR!;
+    // 1. ügyfélszolgálat: a legrégebbi ticketek a nem morcos, nem nagy ügyfelektől
+    const queue: Array<{ c: SimCustomer; ts: number }> = [];
+    for (const c of customers) {
+      if (!c.active || c.tier === 'dedicated' || c.sat < rule.support_min_sat) continue;
+      for (const ts of c.tickets) queue.push({ c, ts });
+    }
+    queue.sort((a, b) => a.ts - b.ts);
+    const queueBefore = queue.length;
+    const cap = staff.reduce((a, m) => a + supportShare(rule, m, now), 0);
+    for (const { c, ts } of queue.slice(0, cap)) {
+      c.sat = supportResolveSat(rule, c.sat);
+      const i = c.tickets.indexOf(ts);
+      if (i >= 0) c.tickets.splice(i, 1);
+      supportResolved++;
+    }
+    // 2. hangulat
+    const perDay = supportPerDay(rule, staff, now);
+    const supportOver = queueBefore > rule.morale.overwork_queue_factor * Math.max(1, perDay);
+    const sreOver = overloadRatio(generalN(), capacity()) > 0 || slowRatio() > 0;
+    const salesOver = fleetUtilPct(generalN(), capacity()) >= 95;
+    for (let i = staff.length - 1; i >= 0; i--) {
+      const m = staff[i];
+      const over = m.role === 'support' ? supportOver : m.role === 'sre' ? sreOver : salesOver;
+      m.morale = moraleStep(rule, m, { overworked: over, cash_cents: p.cash });
+      if (m.morale < rule.morale.quit_below) { removeStaff(i); staffQuit++; continue; }
+      if (m.morale < rule.morale.drama_below && !dramaQueue.includes(m.id)) dramaQueue.push(m.id);
+    }
+    dirtyEff();
+  }
+
+  /** Tartozás-határ: előbb a legkevésbé hasznos ember, aztán a DDoS-védelem, csak utána a gép. */
+  function cutOne(): void {
+    if (SR && staff.length > 0) {
+      const i = pickLeastUseful(SR, staff, nowSec, { fleet_full: fleetUtilPct(generalN(), capacity()) >= 95 });
+      if (i >= 0) { removeStaff(i); staffCutDebt++; for (const m of staff) m.morale = Math.max(0, m.morale - SR.morale.fire_hit); return; }
+    }
+    if (net.ddos) { net.ddos = 0; dirtyEff(); return; }
+    sellOne();
+  }
+
+  function hire(c: ReturnType<typeof generateCandidates>[number]): boolean {
+    const rule = SR!;
+    const fee = hireFeeCents(rule, c);
+    if (p.cash < fee) return false;
+    p.cash -= fee;
+    invested += fee;
+    staff.push({
+      id: nextStaffId++, role: c.role, name: c.name, trait: c.trait, level_start: c.level_start,
+      base_salary_cents: c.base_salary_cents, raise_pct: 0, morale: rule.morale.start, hired_at: nowSec, four_day: 0,
+    });
+    staffHired++;
+    dirtyEff();
+    return true;
+  }
+
+  function staffDecisions(day: number): void {
+    const rule = SR;
+    if (!rule || staffPolicy === 'none') return;
+    // Csapatdráma: a játékos dönt (emelés / négynapos hét / elengedi).
+    while (dramaQueue.length > 0) {
+      const id = dramaQueue.shift()!;
+      const i = staff.findIndex((m) => m.id === id);
+      if (i < 0) continue;
+      resolveDrama(i);
+    }
+    const slots = maxStaff(rule, p.era) - staff.length;
+    if (slots <= 0) return;
+    const cands = generateCandidates(rule, `sim-${seed}`, day).filter((c) => !staff.some((m) => m.name === c.name));
+    if (cands.length === 0) return;
+    const salaries = totalSalaryCents(rule, staff, nowSec);
+    const has = (r: string) => staff.filter((m) => m.role === r).length;
+    if (staffPolicy === 'overhire') {
+      for (const c of cands.slice(0, slots)) hire(c);
+      return;
+    }
+    if (staffPolicy === 'casual') {
+      if (has('support') > 0 || leftoverAfterShift <= 5) return;
+      const c = cands.find((x) => x.role === 'support');
+      if (c && salaries + candidateSalaryCents(rule, c) <= 0.3 * p.mrr && p.cash >= hireFeeCents(rule, c) + 20000) hire(c);
+      return;
+    }
+    // team: amire most szükség van, és amit az MRR elbír (a bérek legfeljebb az MRR negyede)
+    const want: string[] = [];
+    if (leftoverAfterShift > 3 && has('support') < 2) want.push('support');
+    if (p.mrr >= 40000 && has('sre') < 1) want.push('sre');
+    if (p.mrr >= 50000 && has('sales') < 1 && fleetUtilPct(generalN(), capacity()) < 70) want.push('sales');
+    for (const role of want) {
+      const c = cands.filter((x) => x.role === role).sort((a, b) => candidateSalaryCents(rule, a) - candidateSalaryCents(rule, b))[0];
+      if (!c) continue;
+      const after = totalSalaryCents(rule, staff, nowSec) + candidateSalaryCents(rule, c);
+      if (after <= 0.25 * p.mrr && p.cash >= hireFeeCents(rule, c) + 30000) { hire(c); break; }
+    }
+  }
+
+  function resolveDrama(i: number): void {
+    const rule = SR!;
+    const m = staff[i];
+    const raiseCost = Math.round(staffSalaryCents(rule, m, nowSec) * rule.drama.raise_pct / 100);
+    const salaries = totalSalaryCents(rule, staff, nowSec);
+    dirtyEff();
+    const raise = () => { m.raise_pct += rule.drama.raise_pct; m.morale = Math.max(m.morale, rule.drama.raise_morale); };
+    const fourDay = () => { m.four_day = 1; m.morale = Math.min(100, m.morale + rule.drama.four_day_morale); };
+    if (staffPolicy === 'overhire') { raise(); return; }
+    if (staffPolicy === 'casual') { if (!m.four_day) fourDay(); else raise(); return; }
+    if (salaries + raiseCost <= 0.3 * p.mrr) raise();
+    else if (!m.four_day) fourDay();
+    else { removeStaff(i); p.rep = Math.max(0, p.rep - rule.drama.leave_rep); }
+  }
+
+  function networkDecisions(): void {
+    if (!NR || netPolicy === 'none' || !netOn()) return;
+    dirtyEff();
+    const tr = traffic();
+    const bw = bandwidth();
+    const nextTier = net.transit_tier + 1;
+    if (nextTier < NR.tiers.length && NR.tiers[nextTier].min_era <= p.era) {
+      const trigger = netPolicy === 'good' ? tr >= 0.85 * bw : tr > bw;
+      const cost = NR.tiers[nextTier].monthly_cents;
+      if (trigger && p.cash >= cost + 20000) net.transit_tier = nextTier;
+    }
+    if (netPolicy !== 'good') return;
+    if (!net.peering && net.transit_tier >= 2 && p.cash >= NR.peering.setup_cents + 30000) {
+      p.cash -= NR.peering.setup_cents; invested += NR.peering.setup_cents; net.peering = 1;
+    }
+    if (!net.ddos && p.mrr >= 40000) net.ddos = 1;
+  }
 
   // ——— segédek ———
   function sellOne(): void {
@@ -461,6 +700,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     invested += u.cost_usd_cents;
     p.upgrades.add(id);
     p.eff = effectsOf(p.upgrades);
+    dirtyEff();
     return true;
   }
 
@@ -477,6 +717,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       queue.sort((a, b) => ((b.c.tier === 'dedicated' ? 1 : 0) - (a.c.tier === 'dedicated' ? 1 : 0)) || a.ts - b.ts);
       const limit = rules.shift_ticket_limit + (rules.upgrade_effects ? p.eff.shift_slots : 0);
       const batch = queue.slice(0, limit);
+      leftoverAfterShift = Math.max(0, queue.length - batch.length);
       if (batch.length > 0) {
         p.shiftsToday++;
         for (const { c, ts } of batch) {
@@ -508,6 +749,15 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     // Események
     while (pending.length > 0) {
       const ev = pending.shift()!;
+      // Élő szabályokkal a csapatdráma egy valódi munkatársról szól: a legrosszabb kedvűről.
+      if (ev === 'staff_drama' && SR) {
+        if (staff.length > 0) {
+          let w = 0;
+          staff.forEach((m, i) => { if (m.morale < staff[w].morale) w = i; });
+          if (!dramaQueue.includes(staff[w].id)) dramaQueue.push(staff[w].id);
+        }
+        continue;
+      }
       const opts = EVENT_DEFINITIONS[ev].options
         .filter((o) => o.id !== 'counter_offer') // véletlen kimenetű: kihagyjuk a determinizmus kedvéért
         .map((o) => {
@@ -537,6 +787,9 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
 
     // Vásárlás
     const day = Math.floor(now / 86400);
+    // Csapat- és hálózat-kör: a csapat és a hálózat döntései (a szerver- és fejlesztésvásárlás előtt).
+    staffDecisions(day);
+    networkDecisions();
     const lamp = SERVER_SPECS.lamp_box.purchase_cost_cents;
     if (!v3) {
       // v2/legacy: a régi profil-viselkedés (az „előtte" görbékhez és a régi regressziós tesztekhez).
@@ -570,8 +823,8 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     if (profile === 'casual') {
       // A vezérlő 85%-nál szól; az alkalmi játékos akkor vesz, ha marad $200 tartalék.
       if (util >= 85 && p.cash >= lamp + 20000) buyServer('lamp_box');
-    } else if (profile === 'active' || profile === 'overbuy' || buysDedicated) {
-      if (profile === 'active' || buysDedicated) {
+    } else if (profile === 'active' || profile === 'overbuy' || buysDedicated || profile === 'no_staff' || profile === 'overhire_staff') {
+      if (profile !== 'overbuy') {
         // Nem hirdet, amíg nincs hova tenni az ügyfelet (teli flottánál a PPC kidobott pénz).
         if (util >= 90) { p.seo = 50; p.ppc = 0; p.ref = 50; } else { p.seo = 25; p.ppc = 50; p.ref = 25; }
         // Időben (80%-nál) vesz gépet, $200 tartalékkal — a kapacitás előbb van, mint a fejlesztés.

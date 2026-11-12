@@ -107,6 +107,77 @@ export interface EconomyRules {
   /** v3 (2026-11-12, dedikált-kör): a dedikált gép egyetlen nagy ügyfele. null = nincs ilyen ügyfél
    *  (a dedikált gép a régi szabályokkal sima 1 helyes gép volt). Részletek: dedicated.ts. */
   dedicated: DedicatedRule | null;
+  /** v3 (2026-11-12, csapat-kör): munkatársak a 2. korszaktól (staff.ts). null = nincs csapat (a régi szabályok). */
+  staff: StaffRule | null;
+  /** v3 (2026-11-12, hálózat-kör): sávszélesség, peering, DDoS-védelem a 2. korszaktól (network.ts). null = nincs. */
+  network: NetworkRule | null;
+}
+
+export type StaffRole = 'support' | 'sre' | 'sales';
+export const STAFF_ROLES: readonly StaffRole[] = ['support', 'sre', 'sales'];
+export type StaffTrait = 'steady' | 'fast_learner' | 'frugal' | 'perfectionist';
+export const STAFF_TRAITS: readonly StaffTrait[] = ['steady', 'fast_learner', 'frugal', 'perfectionist'];
+
+/** A csapat szabályai — lásd staff.ts. A szintenkénti tömbök indexe: szint − 1 (1..3). */
+export interface StaffRule {
+  /** Ettől a korszaktól lehet felvenni. */
+  min_era: number;
+  /** Legfeljebb ennyi munkatárs korszakonként (a hiányzó korszak = 0). */
+  max_by_era: Record<number, number>;
+  /** 1. szintű havi bér szerepkörönként (cent). */
+  base_salary_cents: Record<StaffRole, number>;
+  /** Bér-szorzó szintenként (a szintlépés emelést hoz). */
+  level_salary: [number, number, number];
+  /** Ennyi nap után lép 2., illetve 3. szintre (gyorsan tanuló: fele). */
+  level_days: [number, number];
+  /** Felvételi díj: a havi bér ennyiszerese (toborzás, egyszeri). */
+  hire_fee_months: number;
+  /** Ügyfélszolgálatos: ennyi ticketet old meg naponta (két részletben, félnaponta). */
+  support_tickets_per_day: [number, number, number];
+  /** …a válasza ennyi elégedettséget ad (a te jó műszakod: ~+8), utána lezárja. */
+  support_reply_sat: number;
+  /** …ennél morcosabb ügyfélhez nem nyúl (rád hagyja), és a nagy (dedikált) ügyfélhez sem. */
+  support_min_sat: number;
+  /** SRE: kevesebb ticket (incidens), és a hardver-/hálózati események egy része elmarad. */
+  sre_ticket_pct: [number, number, number];
+  sre_avoid_hardware: [number, number, number];
+  sre_avoid_network: [number, number, number];
+  /** Értékesítő: több új ügyfél (csak ha van hova tenni). */
+  sales_acq_pct: [number, number, number];
+  morale: {
+    start: number;
+    /** Ha semmi baj, félnaponta +drift, legfeljebb cap-ig. */
+    drift: number; cap: number;
+    /** Félnaponkénti romlás: túlterhelés, tartozás, kevés pénz. */
+    overwork: number; debt: number; low_cash: number;
+    /** Az ügyfélszolgálatos túlterhelt, ha a sor több, mint a napi keretének ennyiszerese. */
+    overwork_queue_factor: number;
+    /** Ez alatt gyengébben dolgozik (×slump_factor); ez alatt szól (csapatdráma); ez alatt felmond. */
+    slump_below: number; slump_factor: number;
+    drama_below: number;
+    quit_below: number;
+    /** Kirúgáskor a többiek hangulata ennyivel romlik. */
+    fire_hit: number;
+  };
+  /** A csapatdráma döntései. */
+  drama: { raise_pct: number; raise_morale: number; four_day_morale: number; four_day_output: number; leave_rep: number; leave_sat: number };
+}
+
+export interface NetworkTier { bandwidth_units: number; monthly_cents: number; min_era: number }
+
+/** A hálózat szabályai — lásd network.ts. */
+export interface NetworkRule {
+  min_era: number;
+  /** Ügyfelenkénti forgalom (egység): hobbi, üzleti, nagy ügyfél. */
+  units: { hobby: number; business: number; dedicated: number };
+  /** Tranzit-csomagok (index = szint; a 0. az ingyenes alap). */
+  tiers: NetworkTier[];
+  /** Peering (IX-csatlakozás): egyszeri díj + havidíj; több hasznos sávszélesség és olcsóbb tranzit. */
+  peering: { setup_cents: number; monthly_cents: number; bandwidth_pct: number; transit_discount_pct: number; min_tier: number };
+  /** DDoS-védelem: havidíj; a DDoS-események ennyi %-a elmarad. */
+  ddos: { monthly_cents: number; avoid_network: number };
+  /** Kevés sávszélesség (lassulás): ticket-szorzó 1 + f × túllógás (max 1), és félnaponta −sat_step. */
+  slowdown: { ticket_factor: number; sat_step: number };
 }
 
 /** A dedikált (üzleti / nagyvállalati) ügyfél szabályai — lásd dedicated.ts. */
@@ -176,6 +247,8 @@ export const LEGACY_RULES: EconomyRules = {
   auto_sell_refund_pct: 0,
   overload: null,
   dedicated: null,
+  staff: null,
+  network: null,
 };
 
 /** Az előző egyensúly-kör (2026-11-12 délelőtt) szabályai: a szimulátor „előtte" görbéihez. Minden eltérés a
@@ -221,6 +294,47 @@ export const BALANCE_V2_RULES: EconomyRules = {
   rep_recovery: { below: 40, prob_per_tick: 0.01 },
 };
 
+/** 2026-11-12 (csapat-kör): a csapat számai. Indoklás: staff.ts fejkomment + szimulátor (economy-sim.ts). */
+export const STAFF_RULE_V3: StaffRule = {
+  min_era: 2,
+  max_by_era: { 2: 3, 3: 6, 4: 6 },
+  base_salary_cents: { support: 7500, sre: 11000, sales: 9500 },
+  level_salary: [1, 1.35, 1.7],
+  level_days: [14, 42],
+  hire_fee_months: 0.5,
+  support_tickets_per_day: [4, 6, 8],
+  support_reply_sat: 4,
+  support_min_sat: 30,
+  sre_ticket_pct: [-10, -15, -20],
+  sre_avoid_hardware: [25, 35, 45],
+  sre_avoid_network: [20, 30, 40],
+  sales_acq_pct: [15, 25, 35],
+  morale: {
+    start: 70, drift: 2, cap: 85,
+    overwork: 4, debt: 8, low_cash: 3,
+    overwork_queue_factor: 2,
+    slump_below: 40, slump_factor: 0.6,
+    drama_below: 35,
+    quit_below: 20,
+    fire_hit: 5,
+  },
+  drama: { raise_pct: 20, raise_morale: 75, four_day_morale: 25, four_day_output: 0.8, leave_rep: 2, leave_sat: 3 },
+};
+
+/** 2026-11-12 (hálózat-kör): a hálózat számai. Indoklás: network.ts fejkomment + szimulátor. */
+export const NETWORK_RULE_V3: NetworkRule = {
+  min_era: 2,
+  units: { hobby: 1, business: 2, dedicated: 8 },
+  tiers: [
+    { bandwidth_units: 80, monthly_cents: 0, min_era: 1 },
+    { bandwidth_units: 200, monthly_cents: 4000, min_era: 2 },
+    { bandwidth_units: 600, monthly_cents: 12000, min_era: 2 },
+  ],
+  peering: { setup_cents: 20000, monthly_cents: 1500, bandwidth_pct: 30, transit_discount_pct: 30, min_tier: 1 },
+  ddos: { monthly_cents: 3000, avoid_network: 75 },
+  slowdown: { ticket_factor: 1.5, sat_step: 2 },
+};
+
 /** Az élő szabályok (v3, játékmag-kör): a v2 + szerver-havidíj, kapacitás-korlát, a fejlesztések valódi hatása.
  *  Hogy miért így, azt a szimulátor (economy-sim.ts) és a regressziós teszt mutatja. */
 export const ECONOMY: EconomyRules = {
@@ -261,6 +375,8 @@ export const ECONOMY: EconomyRules = {
     reply_loss_factor: 1.5,
     close: { happy_at: 70, happy: 3, ok_at: 45, ok: -5, meh_at: 30, meh: -10, angry: -30 },
   },
+  staff: STAFF_RULE_V3,
+  network: NETWORK_RULE_V3,
 };
 
 // ─── v3: szerver-havidíj, kapacitás, tartozás ───

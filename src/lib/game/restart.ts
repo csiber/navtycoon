@@ -19,6 +19,9 @@ import { seedStarterKit, type StarterLang } from './bootstrap';
 /** Ezek a táblák a cég állását tartják: újraindításkor ürülnek. (llm_usage, shift_history: marad.) */
 export const RESTART_WIPED_TABLES = ['tickets', 'customers', 'servers', 'events', 'achievements', 'upgrades'] as const;
 
+/** A 0013-as migráció táblái (lehet, hogy még nincsenek): újraindításkor ezek is ürülnek. */
+export const RESTART_OPTIONAL_TABLES = ['staff', 'player_network'] as const;
+
 export type RestartError = 'no_player' | 'npc';
 
 export async function restartCompany(
@@ -31,6 +34,11 @@ export async function restartCompany(
 
   for (const t of RESTART_WIPED_TABLES) {
     await db.prepare(`DELETE FROM ${t} WHERE player_id = ?`).bind(userId).run();
+  }
+  // 2026-11-12 (csapat- és hálózat-kör, 0013-as migráció): a csapat és a hálózat is a cég állása. Külön, hibatűrően:
+  // a migráció előtt élesített kódnál a táblák még nincsenek.
+  for (const t of RESTART_OPTIONAL_TABLES) {
+    try { await db.prepare(`DELETE FROM ${t} WHERE player_id = ?`).bind(userId).run(); } catch { /* nincs még tábla */ }
   }
   // Játékállás → séma-alapértékek. Marad: cégnév, város, nyelv, Pro, a mai műszak-számláló, a bevezető.
   const now = Math.floor(Date.now() / 1000);

@@ -94,3 +94,20 @@ export async function loadUpgradeEffects(
     .all<{ upgrade_id: string }>()).results ?? [];
   return effectsOf(rows.map((r) => r.upgrade_id));
 }
+
+/** 2026-11-12 (csapat- és hálózat-kör): a fejlesztések hatásához hozzáadja a csapat (staff.ts) és a hálózat
+ *  (network.ts) hatását ugyanazokon a kulcsokon, ugyanazokkal a korlátokkal. */
+export function combineEffects(base: UpgradeEffects, ...extras: Array<Partial<UpgradeEffects>>): UpgradeEffects {
+  const sum: UpgradeEffects = { ...base };
+  let touched = false;
+  for (const e of extras) {
+    for (const [k, v] of Object.entries(e)) {
+      if (!(EFFECT_KEYS as readonly string[]).includes(k) || !v) continue;
+      sum[k as EffectKey] += v;
+      touched = true;
+    }
+  }
+  if (!touched) return base;
+  for (const k of EFFECT_KEYS) sum[k] = clampKey(k, sum[k]);
+  return sum;
+}

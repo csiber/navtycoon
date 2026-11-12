@@ -35,6 +35,10 @@ export async function deleteAccountData(db: DeleteDb, userId: string): Promise<v
   await run('DELETE FROM llm_usage WHERE player_id = ?');
   await run('DELETE FROM shift_history WHERE player_id = ?');
   await run('DELETE FROM audit_log WHERE player_id = ?');
+  // 0013-as migráció (csapat, hálózat): a migráció előtt a táblák még nincsenek — hibatűrően.
+  for (const t of ['staff', 'player_network']) {
+    try { await run(`DELETE FROM ${t} WHERE player_id = ?`); } catch { /* nincs még tábla */ }
+  }
   await run('DELETE FROM players WHERE user_id = ?');
 
   // Fiók (saját users/sessions tábla 2026-10-05 óta; AikaHub-kötés: tokent nem tárolunk, csak a kötés sora megy).
