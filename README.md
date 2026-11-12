@@ -45,7 +45,15 @@ Mindkettő a 2. korszaktól. A szabályok egy helyen: `src/lib/game/staff.ts`, `
   üres csapat, alap-hálózat, az API `feature_not_ready` hibát ad. Futtatás: `wrangler d1 execute navtycoon-prod --remote --file migrations/0013_staff_network.sql`.
 - A tick változott → a `navtycoon-do` worker is újratelepítendő (a cron onnan tickel).
 - Szimulátor: új profilok `no_staff`, `overhire_staff`; az `active` jó csapatot épít. Teszt: `__tests__/economy-sim.test.ts`.
-- TODO: a piactér peering-hirdetései még dísznek vannak (`network.ts` fejkomment); a `recruit_ad` esemény még nem ad munkatársat.
+- **Utókör (ág: csapat-utokor, 2026-11-12)**:
+  - `recruit_ad` a 2. korszaktól valódi munkatárs (`src/lib/game/recruit.ts`): tapasztalt SRE (2. szint), felvételi díj
+    nélkül, a szokásos bérrel; teli csapatnál a felvétel tiltott, a felirat megmondja, miért. Az 1. korszakban a régi
+    esemény marad (a szimulátorban a kivétele az alkalmi játékos 2. korszakát 24 → 33 napra tolta), a felirata a valódi hatást mondja.
+  - Piactér: a peering kategóriájú, `enable_peering` hatású NPC-hirdetés bekapcsolja a peeringet: a hirdetés ára az
+    egyszeri díj, a havidíj kedvezményes (a payload `monthly_cents`). Csak a 2. korszaktól, 100 Mbites tranzittal, ha még
+    nincs peering; a hirdetés elkel. Migráció nélkül: `player_network.peering` 0/1/≥2 (≥2 = a piactéri havidíj centben).
+    **Az új hirdetéseket élesítés után be kell tölteni:** `POST /api/admin/seed-marketplace` (admin, idempotens).
+  - `competitor_buyout` „take the money": $25 000 → $6000 (a szimulátorban a pénz e fölött már nem gyorsít, csak felhalmozódik).
 
 ## AikaHub-achievementek (ág: achi-hub, 2026-11-12)
 
