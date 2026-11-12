@@ -191,9 +191,60 @@ header.topbar .tstat .v small:empty { display: none; }
     left: 12px !important; right: 12px !important; transform: none !important; bottom: 12px !important;
     padding: 10px 12px !important; gap: 10px !important; font-size: 13px; justify-content: space-between;
   }
-  #events-overlay { top: 64px !important; right: 12px !important; left: 12px; width: auto !important; }
   #away-summary { top: 64px !important; }
   body.nav-open #shift-cta { display: none !important; }
+}
+
+/* ─── „Döntésre vár" sáv (ux-3): a vezérlő tetején, a folyamban — nem takar, mint a régi fix réteg ─── */
+.ev-strip {
+  grid-column: span 12; position: relative; border-radius: 12px; padding: 12px 14px 14px;
+  background: linear-gradient(90deg, rgba(245,158,11,.10), rgba(244,63,94,.05) 55%, transparent), var(--panel);
+  border: 1px solid rgba(245,158,11,.38); border-left: 3px solid var(--amber);
+  box-shadow: 0 0 0 1px rgba(245,158,11,.06), 0 10px 30px -18px rgba(245,158,11,.6);
+}
+.ev-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 10px; }
+.ev-head h3 { margin: 0; font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--text); }
+.ev-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 0 rgba(245,158,11,.6); animation: ev-pulse 1.8s ease-out infinite; flex: none; }
+@keyframes ev-pulse { 0% { box-shadow: 0 0 0 0 rgba(245,158,11,.6); } 80%, 100% { box-shadow: 0 0 0 9px rgba(245,158,11,0); } }
+@media (prefers-reduced-motion: reduce) { .ev-dot { animation: none; } }
+.ev-count {
+  font-family: var(--mono); font-size: 11px; font-weight: 700; color: #1a1205; background: var(--amber);
+  border-radius: 999px; padding: 1px 8px; line-height: 1.5;
+}
+.ev-hint { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+.ev-list { display: grid; gap: 10px; }
+.ev-item[hidden] { display: none; }
+.ev-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 10px 16px; align-items: center;
+  background: rgba(7,9,15,.35); border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+  transition: opacity .3s;
+}
+.ev-item.done { opacity: .45; }
+.ev-title { margin: 0 0 4px; font-family: var(--display); font-size: 14px; font-weight: 700; color: var(--text); }
+.ev-narr { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.ev-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.ev-opt {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; cursor: pointer; min-height: 44px;
+  background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 11px;
+  color: var(--text); font: inherit; font-size: 12px;
+}
+.ev-opt:hover, .ev-opt:focus-visible { border-color: var(--amber); background: var(--panel-3); outline: none; }
+.ev-opt .lbl { font-weight: 600; font-size: 13px; }
+.ev-opt .dsc { color: var(--dim); font-size: 11px; line-height: 1.35; }
+.ev-opt[disabled] { opacity: .5; cursor: not-allowed; }
+.ev-opt.busy { opacity: 1; border-color: var(--amber); }
+.ev-more {
+  margin-top: 10px; background: transparent; border: 1px dashed var(--line-2); color: var(--muted); cursor: pointer;
+  border-radius: 8px; padding: 6px 12px; font-family: var(--mono); font-size: 11px; width: 100%;
+}
+.ev-more:hover { color: var(--text); border-color: var(--amber); }
+@media (max-width: 1100px) {
+  .ev-item { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .ev-strip { padding: 12px; }
+  .ev-hint { flex-basis: 100%; }
+  .ev-opts { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ─── Servers page (src/lib/play/servers-page.ts) ─── */

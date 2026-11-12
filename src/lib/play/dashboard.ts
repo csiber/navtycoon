@@ -23,6 +23,48 @@ export interface DashTicket {
 }
 export interface DashServer { id: number; type: string; capacity: number; current_load: number }
 
+export interface PendingEvent {
+  id: number;
+  title: string;
+  narrative: string;
+  options: { id: string; label: string; description: string }[];
+}
+
+/** Ennyi döntés látszik egyszerre; a többi a „+N további" gombbal nyílik. */
+const PENDING_VISIBLE = 2;
+
+/**
+ * „Döntésre vár" sáv: a vezérlő tartalmának első eleme (a dokumentum-folyamban), így semmit nem takar —
+ * korábban egy fix, jobb felső sarkos réteg volt, ami eltakarta a vezérlőt és a Flotta-panelt (mobilon is).
+ */
+export function renderPendingEvents(L: PlayLocale, events: PendingEvent[]): string {
+  if (events.length === 0) return '';
+  const items = events.map((e, i) => `
+        <article class="ev-item" data-event-id="${e.id}"${i >= PENDING_VISIBLE ? ' hidden' : ''}>
+          <div class="ev-text">
+            <h4 class="ev-title">${esc(e.title)}</h4>
+            <p class="ev-narr">${esc(e.narrative)}</p>
+          </div>
+          <div class="ev-opts">${e.options.map((o) => `
+            <button class="ev-opt" type="button" data-event-opt="${esc(o.id)}"><span class="lbl">${esc(o.label)}</span>${o.description ? `<span class="dsc">${esc(o.description)}</span>` : ''}</button>`).join('')}
+          </div>
+        </article>`).join('');
+  const more = events.length > PENDING_VISIBLE
+    ? `<button class="ev-more" type="button" data-ev-more>${esc(pt(L, 'dash.events.more', { n: events.length - PENDING_VISIBLE }))}</button>`
+    : '';
+  return `
+    <section class="ev-strip" id="events-strip" aria-label="${esc(pt(L, 'dash.events.label'))}">
+      <div class="ev-head">
+        <span class="ev-dot" aria-hidden="true"></span>
+        <h3>${esc(pt(L, 'dash.events.title'))}</h3>
+        <span class="ev-count">${events.length}</span>
+        <span class="ev-hint">${esc(pt(L, 'dash.events.hint'))}</span>
+      </div>
+      <div class="ev-list">${items}
+      </div>${more}
+    </section>`;
+}
+
 export interface GettingStarted {
   ticket: boolean; server: boolean; price: boolean; marketing: boolean; research: boolean;
 }
@@ -38,6 +80,8 @@ export interface DashboardData {
   /** Nyitott incidens-események típusa (a 3D rackkel egyező „leállt" gép a 2D-ben is). */
   openIncidents?: string[];
   events: FeedEvent[];
+  /** Döntésre váró (megoldatlan) események, már lefordítva — a vezérlő tetején, a tartalom fölött (nem lebegő réteg). */
+  pendingEvents?: PendingEvent[];
   shiftsLeftToday: number;
   gettingStarted: GettingStarted;
   cheapestUpgrade: { id: string; cost_cents: number } | null;
@@ -311,6 +355,7 @@ export function renderDashboardContent(d: DashboardData): string {
       </section>`;
 
   return `<div class="content">
+      ${renderPendingEvents(L, d.pendingEvents ?? [])}
       ${renderGettingStarted(L, d.gettingStarted)}
       ${kpis}
       ${feed}

@@ -5,7 +5,10 @@ import playShellCssUrl from '../../styles/play-shell.css?url'; // tartalom-hash-
 import { shiftsUsedToday } from '../../lib/game/shift-score';
 import { loadShell, applyShell } from '../../lib/play/shell';
 import { pt } from '../../lib/play/strings';
-import { renderDashboardContent, applyDashboardContent } from '../../lib/play/dashboard';
+import { renderDashboardContent, applyDashboardContent, type PendingEvent } from '../../lib/play/dashboard';
+import { getEventDefinition } from '../../lib/game/event-options';
+import { localizeEvent } from '../../lib/game/event-i18n';
+import type { EventType } from '../../lib/game/types';
 import { availableUpgrades } from '../../lib/game/upgrade-tree';
 import { achievementMap } from '../../lib/play/achievements-i18n';
 import { resolveLocale } from '../../lib/i18n/server';
@@ -246,7 +249,18 @@ const ownedUpgradeIds = new Set(((await db.prepare('SELECT upgrade_id FROM upgra
 const cheapestUpg = availableUpgrades(player.current_era, ownedUpgradeIds).sort((a, b) => a.cost_usd_cents - b.cost_usd_cents)[0];
 const openIncidents3d = ((await db.prepare('SELECT event_type FROM events WHERE player_id = ? AND resolved_at IS NULL')
   .bind(user.id).all<{ event_type: string }>()).results ?? []).map((r) => r.event_type);
+// Döntésre váró események — szerveroldalon, a játékos nyelvén (a /api/game/events-szel azonos forrásból).
+const pendingRows = (await db.prepare(
+  'SELECT id, event_type FROM events WHERE player_id = ? AND resolved_at IS NULL ORDER BY spawned_at DESC LIMIT 20',
+).bind(user.id).all<{ id: number; event_type: string }>()).results ?? [];
+const pendingEvents: PendingEvent[] = pendingRows.flatMap((r) => {
+  const def = getEventDefinition(r.event_type as EventType);
+  if (!def) return [];
+  const loc = localizeEvent(def, locale);
+  return [{ id: r.id, title: loc.title, narrative: loc.narrative, options: loc.options }];
+});
 const dashContent = renderDashboardContent({
+  pendingEvents,
   shell,
   openIncidents: openIncidents3d,
   now: nowSec,
@@ -296,7 +310,6 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
 </head>
 <body class="preload">
 <Fragment set:html={shellHtml} />
-<div id="events-overlay" style="position: fixed; top: 80px; right: 20px; width: 380px; max-width: calc(100vw - 40px); z-index: 100; max-height: calc(100vh - 100px); overflow-y: auto; pointer-events: none;"></div>
 {showShiftCta && (
   <div id="shift-cta" style="background:linear-gradient(135deg,var(--indigo) 0%,#4f46e5 100%);color:#fff;padding:14px 24px;border-radius:12px;box-shadow:0 12px 32px -8px rgba(99,102,241,.6);z-index:80;display:flex;align-items:center;gap:14px;font-family:var(--display);font-weight:600;">
     <span style="font-size:20px;">🔥</span>
@@ -419,24 +432,6 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
     });
   </script>
 )}
-<style is:inline>
-  .event-card {
-    pointer-events: auto;
-    background: var(--panel);
-    border: 1px solid var(--line-2);
-    border-radius: 12px;
-    padding: 14px;
-    margin-bottom: 12px;
-    box-shadow: 0 8px 24px -8px rgba(0,0,0,.4);
-  }
-  .event-card .title { font-family: var(--display); font-weight: 700; font-size: 14px; margin-bottom: 6px; }
-  .event-card .narrative { color: var(--muted); font-size: 13px; line-height: 1.5; margin-bottom: 10px; }
-  .event-card .opt { display: block; width: 100%; text-align: left; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--text); margin-bottom: 6px; cursor: pointer; }
-  .event-card .opt:hover { border-color: var(--indigo); background: var(--panel-3); }
-  .event-card .opt[disabled] { opacity: .5; cursor: not-allowed; }
-  .event-card .opt .lbl { font-weight: 600; }
-  .event-card .opt .dsc { color: var(--dim); font-size: 11px; margin-top: 2px; }
-</style>
 <script type="application/json" id="state" set:html={jsonForScript({
     company: companyName, cashUsd, mrrUsd, rep: player.reputation,
     customers: customerCount, servers: serverCount, tickets: openTickets,
@@ -495,8 +490,7 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
     } catch (e) { console.error('hydrate', e); }
   </script>
 <script is:inline>
-  // Event-resolution overlay (Task A): fetch unresolved events, render cards,
-  // each option-button POSTs to /api/game/events/:id/resolve.
+  // Döntésre váró események (szerveroldalon renderelt sáv) + achievement-toastok.
   (function () {
     function showToast(text) {
       var t = document.createElement('div');
@@ -506,74 +500,51 @@ const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard',
       setTimeout(function () { t.remove(); }, 4000);
     }
 
-    function renderEventCard(event) {
-      var overlay = document.getElementById('events-overlay');
-      if (!overlay) return;
-      var card = document.createElement('div');
-      card.className = 'event-card';
-      card.dataset.eventId = String(event.id);
-
-      var title = document.createElement('div');
-      title.className = 'title';
-      title.textContent = event.title;
-      card.appendChild(title);
-
-      var narrative = document.createElement('div');
-      narrative.className = 'narrative';
-      narrative.textContent = event.narrative;
-      card.appendChild(narrative);
-
-      (event.options || []).forEach(function (opt) {
-        var btn = document.createElement('button');
-        btn.className = 'opt';
-        btn.type = 'button';
-        btn.onclick = async function () {
-          card.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
-          try {
-            var r = await fetch('/api/game/events/' + event.id + '/resolve', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ option_id: opt.id }),
-            });
-            var j = await r.json();
-            if (!j.ok) {
-              if (window.hsToast) window.hsToast(String(j.message || j.error || '?'), 'bad'); else alert(j.error || '?');
-              card.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
-              return;
-            }
-            var msg = (j.message || 'Resolved.') +
-              (j.newly_unlocked_achievement ? ' · 🎉 ' + j.newly_unlocked_achievement : '');
-            // Pénzmozgás: toast + a pénz-szám animációja (play-shell.js); pénz nélküli döntésnél sima toast.
-            if (j.cash_delta_cents && window.hsMoney) window.hsMoney(j.cash_delta_cents, msg);
-            else showToast(msg);
-            card.remove();
-            setTimeout(function () { location.reload(); }, 1500);
-          } catch (e) {
-            if (window.hsToast) window.hsToast(String(e && e.message || e), 'bad');
-            card.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
-          }
-        };
-        var lbl = document.createElement('div');
-        lbl.className = 'lbl';
-        lbl.textContent = opt.label;
-        btn.appendChild(lbl);
-        var dsc = document.createElement('div');
-        dsc.className = 'dsc';
-        dsc.textContent = opt.description;
-        btn.appendChild(dsc);
-        card.appendChild(btn);
+    // „Döntésre vár" sáv (src/lib/play/dashboard.ts renderPendingEvents): a gombok a /resolve végpontot hívják.
+    function wireEventStrip() {
+      var strip = document.getElementById('events-strip');
+      if (!strip) return;
+      var more = strip.querySelector('[data-ev-more]');
+      if (more) more.addEventListener('click', function () {
+        strip.querySelectorAll('.ev-item[hidden]').forEach(function (it) { it.hidden = false; });
+        more.remove();
       });
-      overlay.appendChild(card);
+      strip.querySelectorAll('.ev-item').forEach(function (card) {
+        var eventId = card.getAttribute('data-event-id');
+        card.querySelectorAll('[data-event-opt]').forEach(function (btn) {
+          btn.addEventListener('click', async function () {
+            card.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+            btn.classList.add('busy');
+            try {
+              var r = await fetch('/api/game/events/' + eventId + '/resolve', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ option_id: btn.getAttribute('data-event-opt') }),
+              });
+              var j = await r.json();
+              if (!j.ok) {
+                if (window.hsToast) window.hsToast(String(j.message || j.error || '?'), 'bad'); else alert(j.error || '?');
+                card.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+                btn.classList.remove('busy');
+                return;
+              }
+              var msg = (j.message || 'OK') +
+                (j.newly_unlocked_achievement ? ' · 🎉 ' + j.newly_unlocked_achievement : '');
+              // Pénzmozgás: toast + a pénz-szám animációja (play-shell.js); pénz nélküli döntésnél sima toast.
+              if (j.cash_delta_cents && window.hsMoney) window.hsMoney(j.cash_delta_cents, msg);
+              else showToast(msg);
+              card.classList.add('done');
+              setTimeout(function () { location.reload(); }, 1500);
+            } catch (e) {
+              if (window.hsToast) window.hsToast(String(e && e.message || e), 'bad');
+              card.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+              btn.classList.remove('busy');
+            }
+          });
+        });
+      });
     }
-
-    fetch('/api/game/events')
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j && j.ok && Array.isArray(j.events)) {
-          j.events.forEach(renderEventCard);
-        }
-      })
-      .catch(function () {});
+    wireEventStrip();
 
     // Cross-page achievement unlock surfacing. GET /api/game/achievements
     // re-runs checkAndUnlockAchievements (idempotent) and returns the ids
