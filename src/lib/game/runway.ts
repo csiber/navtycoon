@@ -7,10 +7,14 @@
 //   kiadás  / nap = PPC-hirdetés: PPC_FULL_COST_PER_TICK_CENTS × ppc% × (napi tickek száma)
 // A szerverek havidíja (monthly_cost_cents) jelenleg NEM vonódik le a tickben — ezért itt sem számoljuk.
 // TODO: ha a tick elkezdi levonni a szerver-havidíjat, itt is vegyük fel (serverMonthlyCents).
+//
+// 2026-11-12 (egyensúly): a PPC-költés a megfizethetőhöz igazodik (economy.ppcSpendPerTick), és a $200-os
+// tartalék alá sosem visz. A kifutás ezért „hány nap múlva éri el a pénz a tartalékot", nem a nullát; a
+// tartalékon a hirdetés legfeljebb a bevétel felét költi, így ott már nem fogy a pénz.
 
-import { PPC_FULL_COST_PER_TICK_CENTS, TICK_MINUTES } from './tick';
+import { ECONOMY, TICKS_PER_DAY, ppcSpendPerTick, type EconomyRules } from './economy';
 
-export const TICKS_PER_DAY = (24 * 60) / TICK_MINUTES;
+export { TICKS_PER_DAY };
 
 export interface CashFlowInput {
   cash_usd_cents: number;
@@ -21,20 +25,28 @@ export interface CashFlowInput {
 export interface CashFlow {
   /** Napi bevétel (centben). */
   income_per_day_cents: number;
-  /** Napi kiadás (centben). */
+  /** Napi kiadás (centben) a mostani pénz- és bevételi szinten. */
   cost_per_day_cents: number;
   /** income − cost (centben); negatív = fogy a pénz. */
   net_per_day_cents: number;
-  /** Ennyi nap múlva fogy el a pénz; null, ha nem fogy (nettó ≥ 0). */
+  /** Ennyi nap múlva éri el a pénz a tartalékot; null, ha nem fogy (nettó ≥ 0). */
   runway_days: number | null;
+  /** true, ha a költségkeret miatt a hirdetés most kevesebbet költ, mint a beállított PPC-arány kérné. */
+  ppc_throttled: boolean;
 }
 
-export function dailyCashFlow(p: CashFlowInput): CashFlow {
+export function dailyCashFlow(p: CashFlowInput, rules: EconomyRules = ECONOMY): CashFlow {
   const income = Math.round(p.mrr_usd_cents / 30);
-  const ppcPct = Math.max(0, Math.min(100, p.marketing_ppc_pct || 0));
-  const cost = Math.round(PPC_FULL_COST_PER_TICK_CENTS * (ppcPct / 100) * TICKS_PER_DAY);
+  const spend = ppcSpendPerTick(rules, {
+    ppc_pct: p.marketing_ppc_pct, cash_cents: p.cash_usd_cents, mrr_cents: p.mrr_usd_cents,
+  });
+  const cost = spend.cost_cents * TICKS_PER_DAY;
   const net = income - cost;
+  const floor = rules.ppc_budget?.reserve_cents ?? 0;
   let runway: number | null = null;
-  if (net < 0) runway = Math.max(0, Math.floor(Math.max(0, p.cash_usd_cents) / -net));
-  return { income_per_day_cents: income, cost_per_day_cents: cost, net_per_day_cents: net, runway_days: runway };
+  if (net < 0) runway = Math.max(0, Math.floor(Math.max(0, p.cash_usd_cents - floor) / -net));
+  return {
+    income_per_day_cents: income, cost_per_day_cents: cost, net_per_day_cents: net,
+    runway_days: runway, ppc_throttled: spend.throttled,
+  };
 }

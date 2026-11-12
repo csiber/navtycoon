@@ -52,6 +52,7 @@ const L = {
     customer_acquired: 'New customer: {who} ({plan} plan).',
     customer_churned: '{who} left.',
     era_unlock: '🎉 Era {n} unlocked{name}.',
+    bridge_investor: 'A bridge investor believed in you: {v} to get back on your feet (once per company).',
     shift_end: 'Shift ended: {r} of {t} tickets handled.',
     cash_change: 'Cash {v}.',
     incident: 'Incident: {title}',
@@ -72,6 +73,7 @@ const L = {
     customer_acquired: 'Új ügyfél: {who} ({plan} csomag).',
     customer_churned: '{who} elpártolt.',
     era_unlock: '🎉 Megnyílt a(z) {n}. korszak{name}.',
+    bridge_investor: 'Egy áthidaló befektető hitt benned: {v} a talpra álláshoz (cégenként egyszer).',
     shift_end: 'Műszak vége: {t} ticketből {r} elintézve.',
     cash_change: 'Pénz {v}.',
     incident: 'Incidens: {title}',
@@ -92,6 +94,7 @@ const L = {
     customer_acquired: 'Neuer Kunde: {who} (Tarif {plan}).',
     customer_churned: '{who} hat gekündigt.',
     era_unlock: '🎉 Ära {n} freigeschaltet{name}.',
+    bridge_investor: 'Ein Überbrückungsinvestor glaubt an dich: {v}, um wieder auf die Beine zu kommen (einmal pro Firma).',
     shift_end: 'Schicht beendet: {r} von {t} Tickets erledigt.',
     cash_change: 'Kasse {v}.',
     incident: 'Vorfall: {title}',
@@ -144,6 +147,10 @@ export function eventLine(locale: PlayLocale, ev: FeedEvent): FeedLine {
       const n = typeof d.to_era === 'number' ? d.to_era : '?';
       const name = str(d.to_era_display) || str(d.display);
       return { text: fill(t.era_unlock, { n, name: name ? ` (${name})` : '' }), tone: 'good', ico: '⌖', tag: '' };
+    }
+    case 'bridge_investor': {
+      const c = typeof d.cash_delta_cents === 'number' ? d.cash_delta_cents : 0;
+      return { text: fill(t.bridge_investor, { v: money(c) }), tone: 'good', ico: '$', tag: '' };
     }
     case 'shift_end':
       return {

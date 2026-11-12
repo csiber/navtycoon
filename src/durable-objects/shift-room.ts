@@ -4,6 +4,7 @@ import type { ShiftState, ShiftCustomerState } from '../lib/game/shift-state';
 import { advanceToNext, isShiftExpired, switchTo, unresolvedTicketIds, SHIFT_DURATION_SEC } from '../lib/game/shift-state';
 import { shiftStars, shiftScore, shiftTip, type ShiftTip } from '../lib/game/shift-score';
 import { applyAction, type ShiftAction } from '../lib/game/action-handler';
+import { ECONOMY } from '../lib/game/economy';
 import { generateAiReply, ratePlayerResponse } from '../lib/ai/reply-generator';
 import { tryConsumeLlmCall } from '../lib/game/llm-cap';
 import type { WorkersAIBinding } from '../lib/ai/workers-ai';
@@ -317,8 +318,11 @@ export class ShiftRoomDO {
   async persistActionToDb(c: ShiftCustomerState, cashDelta: number, resolvesTicket: boolean) {
     if (!this.shift) return;
     if (cashDelta !== 0) {
-      await this.env.DB.prepare('UPDATE players SET cash_usd_cents = cash_usd_cents + ? WHERE user_id = ?')
-        .bind(cashDelta, this.shift.player_id).run();
+      // 2026-11-12: visszatérítés/eszkaláció sem viheti 0 alá a pénzt (economy.applyCashDelta szabálya SQL-ben).
+      const sql = cashDelta < 0 && ECONOMY.clamp_costs_at_zero
+        ? 'UPDATE players SET cash_usd_cents = CASE WHEN cash_usd_cents <= 0 THEN cash_usd_cents ELSE MAX(0, cash_usd_cents + ?) END WHERE user_id = ?'
+        : 'UPDATE players SET cash_usd_cents = cash_usd_cents + ? WHERE user_id = ?';
+      await this.env.DB.prepare(sql).bind(cashDelta, this.shift.player_id).run();
     }
     await this.env.DB.prepare('UPDATE customers SET satisfaction = ? WHERE id = ?')
       .bind(c.current_satisfaction, c.customer_id).run();

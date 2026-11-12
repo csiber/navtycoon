@@ -6,8 +6,21 @@ import type { D1Database } from '@cloudflare/workers-types/experimental';
 import { tickPlayer } from '../tick';
 import { createTestDb } from '../../../../test-utils/d1-mock';
 import { createPlayer, getPlayer } from '../db';
+import { ECONOMY } from '../economy';
+import { PPC_FULL_COST_PER_TICK_CENTS } from '../tick';
 import type { WorkersAIBinding } from '../../ai/workers-ai';
 import type { VectorizeBinding } from '../../ai/vectorize';
+
+// A lemorzsolódás 3 törzsügyfél alá nem visz (ECONOMY.churn_floor_customers): a churn-tesztekhez
+// kell ennyi ticket nélküli „töltelék" ügyfél, hogy a vizsgált ügyfél elmehessen.
+async function addCoreCustomers(d: D1Database, uid: string, now: number): Promise<void> {
+  for (let k = 0; k < ECONOMY.churn_floor_customers; k++) {
+    await d.prepare(
+      'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) ' +
+      "VALUES (?, 'Core', 'loyalist', 'hobby', ?, 80)",
+    ).bind(uid, now - 200 * 3600).run();
+  }
+}
 
 describe('tickPlayer', () => {
   let db: D1Database;
@@ -49,6 +62,7 @@ describe('tickPlayer', () => {
       'INSERT INTO tickets (customer_id, player_id, summary, full_text, status, created_at) ' +
       "VALUES (?, ?, 'old', 'old', 'open', ?)",
     ).bind(cRes.id, 'u-3', now - 60 * 3600).run();
+    await addCoreCustomers(db, 'u-3', now);
 
     // 30% per tick → very high probability of at least one churn in 200 tries
     for (let i = 0; i < 200; i++) {
@@ -119,15 +133,17 @@ describe('tickPlayer', () => {
     await createPlayer(db2, { user_id: 'u-ppc', company_name: 'P', city: null });
     await db2.prepare(
       'UPDATE players SET marketing_seo_pct = 0, marketing_ppc_pct = 100, marketing_referral_pct = 0, ' +
-      'reputation = 50, cash_usd_cents = 10000 WHERE user_id = ?',
+      'reputation = 50, cash_usd_cents = 1000000 WHERE user_id = ?',
     ).bind('u-ppc').run();
     const player = await getPlayer(db2, 'u-ppc');
     if (!player) throw new Error('player gone');
     const r = await tickPlayer(db2, player, 1715000000);
-    expect(r.marketing_spent_cents).toBe(100); // PPC_FULL_COST_PER_TICK_CENTS × 100/100
+    // $10k-nál a költségkeret bőven fedezi: a teljes névleges PPC-költség megy (× 100/100)
+    expect(r.marketing_spent_cents).toBe(PPC_FULL_COST_PER_TICK_CENTS);
+    expect(r.marketing_throttled).toBe(false);
     const after = await db2.prepare('SELECT cash_usd_cents FROM players WHERE user_id = ?')
       .bind('u-ppc').first<{ cash_usd_cents: number }>();
-    expect(after?.cash_usd_cents).toBe(10000 - 100);
+    expect(after?.cash_usd_cents).toBe(1000000 - PPC_FULL_COST_PER_TICK_CENTS);
   });
 
   it('PPC dropped when cash insufficient (no spend, mix shrinks)', async () => {
@@ -198,10 +214,10 @@ describe('tickPlayer', () => {
 
     try {
       // mix=50/300=0.167, rep=0.5, era=1, both founded_at >7d ago (no welcome-boost)
-      // Free acqProb = 0.025 * 0.167 * 0.5 * 1 = 0.00208
-      // Pro  acqProb = 0.025 * 0.167 * 0.5 * 2 = 0.00417
-      // Use 0.003 → Pro passes (< 0.00417), Free fails (> 0.00208).
-      for (let k = 0; k < 100; k++) seq.push(0.003);
+      // Free acqProb = 0.012 * 0.167 * 0.5 * 1 = 0.0010
+      // Pro  acqProb = 0.012 * 0.167 * 0.5 * 2 = 0.0020
+      // Use 0.0015 → Pro passes, Free fails.
+      for (let k = 0; k < 100; k++) seq.push(0.0015);
       const db2 = await createTestDb();
       await createPlayer(db2, { user_id: 'u-pro', company_name: 'P', city: null });
       await createPlayer(db2, { user_id: 'u-free', company_name: 'F', city: null });
@@ -237,8 +253,8 @@ describe('tickPlayer', () => {
     const origRandom = Math.random;
     Math.random = () => seq[i++ % seq.length];
     try {
-      // Same forced value that's BETWEEN free-rate (0.00208) and welcome-rate (0.00417).
-      for (let k = 0; k < 100; k++) seq.push(0.003);
+      // Same forced value that's BETWEEN free-rate (0.0010) and welcome-rate (0.0020).
+      for (let k = 0; k < 100; k++) seq.push(0.0015);
       const db2 = await createTestDb();
       const now = 1715000000;
       await createPlayer(db2, { user_id: 'u-new', company_name: 'N', city: null });
@@ -346,6 +362,7 @@ describe('tickPlayer', () => {
           'INSERT INTO tickets (customer_id, player_id, summary, full_text, status, created_at) ' +
           "VALUES (?, ?, 'old', 'old', 'open', ?)",
         ).bind(cRes.id, uid, now - 60 * 3600).run();
+        await addCoreCustomers(db2, uid, now);
         const p = await getPlayer(db2, uid);
         if (!p) throw new Error('player gone');
         await tickPlayer(db2, p, now);
@@ -356,8 +373,9 @@ describe('tickPlayer', () => {
       const freeActive = await db2.prepare(
         'SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1',
       ).bind('u-freechurn').first<{ n: number }>();
-      expect(proActive?.n).toBe(1); // Pro survived
-      expect(freeActive?.n).toBe(0); // Free churned
+      const core = ECONOMY.churn_floor_customers;
+      expect(proActive?.n).toBe(core + 1); // Pro survived
+      expect(freeActive?.n).toBe(core); // Free churned
     } finally {
       Math.random = origRandom;
     }
@@ -405,7 +423,7 @@ describe('tickPlayer', () => {
 
     const origRandom = Math.random;
     let calls = 0;
-    Math.random = () => { calls++; return calls === 1 ? 0.001 : 0.5; };
+    Math.random = () => { calls++; return calls === 1 ? 0.0001 : 0.5; };
 
     try {
       const player = await getPlayer(db2, 'u-ai');
@@ -419,5 +437,84 @@ describe('tickPlayer', () => {
     } finally {
       Math.random = origRandom;
     }
+  });
+});
+
+describe('tickPlayer — balance v2 safety nets (2026-11-12)', { timeout: 30_000 }, () => {
+  const now = 1715000000;
+  async function playerWithStaleCustomers(d: D1Database, uid: string, n: number): Promise<number[]> {
+    await createPlayer(d, { user_id: uid, company_name: 'S', city: null });
+    await d.prepare(
+      'UPDATE players SET marketing_seo_pct = 0, marketing_ppc_pct = 0, marketing_referral_pct = 0, founded_at = ? WHERE user_id = ?',
+    ).bind(now - 30 * 86400, uid).run();
+    const ids: number[] = [];
+    for (let k = 0; k < n; k++) {
+      const c = await d.prepare(
+        'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) ' +
+        "VALUES (?, 'C', 'newbie', 'hobby', ?, 50) RETURNING id",
+      ).bind(uid, now - 100 * 3600).first<{ id: number }>();
+      await d.prepare(
+        'INSERT INTO tickets (customer_id, player_id, summary, full_text, status, created_at) ' +
+        "VALUES (?, ?, 'old', 'old', 'open', ?)",
+      ).bind(c!.id, uid, now - 60 * 3600).run();
+      ids.push(c!.id);
+    }
+    return ids;
+  }
+
+  it('churn never takes the last core customers (base MRR stays)', async () => {
+    const d = await createTestDb();
+    await playerWithStaleCustomers(d, 'u-floor', ECONOMY.churn_floor_customers);
+    const orig = Math.random;
+    Math.random = () => 0; // minden dobás „elmegy"
+    try {
+      const r = await tickPlayer(d, (await getPlayer(d, 'u-floor'))!, now);
+      expect(r.churned).toBe(0);
+    } finally { Math.random = orig; }
+    const n = await d.prepare('SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1')
+      .bind('u-floor').first<{ n: number }>();
+    expect(n?.n).toBe(ECONOMY.churn_floor_customers);
+  });
+
+  it('a churned customer\'s open tickets are closed (they no longer take a shift slot)', async () => {
+    const d = await createTestDb();
+    const ids = await playerWithStaleCustomers(d, 'u-ct', ECONOMY.churn_floor_customers + 1);
+    const orig = Math.random;
+    Math.random = () => 0;
+    try {
+      const r = await tickPlayer(d, (await getPlayer(d, 'u-ct'))!, now);
+      expect(r.churned).toBe(1);
+    } finally { Math.random = orig; }
+    const gone = await d.prepare('SELECT id FROM customers WHERE player_id = ? AND is_active = 0').bind('u-ct').first<{ id: number }>();
+    expect(ids).toContain(gone!.id);
+    const t = await d.prepare('SELECT status FROM tickets WHERE customer_id = ?').bind(gone!.id).first<{ status: string }>();
+    expect(t?.status).toBe('churned');
+  });
+
+  it('bridge investor: once per company, when cash falls below the threshold', async () => {
+    const d = await createTestDb();
+    await createPlayer(d, { user_id: 'u-br', company_name: 'B', city: null });
+    await d.prepare(
+      'UPDATE players SET cash_usd_cents = 1000, founded_at = ?, marketing_seo_pct = 0, marketing_ppc_pct = 0, marketing_referral_pct = 0 WHERE user_id = ?',
+    ).bind(now - 3 * 86400, 'u-br').run();
+    const r1 = await tickPlayer(d, (await getPlayer(d, 'u-br'))!, now);
+    expect(r1.bridge_granted_cents).toBe(ECONOMY.bridge!.grant_cents);
+    const ev = await d.prepare("SELECT COUNT(*) AS n FROM events WHERE player_id = ? AND event_type = 'bridge_investor' AND resolved_at IS NOT NULL")
+      .bind('u-br').first<{ n: number }>();
+    expect(ev?.n).toBe(1);
+    await d.prepare('UPDATE players SET cash_usd_cents = 0 WHERE user_id = ?').bind('u-br').run();
+    const r2 = await tickPlayer(d, (await getPlayer(d, 'u-br'))!, now + 300);
+    expect(r2.bridge_granted_cents).toBe(0);
+  });
+
+  it('broke player: PPC stops instead of draining (cash never below 0 from ads)', async () => {
+    const d = await createTestDb();
+    await createPlayer(d, { user_id: 'u-ppc0', company_name: 'P', city: null });
+    await d.prepare(
+      'UPDATE players SET cash_usd_cents = 15000, mrr_usd_cents = 0, marketing_seo_pct = 0, marketing_ppc_pct = 100, marketing_referral_pct = 0 WHERE user_id = ?',
+    ).bind('u-ppc0').run();
+    const r = await tickPlayer(d, (await getPlayer(d, 'u-ppc0'))!, now);
+    expect(r.marketing_spent_cents).toBe(0); // a $200-os tartalék alatt és bevétel nélkül nincs hirdetés
+    expect(r.marketing_throttled).toBe(true);
   });
 });
