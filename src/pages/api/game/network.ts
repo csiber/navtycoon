@@ -7,7 +7,7 @@ import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getPlayer } from '../../../lib/game/db';
 import { ECONOMY } from '../../../lib/game/economy';
-import { loadNetwork, clampTier, networkActive } from '../../../lib/game/network';
+import { loadNetwork, clampTier, networkActive, encodePeering } from '../../../lib/game/network';
 import { jsonError, localeFromRequest } from '../../../lib/i18n/api-errors';
 
 export const prerender = false;
@@ -39,6 +39,8 @@ export const POST = async (c: APIContext): Promise<Response> => {
   if (body.ddos !== undefined) next.ddos = body.ddos ? 1 : 0;
   if (body.peering !== undefined) next.peering = body.peering ? 1 : 0;
   if (next.transit_tier < NR.peering.min_tier) next.peering = 0;
+  // A piactéri peering-szerződés (kedvezményes havidíj) megszűnik, ha a peering kikapcsol (network.ts fejkomment).
+  if (!next.peering) next.peering_monthly_cents = null;
   if (next.transit_tier === cur.transit_tier && next.peering === cur.peering && next.ddos === cur.ddos) {
     return jsonError(400, loc, 'nothing_to_update');
   }
@@ -55,7 +57,7 @@ export const POST = async (c: APIContext): Promise<Response> => {
   await db.prepare(
     'INSERT INTO player_network (player_id, transit_tier, peering, ddos, updated_at) VALUES (?, ?, ?, ?, ?) ' +
     'ON CONFLICT(player_id) DO UPDATE SET transit_tier = excluded.transit_tier, peering = excluded.peering, ddos = excluded.ddos, updated_at = excluded.updated_at',
-  ).bind(user.id, next.transit_tier, next.peering, next.ddos, now).run();
+  ).bind(user.id, next.transit_tier, encodePeering(next), next.ddos, now).run();
   await db.prepare(
     'INSERT INTO events (player_id, event_type, data_json, spawned_at, outcome, resolved_at) ' +
     "VALUES (?, 'network_changed', ?, ?, 'neutral', ?)",

@@ -14,9 +14,12 @@
 // összezavarná. Az áramszünet-eseményeket az SRE és a hardver-fejlesztések védik.
 // A hálózat csak a 2. korszaktól számít: az 1. korszakban senki nem lassul (az alap 80 egység ott elég is).
 //
-// TODO(hálózat): a piactér „peering"-hirdetései még csak díszek. Egy egyszerű bekötés: a hirdetés megvétele
-// a fenti peeringet kapcsolná be kedvezményes egyszeri díjjal — a vásárlási út (api/marketplace/purchase)
-// ma csak lead-et tud, ezért ez külön kör.
+// Piactéri peering (2026-11-12, csapat-utókör): a piactér „enable_peering" hatású peering-hirdetése (NPC) ugyanezt
+// a peeringet kapcsolja be, a hirdetés ára az egyszeri díj, a havidíj a hirdetés szerinti kedvezményes összeg
+// (marketplace/buy.ts parsePeeringEffect, api/marketplace/purchase/[id]). Új oszlop (migráció) nélkül: a
+// player_network.peering mező 0 = nincs, 1 = normál díjas, ≥ 2 = piactéri szerződés, és ekkor az érték maga a
+// havidíj centben (a kedvezményes díj legalább $1 → 100, így nem ütközik az 1-gyel). Kikapcsoláskor (vagy ha a
+// tranzit a min_tier alá csökken) a szerződés megszűnik; újra bekapcsolva a normál díj jár.
 
 import type { NetworkRule } from './economy';
 import type { UpgradeEffects } from './upgrade-effects';
@@ -25,6 +28,8 @@ export interface NetworkState {
   transit_tier: number;
   peering: number;
   ddos: number;
+  /** Piactéri peering-szerződés havidíja (cent); null/hiányzik = a normál díj (rule.peering.monthly_cents). */
+  peering_monthly_cents?: number | null;
 }
 
 export const NO_NETWORK: NetworkState = Object.freeze({ transit_tier: 0, peering: 0, ddos: 0 });
@@ -54,7 +59,22 @@ export function networkMonthlyCents(rule: NetworkRule | null, n: NetworkState): 
   if (!rule) return 0;
   const transit = rule.tiers[clampTier(rule, n.transit_tier)].monthly_cents;
   const disc = n.peering ? 1 - rule.peering.transit_discount_pct / 100 : 1;
-  return Math.round(transit * disc) + (n.peering ? rule.peering.monthly_cents : 0) + (n.ddos ? rule.ddos.monthly_cents : 0);
+  const peer = n.peering ? (n.peering_monthly_cents ?? rule.peering.monthly_cents) : 0;
+  return Math.round(transit * disc) + peer + (n.ddos ? rule.ddos.monthly_cents : 0);
+}
+
+/** A player_network.peering oszlop értéke → (be van-e kapcsolva, piactéri havidíj vagy null). */
+export function decodePeering(raw: unknown): { peering: number; peering_monthly_cents: number | null } {
+  const v = Math.floor(Number(raw) || 0);
+  if (v <= 0) return { peering: 0, peering_monthly_cents: null };
+  return { peering: 1, peering_monthly_cents: v >= 2 ? v : null };
+}
+
+/** A tárolandó peering-érték: 0, 1 (normál díj) vagy a piactéri havidíj centben (≥ 2). */
+export function encodePeering(n: Pick<NetworkState, 'peering' | 'peering_monthly_cents'>): number {
+  if (!n.peering) return 0;
+  const m = n.peering_monthly_cents;
+  return m != null && m >= 2 ? Math.round(m) : 1;
 }
 
 /** A lassulás aránya: (forgalom − sávszélesség) / sávszélesség, 0..1. */
@@ -84,7 +104,12 @@ export async function loadNetwork(
     const r = await db.prepare('SELECT transit_tier, peering, ddos FROM player_network WHERE player_id = ?')
       .bind(playerId).first<{ transit_tier: number; peering: number; ddos: number }>();
     if (!r) return { ...NO_NETWORK };
-    return { transit_tier: Math.max(0, Number(r.transit_tier) || 0), peering: Number(r.peering) ? 1 : 0, ddos: Number(r.ddos) ? 1 : 0 };
+    const pe = decodePeering(r.peering);
+    return {
+      transit_tier: Math.max(0, Number(r.transit_tier) || 0), peering: pe.peering, ddos: Number(r.ddos) ? 1 : 0,
+      // a piactéri díj csak akkor kerül bele, ha van (a normál peering állapota ugyanaz marad, mint eddig)
+      ...(pe.peering_monthly_cents != null ? { peering_monthly_cents: pe.peering_monthly_cents } : {}),
+    };
   } catch {
     return { ...NO_NETWORK };
   }

@@ -57,7 +57,10 @@ export function renderNetworkContent(s: ShellData): string {
         <div class="nw-extra">
           <div><div class="nw-extra-h">${esc(pt(L, 'nw.peering'))}</div>
             <div class="nw-extra-d">${esc(pt(L, 'nw.peering_desc', { b: N.peering.bandwidth_pct, d: N.peering.transit_discount_pct, s: usd(N.peering.setup_cents), m: usd(N.peering.monthly_cents) }))}</div>
-            <div class="nw-extra-n">${esc(peerNote)}</div></div>
+            <div class="nw-extra-n">${esc(peerNote)}</div>
+            ${net.peering && net.peering_monthly_cents != null
+    ? `<div class="nw-extra-n">${esc(pt(L, 'nw.peering_deal', { m: usd(net.peering_monthly_cents), n: usd(N.peering.monthly_cents) }))}</div>`
+    : !net.peering ? `<div class="nw-extra-n"><a href="/play/marketplace?category=peering">${esc(pt(L, 'nw.peering_market'))}</a></div>` : ''}</div>
           <div class="nw-extra-a">${toggle(net.peering, 'peering', peerCan && s.cashCents >= N.peering.setup_cents, N.peering.setup_cents)}</div>
         </div>
         <div class="nw-extra">

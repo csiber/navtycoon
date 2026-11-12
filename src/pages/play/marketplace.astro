@@ -2,12 +2,16 @@
 // /play/marketplace — easy-v0.8: passive board of NPC + player listings.
 // Phase 2 will add real transactions; this is read + post-your-own.
 import PlayLayout from '../../layouts/PlayLayout.astro';
-import { pt as ptNav } from '../../lib/play/strings';
+import { pt as ptNav, pt, type PlayKey, type PlayLocale } from '../../lib/play/strings';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { listListings } from '../../lib/marketplace/db';
 import { translateListing, type ListingLang } from '../../lib/marketplace/translations';
 import { resolveLocale } from '../../lib/i18n/server';
 import { t, npcArchetypeLabel } from '../../lib/i18n';
+import { getPlayer } from '../../lib/game/db';
+import { ECONOMY } from '../../lib/game/economy';
+import { loadNetwork } from '../../lib/game/network';
+import { isPeeringListing, parsePeeringEffect, peeringBlock, type PeeringBlock } from '../../lib/marketplace/buy';
 
 const user = await getCurrentUser(Astro);
 if (!user) return Astro.redirect('/login?next=/play/marketplace');
@@ -36,6 +40,41 @@ const listings = rawListings.map((l) => {
   }
   return l;
 });
+
+// 2026-11-12 (csapat-utókör): kedvezményes peering-hirdetés — megvehető-e most, és ha nem, miért (marketplace/buy.ts).
+const NR = ECONOMY.network;
+const me = db ? await getPlayer(db, user.id) : null;
+let netReady = true;
+if (db && NR) { try { await db.prepare('SELECT 1 FROM player_network LIMIT 1').bind().all(); } catch { netReady = false; } }
+const myNet = db && NR && netReady ? await loadNetwork(db, user.id) : { transit_tier: 0, peering: 0, ddos: 0 };
+const PL = viewerLang as PlayLocale;
+const usd0 = (c: number) => '$' + Math.round(c / 100).toLocaleString('en-US');
+const WHY: Record<PeeringBlock, PlayKey> = {
+  era_locked: 'mp.peer.why.era', not_ready: 'mp.peer.why.not_ready', has_peering: 'mp.peer.why.has',
+  needs_transit: 'mp.peer.why.tier', insufficient_cash: 'mp.peer.why.cash',
+};
+function peerInfo(l: { category: string; effect_type: string | null; effect_payload: string | null; price_cents: number; author_name: string | null }) {
+  if (!NR || !isPeeringListing(l)) return null;
+  const eff = parsePeeringEffect(l.effect_payload, NR.peering.monthly_cents);
+  if (!eff) return null;
+  const block = peeringBlock(l.price_cents, {
+    era: me?.current_era ?? 1, min_era: NR.min_era, ready: netReady, has_peering: !!myNet.peering,
+    transit_tier: myNet.transit_tier, min_tier: NR.peering.min_tier, cash_cents: me?.cash_usd_cents ?? 0,
+  });
+  const p = {
+    price: usd0(l.price_cents), monthly: usd0(eff.monthly_cents), normal: usd0(NR.peering.monthly_cents),
+    setup: usd0(NR.peering.setup_cents), bw: NR.peering.bandwidth_pct, disc: NR.peering.transit_discount_pct,
+    seller: l.author_name ?? '?',
+  };
+  return {
+    monthly_cents: eff.monthly_cents,
+    terms: pt(PL, 'mp.peer.terms', p),
+    cta: pt(PL, 'mp.peer.cta', p),
+    confirm: pt(PL, 'mp.peer.confirm', p),
+    success: pt(PL, 'mp.peer.success', p),
+    why: block ? pt(PL, WHY[block], p) : null,
+  };
+}
 
 const CAT_LABELS: Record<string, string> = {
   peering: t(viewerLang, 'marketplace.cat.peering'),
@@ -199,6 +238,22 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
                 <div class="mt-2 flex items-center gap-2 text-xs">
                   <span class="px-1.5 py-0.5 bg-nt-bg rounded text-nt-text-dim">{CAT_LABELS[l.category]}</span>
                 </div>
+                {(() => { const pi = peerInfo(l); return pi && (<>
+                  <p class="mt-2 text-xs text-nt-text">{pi.terms}</p>
+                  {l.sold_at !== null ? (
+                    <span class="inline-block mt-2 px-2 py-1 text-[10px] uppercase tracking-wide bg-nt-bg rounded text-nt-text-dim">{SOLD_BADGE}</span>
+                  ) : pi.why ? (
+                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                      <button type="button" disabled aria-disabled="true"
+                              class="px-3 py-1.5 bg-nt-bg border border-nt-border rounded text-sm font-semibold text-nt-text-dim cursor-not-allowed">{pi.cta}</button>
+                      <span class="text-xs text-amber-300">{pi.why}</span>
+                    </div>
+                  ) : (
+                    <button type="button"
+                            class="mt-2 px-3 py-1.5 bg-nt-accent rounded text-sm font-semibold hover:opacity-90 transition peer-buy-btn"
+                            data-listing-id={l.id} data-confirm={pi.confirm} data-success={pi.success}>{pi.cta}</button>
+                  )}
+                </>); })()}
                 {l.category === 'leads' && l.effect_type === 'spawn_customer' && (
                   l.sold_at !== null ? (
                     <span class="inline-block mt-2 px-2 py-1 text-[10px] uppercase tracking-wide bg-nt-bg rounded text-nt-text-dim">{SOLD_BADGE}</span>
@@ -264,6 +319,10 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
     ERR_INSUFFICIENT_CASH: ERR_INSUFFICIENT,
     ERR_SOLD: ERR_SOLD_LABEL,
     ERR_PREFIX: errorPrefix,
+    PEER_ERR: {
+      era_locked: pt(PL, 'mp.peer.why.era'), feature_not_ready: pt(PL, 'mp.peer.why.not_ready'),
+      has_peering: pt(PL, 'mp.peer.why.has'), needs_transit: pt(PL, 'mp.peer.why.tier'),
+    },
     ARCHETYPE_LABELS: {
       newbie: t(viewerLang, 'shift.archetype.newbie'),
       pro: t(viewerLang, 'shift.archetype.pro'),
@@ -356,6 +415,18 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
     buyModal?.addEventListener('click', (e) => { if (e.target === buyModal) closeBuyModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && buyModal && !buyModal.classList.contains('hidden')) closeBuyModal(); });
 
+    // Kedvezményes peering (2026-11-12, csapat-utókör): ugyanaz a megerősítő ablak, saját szöveggel.
+    document.querySelectorAll('.peer-buy-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = parseInt(btn.getAttribute('data-listing-id') ?? '0', 10);
+        if (!id) return;
+        pendingBuy = { id, peering: true, success: btn.getAttribute('data-success') ?? '' };
+        if (buyBody) buyBody.textContent = btn.getAttribute('data-confirm') ?? '';
+        if (buyStatus) { buyStatus.textContent = ''; buyStatus.className = 'text-sm ml-auto'; }
+        buyModal?.classList.remove('hidden');
+      });
+    });
+
     document.querySelectorAll('.buy-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = parseInt(btn.getAttribute('data-listing-id') ?? '0', 10);
@@ -376,13 +447,13 @@ const ERR_SOLD_LABEL = t(viewerLang, 'marketplace.err.sold');
         const code = j.error ?? 'unknown';
         const msg = code === 'insufficient_cash' ? ERR_INSUFFICIENT_CASH
           : code === 'sold' ? ERR_SOLD
-          : (ERR_PREFIX + code);
+          : PEER_ERR[code] ?? (j.message && j.message !== code ? j.message : (ERR_PREFIX + code));
         if (buyStatus) { buyStatus.textContent = msg; buyStatus.className = 'text-sm text-red-400 ml-auto'; }
         buyOk.removeAttribute('disabled');
         return;
       }
       const fallbackName = pendingBuy?.payload?.name ?? '';
-      const successMsg = BUY_SUCCESS.replace('{name}', j.customer_name ?? fallbackName);
+      const successMsg = pendingBuy?.peering ? pendingBuy.success : BUY_SUCCESS.replace('{name}', j.customer_name ?? fallbackName);
       closeBuyModal();
       const t = document.createElement('div');
       t.textContent = successMsg;

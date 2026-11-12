@@ -87,6 +87,18 @@ const HU: Record<string, Translation> = {
     title: 'Beth Park — $50-os végkiárusítás, ne mondd, hogy nem szóltunk',
     body: 'Beth az a fajta ügyfél, aki mindig a vezetővel akar beszélni. Két hét alatt három P1-es ticketet nyitott nálunk. Utálja a jelenlegi szolgáltatóját. A következőt is utálni fogja. $50-ért átpasszoljuk valaki másnak. Hobbi csomag, 25-ös elégedettséggel indul — szóltunk.',
   },
+  'FRA IX port share — $150 once, $9/mo': {
+    title: 'Frankfurti IX-port megosztva — $150 egyszer, $9/hó',
+    body: 'Túl nagy frankfurti IX-portot vettünk. Csatlakozz a miénkre: ugyanazok a partnerek, ugyanazok a route szerverek, az ár töredékéért. Egyszer $150 a bekötésért, utána $9/hó, amíg a peering be van kapcsolva. Aki előbb jön — egy hely van.',
+  },
+  'BIX peering in Budapest — $120 + $10/mo': {
+    title: 'BIX peering Budapesten — $120 + $10/hó',
+    body: 'A budapesti BIX-portunkon még egy kis hálózat elfér. Egyszer $120 a bekötésért, utána $10/hó. A magyar és a közép-európai forgalom helyben marad: gyorsabb, és kisebb a tranzit-számla. A BGP-beállítást egy hívásban veled együtt csináljuk.',
+  },
+  'Spare cross-connect at our local IX — $180, $6/mo': {
+    title: 'Szabad bekötés a helyi IX-en — $180, $6/hó',
+    body: 'Két évre előre kifizettünk egy bekötést a regionális IX-en, és csak a felét használjuk. Vidd a másik felét: egyszer $180, utána $6/hó. Kisvárosi IX, de a nagy tartalom-hálózatok mind ott vannak.',
+  },
 };
 
 const DE: Record<string, Translation> = {
@@ -161,6 +173,18 @@ const DE: Record<string, Translation> = {
   'Beth Park — $50 fire-sale, do not say we didn\'t warn you': {
     title: 'Beth Park — $50 Ausverkauf, sag nicht, wir hätten dich nicht gewarnt',
     body: 'Beth ist die Sorte Kundin, die immer den Vorgesetzten verlangt. Hat bei uns in zwei Wochen drei P1-Tickets eingereicht. Hasst ihren aktuellen Hoster. Wird ihren nächsten auch hassen. Wir verlangen $50, um sie jemand anderem aufzudrücken. Hobby-Paket, Zufriedenheit startet bei 25, du wurdest gewarnt.',
+  },
+  'FRA IX port share — $150 once, $9/mo': {
+    title: 'FRA-IX-Port zum Mitnutzen — $150 einmalig, $9/Monat',
+    body: 'Wir haben unseren Frankfurter IX-Port zu groß gekauft. Häng dich an unseren Anteil: gleiche Peers, gleiche Route-Server, ein Bruchteil des Preises. Einmalig $150 für den Cross-Connect, danach $9/Monat, solange Peering aktiv ist. Wer zuerst kommt — ein Platz.',
+  },
+  'BIX peering in Budapest — $120 + $10/mo': {
+    title: 'BIX-Peering in Budapest — $120 + $10/Monat',
+    body: 'Unser Budapester BIX-Port hat Platz für ein weiteres kleines Netz. Einmalig $120 für den Anschluss, danach $10/Monat. Ungarischer und mitteleuropäischer Traffic bleibt lokal: schneller, und die Transit-Rechnung sinkt. Die BGP-Konfiguration machen wir mit dir zusammen in einem Call.',
+  },
+  'Spare cross-connect at our local IX — $180, $6/mo': {
+    title: 'Freier Cross-Connect an unserem lokalen IX — $180, $6/Monat',
+    body: 'Wir haben einen Cross-Connect am regionalen Austauschpunkt zwei Jahre im Voraus bezahlt und nutzen nur die Hälfte. Nimm die andere Hälfte: einmalig $180, danach $6/Monat. Kleinstadt-IX, aber die großen Content-Netze sind alle da.',
   },
 };
 

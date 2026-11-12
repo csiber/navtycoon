@@ -16,7 +16,8 @@ export interface MarketplaceSeed {
   price_cents: number;
   price_unit: PriceUnit;
   hours_ago: number;             // for staggered posted_at
-  effect_type?: 'spawn_customer';
+  /** spawn_customer = lead (új ügyfél); enable_peering = kedvezményes peering (2026-11-12, csapat-utókör). */
+  effect_type?: 'spawn_customer' | 'enable_peering';
   effect_payload?: string;       // JSON string
 }
 
@@ -139,5 +140,32 @@ export const MARKETPLACE_SEEDS: readonly MarketplaceSeed[] = [
     price_cents: 5000, price_unit: 'one_time', hours_ago: 1,
     effect_type: 'spawn_customer',
     effect_payload: JSON.stringify({ archetype: 'karen', name: 'Beth Park', plan_tier: 'hobby', starting_satisfaction: 25 }),
+  },
+  // 2026-11-12 (csapat-utókör): kedvezményes peering-ajánlatok. A megvétel bekapcsolja a peeringet (Hálózat):
+  // a hirdetés ára az egyszeri díj (a normál $200 helyett), a havidíj a payload szerinti (a normál $15/hó helyett).
+  // Egyszer vehetők meg (elkelnek), mint a leadek. Csak a 2. korszaktól, legalább 100 Mbites tranzittal.
+  {
+    author_id: 'npc-helix-edge', category: 'peering',
+    title: 'FRA IX port share — $150 once, $9/mo',
+    body: 'We over-bought our Frankfurt IX port. Plug into our share: same peers, same route servers, a fraction of the price. One-time $150 for the cross-connect, then $9/mo for as long as you keep peering on. First come, first served — one slot.',
+    price_cents: 15000, price_unit: 'one_time', hours_ago: 4,
+    effect_type: 'enable_peering',
+    effect_payload: JSON.stringify({ monthly_cents: 900 }),
+  },
+  {
+    author_id: 'npc-pirostech', category: 'peering',
+    title: 'BIX peering in Budapest — $120 + $10/mo',
+    body: 'Our Budapest BIX port has room for one more small network. $120 once to patch you in, then $10/mo. Hungarian and CEE traffic stays local, so it is faster and the transit bill drops. We do the BGP config with you over a call.',
+    price_cents: 12000, price_unit: 'one_time', hours_ago: 9,
+    effect_type: 'enable_peering',
+    effect_payload: JSON.stringify({ monthly_cents: 1000 }),
+  },
+  {
+    author_id: 'npc-riverside', category: 'peering',
+    title: 'Spare cross-connect at our local IX — $180, $6/mo',
+    body: 'We pre-paid a two-year cross-connect at the regional exchange and only use half of it. Take the other half: $180 once, then $6/mo. Small-town IX, but the big content networks are all there.',
+    price_cents: 18000, price_unit: 'one_time', hours_ago: 27,
+    effect_type: 'enable_peering',
+    effect_payload: JSON.stringify({ monthly_cents: 600 }),
   },
 ] as const;

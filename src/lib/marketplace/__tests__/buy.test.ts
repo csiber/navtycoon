@@ -92,3 +92,43 @@ describe('parseEffect', () => {
     expect(parseEffect(JSON.stringify({ archetype: 'pro', name: 'X', plan_tier: 'hobby', starting_satisfaction: 101 }))).toBeNull();
   });
 });
+
+// 2026-11-12 (csapat-utókör): kedvezményes peering-hirdetés.
+import { parsePeeringEffect, peeringBlock, isPeeringListing, type PeeringBuyCtx } from '../buy';
+import { MARKETPLACE_SEEDS } from '../npc-seeds';
+
+describe('peering-hirdetés', () => {
+  const ok: PeeringBuyCtx = { era: 2, min_era: 2, ready: true, has_peering: false, transit_tier: 1, min_tier: 1, cash_cents: 50000 };
+
+  it('a payload: kedvezményes havidíj, legalább $1 és kevesebb a normálnál', () => {
+    expect(parsePeeringEffect('{"monthly_cents":900}', 1500)).toEqual({ monthly_cents: 900 });
+    expect(parsePeeringEffect('{"monthly_cents":1500}', 1500)).toBeNull();
+    expect(parsePeeringEffect('{"monthly_cents":50}', 1500)).toBeNull();
+    expect(parsePeeringEffect('{"monthly_cents":"900"}', 1500)).toBeNull();
+    expect(parsePeeringEffect(null, 1500)).toBeNull();
+    expect(parsePeeringEffect('x', 1500)).toBeNull();
+  });
+
+  it('mikor vehető: 2. korszak, kész tábla, még nincs peering, van tranzit, van pénz — ebben a sorrendben', () => {
+    expect(peeringBlock(15000, ok)).toBeNull();
+    expect(peeringBlock(15000, { ...ok, era: 1, ready: false })).toBe('era_locked');
+    expect(peeringBlock(15000, { ...ok, ready: false })).toBe('not_ready');
+    expect(peeringBlock(15000, { ...ok, has_peering: true })).toBe('has_peering');
+    expect(peeringBlock(15000, { ...ok, transit_tier: 0 })).toBe('needs_transit');
+    expect(peeringBlock(15000, { ...ok, cash_cents: 14999 })).toBe('insufficient_cash');
+  });
+
+  it('a seedben van legalább két megvehető peering-hirdetés, érvényes payloaddal, a normál $200-nál olcsóbb díjjal', () => {
+    const peers = MARKETPLACE_SEEDS.filter((s) => isPeeringListing({ category: s.category, effect_type: s.effect_type ?? null }));
+    expect(peers.length).toBeGreaterThanOrEqual(2);
+    for (const s of peers) {
+      expect(s.price_unit).toBe('one_time');
+      expect(s.price_cents).toBeLessThan(20000);
+      expect(parsePeeringEffect(s.effect_payload ?? null, 1500)).not.toBeNull();
+    }
+  });
+
+  it('a lead-vásárlás útja változatlan: peering-hirdetés ott nem vehető', () => {
+    expect(validateBuy({ id: 1, category: 'peering', effect_type: 'enable_peering', effect_payload: '{"monthly_cents":900}', price_cents: 100, sold_at: null }, 99999).ok).toBe(false);
+  });
+});
