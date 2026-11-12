@@ -255,6 +255,13 @@ export const TRANSLATIONS: Record<Locale, I18nDict> = {
     'shift.archetype.ghost': 'ghost',
     'shift.archetype.drama': 'drama',
     'shift.archetype.crypto': 'crypto-bro',
+    // NPC-cégek archetípusa (piactér- és fórumjelvény)
+    'npc.archetype.aggressive_scaler': 'Aggressive scaler',
+    'npc.archetype.cautious_founder': 'Cautious founder',
+    'npc.archetype.crypto_bro': 'Crypto bro',
+    'npc.archetype.enterprise_giant': 'Enterprise giant',
+    'npc.archetype.mom_and_pop': 'Mom and pop',
+    'npc.archetype.pivot_addict': 'Pivot addict',
     // ─── Time-ago suffixes (forum + marketplace) ───
     'time.now': 'now',
     'time.minute_suffix': 'm',
@@ -561,6 +568,13 @@ export const TRANSLATIONS: Record<Locale, I18nDict> = {
     'shift.archetype.ghost': 'szellem',
     'shift.archetype.drama': 'drámakirálynő',
     'shift.archetype.crypto': 'crypto-bro',
+    // NPC-cégek archetípusa (piactér- és fórumjelvény)
+    'npc.archetype.aggressive_scaler': 'Agresszív terjeszkedő',
+    'npc.archetype.cautious_founder': 'Óvatos alapító',
+    'npc.archetype.crypto_bro': 'Kriptós',
+    'npc.archetype.enterprise_giant': 'Nagyvállalati óriás',
+    'npc.archetype.mom_and_pop': 'Családi vállalkozás',
+    'npc.archetype.pivot_addict': 'Irányváltás-függő',
     // ─── Time-ago suffixes ───
     'time.now': 'most',
     'time.minute_suffix': 'p',
@@ -867,6 +881,13 @@ export const TRANSLATIONS: Record<Locale, I18nDict> = {
     'shift.archetype.ghost': 'Geist',
     'shift.archetype.drama': 'Drama-Queen',
     'shift.archetype.crypto': 'Crypto-Bro',
+    // NPC-cégek archetípusa (piactér- és fórumjelvény)
+    'npc.archetype.aggressive_scaler': 'Aggressiver Skalierer',
+    'npc.archetype.cautious_founder': 'Vorsichtiger Gründer',
+    'npc.archetype.crypto_bro': 'Krypto-Bro',
+    'npc.archetype.enterprise_giant': 'Konzern-Riese',
+    'npc.archetype.mom_and_pop': 'Familienbetrieb',
+    'npc.archetype.pivot_addict': 'Pivot-Süchtiger',
     // ─── Time-ago suffixes ───
     'time.now': 'jetzt',
     'time.minute_suffix': 'm',
@@ -942,6 +963,12 @@ export const TRANSLATIONS: Record<Locale, I18nDict> = {
 };
 
 /** Resolve a translation key for a given locale, falling back to EN. */
+/** NPC-cég archetípus-jelvénye (piactér, fórum) a játékos nyelvén; ismeretlen archetípusnál a nyers azonosító. */
+export function npcArchetypeLabel(locale: Locale, archetype: string): string {
+  const key = 'npc.archetype.' + archetype;
+  return TRANSLATIONS[locale]?.[key] ?? TRANSLATIONS.en[key] ?? archetype.replace(/_/g, ' ');
+}
+
 export function t(locale: Locale, key: string): string {
   return TRANSLATIONS[locale]?.[key] ?? TRANSLATIONS.en[key] ?? key;
 }

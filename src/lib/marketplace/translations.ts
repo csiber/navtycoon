@@ -2,7 +2,8 @@
 // EN → HU/DE map for the 13 NPC marketplace seed listings. The seed
 // strings are stored in EN in the DB (cheaper than re-seeding the table
 // with i18n columns); we resolve them at render time based on the
-// player's preferred_lang. Player-posted listings stay in whichever
+// player's preferred_lang. A HU szöveg köznyelvi magyar (2026-11-12, ux-3): a szakmai rövidítések
+// (SLA, BGP, P1, CNAME, VPS…) maradnak, a többi angol szó nem. Player-posted listings stay in whichever
 // language the player wrote them.
 
 export type ListingLang = 'en' | 'hu' | 'de';
@@ -16,75 +17,75 @@ interface Translation {
 const HU: Record<string, Translation> = {
   'APAC peering — SIN ↔ FRA, $0.0094/GB': {
     title: 'APAC peering — SIN ↔ FRA, $0.0094/GB',
-    body: '50TB/hónapra szerződtünk a singapore-i tier-1 partnerrel. Maradt kapacitás viszonteladásra. 95-percentilis számlázás, 24h turn-up, BGP ha van saját AS-számod. DM, ne fizesd a $0.012-t mint mindenki más.',
+    body: '50 TB/hónapra szerződtünk a szingapúri tier-1 partnerrel. Maradt kapacitás viszonteladásra. 95-percentilis számlázás, 24 órás élesítés, BGP, ha van saját AS-számod. Írj privátban, ne fizesd a $0.012-t, mint mindenki más.',
   },
   'Need 1U+GPU in TYO by Monday': {
     title: 'Kell 1U+GPU Tokióban hétfőre',
-    body: 'Van egy Mira Sato-szerű ügyfelünk aki Tokiót kér. Mi még nem vagyunk ott. Ha valakinek van szabad GPU-kapacitása TYO-ban <$1.2k/hó-ért, közvetítői díj az első 6 hó 10%-a.',
+    body: 'Van egy Mira Sato-féle ügyfelünk, aki Tokiót kér. Mi még nem vagyunk ott. Ha valakinek van szabad GPU-kapacitása Tokióban $1.2k/hó alatt, közvetítői díjként az első 6 hónap 10%-át adjuk.',
   },
   'SOC 2 Type 2 evidence pack — ready-to-audit': {
-    title: 'SOC 2 Type 2 evidence-csomag — audit-ready',
-    body: 'Aurora Bill itt. Van egy friss, tiszta Type 2 evidence-csomagunk amit az auditorunk múlt negyedévben hagyott jóvá. Megkapod a runbook-ot + 4h konzultációt. Igen, az auditor valódi. Igen, használhatod. Nem, tokent nem fogadunk el.',
+    title: 'SOC 2 Type 2 bizonyítékcsomag — auditra készen',
+    body: 'Bill az Aurorától. Van egy friss, tiszta Type 2 bizonyítékcsomagunk, amit az auditorunk a múlt negyedévben jóváhagyott. Megkapod az üzemeltetési kézikönyvet és 4 óra konzultációt. Igen, az auditor valódi. Igen, használhatod. Nem, tokent nem fogadunk el.',
   },
   'Managed PostgreSQL — enterprise tier': {
-    title: 'Managed PostgreSQL — enterprise szint',
-    body: 'White-glove pg14 cluster-menedzsment $5k+ MRR-es accountoknak. Negyedéves backup-ok, point-in-time recovery, on-call rotáció. Lassúak vagyunk de stabilak. Min. 2 év szerződés.',
+    title: 'Menedzselt PostgreSQL — nagyvállalati szint',
+    body: 'Kesztyűs kezű pg14-klaszterkezelés $5k+ MRR-es ügyfeleknek. Negyedéves mentések, időpontra visszaállítás, ügyeleti rotáció. Lassúak vagyunk, de stabilak. Minimum 2 év szerződés.',
   },
   '1U bay in our garage (Burlington VT)': {
-    title: '1U bay a garázsunkban (Burlington VT)',
-    body: 'Pontosan egy szabad 1U bay van a rackünk mellett. Olcsó áram, működő klíma, a feleségem minden hónap 3. szerdáján süteményt hoz. 1 kliens. Megítélünk mielőtt igent mondunk.',
+    title: '1U-s hely a garázsunkban (Burlington, VT)',
+    body: 'Pontosan egy szabad 1U-s hely van a rackünk mellett. Olcsó áram, működő klíma, a feleségem minden hónap 3. szerdáján süteményt hoz. Csak 1 ügyfél. Előbb megnézünk, aztán mondunk igent.',
   },
   '🚀 $TYCOON-native hosting (10% off first 3mo if u pay in token)': {
-    title: '🚀 $TYCOON-native hosting (10% off első 3 hónap ha tokenben fizetsz)',
-    body: 'web4 ready, edge-deployed, no kyc. elfogadunk TYCOON / HYPER / RACK tokent. figyelj, mindketten tudjuk hogy melyikünk csinálja jól. DM a kupon-kódért. nfa.',
+    title: '🚀 $TYCOON-natív hosting (10% kedvezmény az első 3 hónapra, ha tokenben fizetsz)',
+    body: 'web4-kész, a peremen fut, nincs kyc. elfogadunk TYCOON / HYPER / RACK tokent. figyelj, mindketten tudjuk, melyikünk csinálja jól. írj privátban a kuponkódért. nem pénzügyi tanács.',
   },
   'WTB: yield-bearing hardware (e.g. GPUs for mining/inference)': {
-    title: 'WTB: yield-bearing hardver (pl. GPU-k mining/inference-re)',
-    body: 'NFT-ventúrát lakvidálok. 47K USDC készen áll olyan hardverre amely <9 hónap alatt megtérül. Régebbi A100-ak is OK. Tárgyalok, pivotálok ha kell.',
+    title: 'Vennék: hozamtermelő hardvert (pl. GPU-kat bányászatra/inferenciára)',
+    body: 'NFT-vállalkozást számolok fel. 47K USDC vár olyan hardverre, ami 9 hónapon belül megtérül. Régebbi A100-asok is jók. Alkuképes vagyok, és ha kell, irányt is váltok.',
   },
   'Two used Dell R610s, recently retired': {
     title: 'Két használt Dell R610, frissen kivonva',
-    body: 'Konzervatív számok: 17,000 üzemóra mindkettőn. SMART-naplók tiszták. PSU-matricák épek. Eladás mert upgradelünk a stabil pénzügyi pozíciónk hátán. Ár fix, párt nem bontunk fel.',
+    body: 'Konzervatív számok: 17 000 üzemóra mindkettőn. A SMART-naplók tiszták. A tápegység-matricák épek. Azért adjuk el, mert bővítünk, kicsi, de stabil pénzügyi helyzetünkre támaszkodva. Fix ár, a párt nem bontjuk.',
   },
   'Runbook authoring — your incident response, written down': {
-    title: 'Runbook-írás — az incident-response-od papírra téve',
-    body: 'Van egy 47-oldalas SOP-em saját shopomhoz. Megírom a tiédet. 3-hetes engagement, plain Markdown deliverable, német-mérnöki precizitás. Emoji nincs. "Vibe" nincs. A runbook a termék.',
+    title: 'Üzemeltetési kézikönyv írása — az incidenskezelésed papírra vetve',
+    body: 'Van egy 47 oldalas működési szabályzatom a saját cégemhez. Megírom a tiédet is. 3 hetes megbízás, sima Markdown-dokumentum, német mérnöki precizitás. Emoji nincs. „Hangulat” nincs. A kézikönyv maga a termék.',
   },
   'APAC transit — undercutting the tier-1s': {
-    title: 'APAC transit — alulvágjuk a tier-1-eket',
-    body: 'Felesleges kapacitásunk van a SIN ↔ JKT ↔ TYO háromszögön. Pixel Forge 94-en, mi 89-en. 100TB/hó commit-tal lemegyünk 81-re. Valódi SLA-k, nem vibe. Egy centtel nem fogjuk örökké aláígérni; ezen a negyedévben lock in.',
+    title: 'APAC tranzit — aláígérünk a tier-1-eknek',
+    body: 'Felesleges kapacitásunk van a SIN ↔ JKT ↔ TYO háromszögön. A Pixel Forge 94-en, mi 89-en. 100 TB/hó vállalással lemegyünk 81-re. Valódi SLA-k, nem hangulat. Nem ígérünk alá örökké egy centtel; ebben a negyedévben rögzítsd az árat.',
   },
   'Magyar/CEE SMB support — saját anyanyelvi szinten': {
-    title: 'Magyar/CEE SMB support — saját anyanyelvi szinten',
-    body: 'Két magyar-amerikai testvér. Magyar nyelvű ügyfélkommunikáció, NAV-kompatibilis számlázás, GDPR-compliant, mindenkivel jól kijövünk. Ár havidíjas, 3 hónap minimum, lemondás bármikor.',
+    title: 'Magyar/CEE kkv-támogatás — anyanyelvi szinten',
+    body: 'Két magyar-amerikai testvér. Magyar nyelvű ügyfélkommunikáció, NAV-kompatibilis számlázás, GDPR-megfelelés, mindenkivel jól kijövünk. Havidíjas, 3 hónap minimum, bármikor lemondható.',
   },
   'Edge agentic infra (formerly: gaming hosting / retail AI)': {
-    title: 'Edge agentic infra (korábban: gaming hosting / retail AI)',
-    body: 'Megint pivotáltunk. Ez most már marad. Agent runtime + merchant katalógus + rendelés-pipeline, mind kolokálva. Korai signupok: bárpultosok, food truck-ok, etsy-emberek. 3 héten belül hard-launch. Iterálunk azon ami eltörik.',
+    title: 'MI-ügynök-infrastruktúra a peremen (korábban: játékhosting / kiskereskedelmi MI)',
+    body: 'Megint irányt váltottunk. Ez most már marad. Ügynök-futtatókörnyezet + kereskedői katalógus + rendelési folyamat, mind egy helyen. Korai regisztrálók: pultosok, büfékocsik, Etsy-árusok. 3 héten belül éles indulás. Azon dolgozunk, ami eltörik.',
   },
   'Acquiring failed/quitting hosts — we will assume your customers': {
     title: 'Csődbe ment / kilépő hostok felvásárlása — átvesszük az ügyfeleket',
-    body: 'Ha kiégtél és puha landolást akarsz, átvesszük az account-listádat 0.6× ARR-ért. Drámamentes, gyors close, az ügyfeleid migrációs supportot kapnak. Csináltuk ezt 3-szor. Igen, megint pivotálni fogunk. De az ügyfeleid jól lesznek.',
+    body: 'Ha kiégtél és puha landolást szeretnél, átvesszük az ügyfélkörödet az éves bevétel 0,6-szereséért. Dráma nélkül, gyors lezárás, az ügyfeleid költöztetési segítséget kapnak. Háromszor csináltuk már. Igen, megint irányt fogunk váltani. De az ügyfeleiddel minden rendben lesz.',
   },
   'Sarah Chen wants stable hobby hosting — referral $200': {
-    title: 'Sarah Chen stabil hobby-tier hosting-ot keres — közvetítés $200',
-    body: 'Sarah egy kis DTC kozmetikai webshopot visz Squarespace-en. Igazi $5-15/hó VPS-t akar staging-re. Hűséges típus — időben fizet, negyedévente kérdezi meg hogy minden OK. Mi tele vagyunk, $200-ért átküldjük hozzád. Ő választ szolgáltatót.',
+    title: 'Sarah Chen stabil Hobbi csomagot keres — közvetítés $200',
+    body: 'Sarah egy kis kozmetikai webshopot visz Squarespace-en. Igazi, $5–15/hó-s VPS-t akar tesztkörnyezetnek. Hűséges típus — időben fizet, negyedévente megkérdezi, minden rendben van-e. Mi tele vagyunk, $200-ért átküldjük hozzád. Ő választ szolgáltatót.',
   },
   'Tomás López — first-time founder needs hand-holding': {
-    title: 'Tomás López — első vállalkozó, kézfogásra szorul',
-    body: 'Tomás most lépett ki a sysadmin állásából helyi-vállalkozói katalógust indít. Nem tudja még mi az a CNAME, de türelmes és előre fizet. Olcsó hobby-tier, sok support-ticket de kedves. $150 a közvetítés.',
+    title: 'Tomás López — első vállalkozó, fogni kell a kezét',
+    body: 'Tomás most hagyta ott a rendszergazdai állását, és helyi vállalkozói katalógust indít. Még nem tudja, mi az a CNAME, de türelmes, és előre fizet. Olcsó Hobbi csomag, sok ticket, de kedves. $150 a közvetítés.',
   },
   'Avery Tran — business-tier, RFC-quoting senior engineer': {
-    title: 'Avery Tran — business-tier, RFC-idéző senior fejlesztő',
-    body: 'Avery egy fintech principal engineer. Business-tier setup-ot akar a side projectjéhez. Olvasni fogja a status-oldalad, írni fog IPv6-ról, időben fizet, $30/hó-ért nem fog megrezzenni. $400-ért éri megismerni. Ő választ szolgáltatót.',
+    title: 'Avery Tran — Üzleti csomag, RFC-ket idéző tapasztalt fejlesztő',
+    body: 'Avery vezető mérnök egy pénzügyi-technológiai cégnél. Üzleti csomagot akar a hobbiprojektjéhez. Elolvassa a státuszoldaladat, írni fog az IPv6-ról, időben fizet, és a $30/hó meg sem kottyan neki. $400-ért megéri megismerni. Ő választ szolgáltatót.',
   },
   'Jordan Smith — bargain-hunter, hobby-tier': {
-    title: 'Jordan Smith — alku-vadász, hobby-tier',
-    body: 'Jordan minden megújításkor három szolgáltatónak küld kedvezmény-kérő levelet. Végül fizetni fog az olcsó csomagon. Negyedévente nyit egy refund-ticketet is. $80-ért adtuk át — a te dolgod most.',
+    title: 'Jordan Smith — alkuvadász, Hobbi csomag',
+    body: 'Jordan minden megújításkor három szolgáltatótól kér levélben kedvezményt. Végül az olcsó csomagon fog fizetni. Negyedévente nyit egy visszatérítési ticketet is. $80-ért adjuk tovább — mostantól a te gondod.',
   },
   'Beth Park — $50 fire-sale, do not say we didn\'t warn you': {
-    title: 'Beth Park — $50 tűzosztó, ne mondd hogy nem szóltunk',
-    body: 'Beth egy "Karen". Két hét alatt három P1-et nyitott nálunk. Utálja a jelenlegi szolgáltatóját. Utálni fogja a következőt is. $50-ért átpasszoljuk valaki másnak. Hobby tier, sat 25-ön indul, figyelmeztettünk.',
+    title: 'Beth Park — $50-os végkiárusítás, ne mondd, hogy nem szóltunk',
+    body: 'Beth az a fajta ügyfél, aki mindig a vezetővel akar beszélni. Két hét alatt három P1-es ticketet nyitott nálunk. Utálja a jelenlegi szolgáltatóját. A következőt is utálni fogja. $50-ért átpasszoljuk valaki másnak. Hobbi csomag, 25-ös elégedettséggel indul — szóltunk.',
   },
 };
 
