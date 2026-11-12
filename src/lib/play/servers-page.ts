@@ -10,7 +10,8 @@ import { serverName, serverFlavor, upgradeName, upgradeEffect } from './catalog'
 import { rackUnitStates, unit2d } from './rack-model';
 import { daysAlive } from '../game/era-progress';
 import { serverCapacity } from '../game/server-types';
-import { effectiveMonthlyFees } from '../game/economy';
+import { effectiveMonthlyFees, ECONOMY } from '../game/economy';
+import { isDedicatedServer, dedicatedFeeMid } from '../game/dedicated';
 import { NO_EFFECTS } from '../game/upgrade-effects';
 // 2026-11-12 (játékmag): a kapacitás a fejlesztésekkel együtt (a hívó már a tényleges kapacitást adja át),
 // a havidíj valóban levonódik (a fejlesztésekkel csökkentve), a katalógusban: hány ügyféltől termeli ki a díját.
@@ -30,6 +31,20 @@ export interface ServersPageData {
   upgrades: BuyableUpgrade[];
   /** A játékos hobby-ára (cent) — a „hány ügyféltől termeli ki a havidíját" számításhoz. */
   hobbyPriceCents?: number;
+  /** 2026-11-12 (dedikált-kör): az aktív nagy ügyfelek (vásárlási sorrendben kerülnek a dedikált gépekre), a hírnév
+   *  és hogy még hány napig nem jelentkezik új (egy felmondás után). activeCustomers a SIMA ügyfelek száma. */
+  dedicated?: { customers: Array<{ id: number; name: string; satisfaction: number; fee_cents: number }>; reputation: number; cooldownDays: number };
+}
+
+/** A dedikált gép állapot-szövege: ki bérli, vagy miért nem jön még senki. */
+function dedStatus(L: Parameters<typeof pt>[0], d: ServersPageData): string {
+  const rule = ECONOMY.dedicated;
+  if (!rule) return '';
+  const days = Math.max(1, Math.round(1 / rule.arrival_per_day));
+  const rep = d.dedicated?.reputation ?? 0;
+  if (rep < rule.min_reputation) return pt(L, 'srv.ded_lowrep', { r: rule.min_reputation, n: rep });
+  if ((d.dedicated?.cooldownDays ?? 0) > 0) return pt(L, 'srv.ded_cooldown', { n: d.dedicated!.cooldownDays });
+  return pt(L, 'srv.ded_waiting', { r: rule.min_reputation, d: days });
 }
 
 export function renderServersContent(d: ServersPageData): string {
@@ -38,7 +53,12 @@ export function renderServersContent(d: ServersPageData): string {
   const effs = s.effects ?? NO_EFFECTS;
   const lost24h = s.fleet?.lost24h ?? 0;
   // Állapot a 3D rackkel közös függvényből (rack-model): ≥ 70% borostyán, piros csak túlcsordulás / incidens.
-  const { loaded, units: rackStates } = rackUnitStates(d.servers, d.activeCustomers, d.openIncidents ?? []);
+  const dedList = d.dedicated?.customers ?? [];
+  const { loaded, units: rackStates } = rackUnitStates(d.servers, d.activeCustomers, d.openIncidents ?? [], dedList.length);
+  // A dedikált gépek sorrendben kapják a nagy ügyfeleket (ugyanúgy, mint assignFleetLoad).
+  const dedOf = new Map<number, (typeof dedList)[number]>();
+  { let k = 0; for (const sv of loaded.servers) if (sv.dedicated && sv.load > 0 && dedList[k]) dedOf.set(sv.id, dedList[k++]); }
+  const dedTag = `<b class="ded-tag">${esc(pt(L, 'srv.ded_tag'))}</b>`;
   const used = loaded.servers.length;
   const rows: string[] = [];
   const total = Math.max(12, used);
@@ -51,12 +71,39 @@ export function renderServersContent(d: ServersPageData): string {
     }
     const { util, state } = rackStates[i];
     const v = unit2d(state);
-    rows.push(`<div role="button" tabindex="0" class="u-row${v.row}${i === 0 ? ' selected' : ''}" data-srv="${sv.id}" data-state="${state}"><span class="lbl">${lbl}</span><span class="name">${esc(serverName(L, sv.type))}</span><span class="leds"><i class="${v.leds[0]}"></i><i class="${v.leds[1]}"></i><i class="${v.leds[2]}"></i></span><span class="util">${util}%</span></div>`);
+    const ded = sv.dedicated;
+    const who = dedOf.get(sv.id);
+    rows.push(`<div role="button" tabindex="0" class="u-row${v.row}${ded ? ' ded' : ''}${i === 0 ? ' selected' : ''}" data-srv="${sv.id}" data-state="${state}"><span class="lbl">${lbl}</span><span class="name">${esc(ded && who ? who.name : serverName(L, sv.type))}</span><span class="leds">${ded ? dedTag : `<i class="${v.leds[0]}"></i><i class="${v.leds[1]}"></i><i class="${v.leds[2]}"></i>`}</span><span class="util">${ded ? (who ? '1/1' : esc(pt(L, 'srv.ded_empty'))) : util + '%'}</span></div>`);
   }
 
   const details = loaded.servers.map((sv, i) => {
     const boughtDay = daysAlive(d.foundedAt, sv.purchased_at) + 1;
     const statusCls = unit2d(rackStates[i].state).tone;
+    if (sv.dedicated) {
+      const who = dedOf.get(sv.id);
+      const mood = who ? who.satisfaction - 50 : 0;
+      return `
+          <div class="srv-detail" data-srv-detail="${sv.id}"${i === 0 ? '' : ' hidden'}>
+            <div class="detail-head">
+              <div class="badge-u ded">U${24 - i}</div>
+              <div>
+                <h2>${esc(serverName(L, sv.type))} ${dedTag}</h2>
+                <div class="sub">${esc(pt(L, 'srv.bought_day', { n: boughtDay }))} · ${esc(who ? pt(L, 'srv.ded_client', { name: who.name, v: usd(who.fee_cents) }) : dedStatus(L, d))}</div>
+              </div>
+            </div>
+            <div class="detail-grid">
+              <div class="dgrid"><div class="k">${esc(pt(L, 'srv.k.client'))}</div><div class="v sm ${who ? (mood >= 0 ? 'good' : 'bad') : ''}">${esc(who ? who.name : '—')}</div><div class="meta">${esc(who ? pt(L, 'srv.ded_client_meta', { s: who.satisfaction }) : pt(L, 'srv.ded_empty'))}</div></div>
+              <div class="dgrid"><div class="k">MRR</div><div class="v good">${esc(who ? usd(who.fee_cents) : '—')}</div><div class="meta">${esc(ECONOMY.dedicated ? pt(L, 'srv.ded_offer', { v: usd(dedicatedFeeMid(ECONOMY.dedicated)) }) : '')}</div></div>
+              <div class="dgrid"><div class="k">${esc(pt(L, 'srv.k.monthly'))}</div><div class="v">${esc(usd(sv.monthly_cost_cents))}</div><div class="meta">${esc(effs.fee_pct < 0 ? pt(L, 'srv.monthly_disc', { v: usd(effectiveMonthlyFees(sv.monthly_cost_cents, effs.fee_pct)) }) : pt(L, 'srv.monthly_meta'))}</div></div>
+              <div class="dgrid"><div class="k">${esc(pt(L, 'srv.k.age'))}</div><div class="v">${esc(pt(L, 'runway.days', { n: Math.max(0, s.day - boughtDay) }))}</div><div class="meta">${esc(pt(L, 'srv.bought_day', { n: boughtDay }))}</div></div>
+            </div>
+            <div class="detail-section">
+              <h4>${esc(pt(L, 'srv.about'))}</h4>
+              <p class="srv-flavor">${esc(who ? pt(L, 'sx.ded_note') : dedStatus(L, d))}</p>
+              <p class="srv-flavor">${esc(ECONOMY.dedicated ? pt(L, 'srv.ded_how', { d: Math.max(1, Math.round(1 / ECONOMY.dedicated.arrival_per_day)), r: ECONOMY.dedicated.min_reputation }) : serverFlavor(L, sv.type))}</p>
+            </div>
+          </div>`;
+    }
     return `
           <div class="srv-detail" data-srv-detail="${sv.id}"${i === 0 ? '' : ' hidden'}>
             <div class="detail-head">
@@ -87,6 +134,19 @@ export function renderServersContent(d: ServersPageData): string {
       const slots = serverCapacity(b.type, b.capacity, effs.capacity_pct);
       const fee = effectiveMonthlyFees(b.monthly_cost_cents, effs.fee_pct);
       const k = Math.max(1, Math.ceil(fee / Math.max(1, d.hobbyPriceCents ?? 500)));
+      const rule = ECONOMY.dedicated;
+      if (isDedicatedServer(b.type) && rule) {
+        // „1 nagy ügyfél, ~$X/hó, magas elvárás" + mikor térül meg a vételár (a sáv közepével számolva).
+        const mid = dedicatedFeeMid(rule);
+        const months = Math.round((b.purchase_cost_cents / Math.max(1, mid - fee)) * 10) / 10;
+        return `
+          <div class="cat-item ded${ok ? ' affordable' : ''}">
+            <div class="row1"><span class="name">${esc(serverName(L, b.type))}</span> ${dedTag}<span class="tag${ok ? '' : ' lock'}">${esc(pt(L, ok ? 'srv.tag_ok' : 'srv.tag_cash'))}</span></div>
+            <div class="ded-offer">${esc(pt(L, 'srv.ded_offer', { v: usd(mid) }))}</div>
+            <div class="specs-mini"><span>${esc(pt(L, 'srv.per_month', { v: usd(fee) }))}</span><span>${esc(pt(L, 'srv.ded_payback', { m: months.toLocaleString(L === 'en' ? 'en-US' : L === 'de' ? 'de-DE' : 'hu-HU') }))}</span><span>${esc(pt(L, 'srv.ded_how', { d: Math.max(1, Math.round(1 / rule.arrival_per_day)), r: rule.min_reputation }))}</span></div>
+            <div class="row2"><span class="price${ok ? '' : ' lock'}">${esc(usd(b.purchase_cost_cents))}</span><button class="buy" type="button"${ok ? ` data-buy-server="${esc(b.type)}" data-name="${esc(serverName(L, b.type))}" data-cost="${b.purchase_cost_cents}"` : ' disabled'}>${esc(pt(L, ok ? 'srv.buy' : 'srv.tag_cash'))}</button></div>
+          </div>`;
+      }
       return `
           <div class="cat-item${ok ? ' affordable' : ''}">
             <div class="row1"><span class="name">${esc(serverName(L, b.type))}</span><span class="tag${ok ? '' : ' lock'}">${esc(pt(L, ok ? 'srv.tag_ok' : 'srv.tag_cash'))}</span></div>

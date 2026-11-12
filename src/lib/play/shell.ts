@@ -86,13 +86,15 @@ export async function loadShell(
     one("SELECT COUNT(*) AS n FROM tickets WHERE player_id = ? AND status IN ('open', 'in_progress')", uid),
     one('SELECT COUNT(*) AS n FROM upgrades WHERE player_id = ?', uid),
   ]);
-  const [srvRows, upRows, feeSum, lost24h] = await Promise.all([
+  const [srvRows, upRows, feeSum, lost24h, dedCustomers] = await Promise.all([
     db.prepare('SELECT type, capacity FROM servers WHERE player_id = ?').bind(uid).all<{ type: string; capacity: number }>(),
     db.prepare('SELECT upgrade_id FROM upgrades WHERE player_id = ?').bind(uid).all<{ upgrade_id: string }>(),
     one('SELECT COALESCE(SUM(monthly_cost_cents), 0) AS n FROM servers WHERE player_id = ?', uid),
     // capacity_lost: napi egy sor, a data_json.count gyűlik (tick.ts)
     one("SELECT COALESCE(SUM(CAST(json_extract(data_json, '$.count') AS INTEGER)), 0) AS n FROM events " +
       "WHERE player_id = ? AND event_type = 'capacity_lost' AND spawned_at >= ?", uid, now - 86400),
+    // 2026-11-12 (dedikált-kör): a nagy ügyfelek a saját gépükön ülnek — a flotta-terhelésbe nem számítanak.
+    one("SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier = 'dedicated'", uid),
   ]);
   const effects = effectsOf((upRows.results ?? []).map((r) => r.upgrade_id));
   const capPct = ECONOMY.upgrade_effects ? effects.capacity_pct : 0;
@@ -111,7 +113,7 @@ export async function loadShell(
     mrrCents: player.mrr_usd_cents,
     rep: player.reputation,
     flow: dailyCashFlow({ ...player, server_monthly_cents: feeSum, fee_pct: effects.fee_pct }),
-    fleet: { capacity, utilPct: fleetUtilPct(customers, capacity), lost24h, monthlyListedCents: feeSum },
+    fleet: { capacity, utilPct: fleetUtilPct(customers - dedCustomers, capacity), lost24h, monthlyListedCents: feeSum },
     effects,
     counts: {
       servers, customers, newCustomers24h, openTickets, upgradesOwned,

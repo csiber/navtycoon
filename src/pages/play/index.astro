@@ -291,7 +291,14 @@ const dashContent = renderDashboardContent({
 const rack3dServers = rackServers.map((s) => ({ id: s.id, type: s.type, capacity: serverCapacityDash(s.type, s.capacity, shell.effects.capacity_pct) }));
 const rack3d = {
   page: 'dashboard',
-  model: buildRackModel({ servers: rack3dServers, activeCustomers: allActiveCustomers.length, openIncidents: openIncidents3d, nameOf: (t) => serverName3d(locale, t), minSlots: 8 }),
+  model: buildRackModel({
+    servers: rack3dServers, openIncidents: openIncidents3d, nameOf: (t) => serverName3d(locale, t), minSlots: 8,
+    // 2026-11-12 (dedikált-kör): a nagy ügyfelek a dedikált gépeken, a többiek a sima gépeken.
+    activeCustomers: allActiveCustomers.filter((c) => c.plan_tier !== 'dedicated').length,
+    dedicatedCustomers: allActiveCustomers.filter((c) => c.plan_tier === 'dedicated').length,
+    dedTag: pt(locale, 'srv.ded_tag'),
+    dedNames: allActiveCustomers.filter((c) => c.plan_tier === 'dedicated').sort((a, b) => a.id - b.id).map((c) => c.name),
+  }),
   labels: { ...clientStrings3d(locale, ['r3.']), 'r3.empty': pt(locale, 'dash.fleet.empty') },
 };
 const shellHtml = applyDashboardContent(applyShell(pageHtml, shell, 'dashboard', [pt(locale, 'nav.dashboard')]), dashContent);

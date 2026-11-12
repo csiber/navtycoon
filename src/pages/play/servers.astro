@@ -18,6 +18,8 @@ import DashboardAnims from '../../components/DashboardAnims.astro';
 import { buildRackModel } from '../../lib/play/rack-model';
 import { serverName } from '../../lib/play/catalog';
 import { clientStrings } from '../../lib/play/strings';
+import { ECONOMY } from '../../lib/game/economy';
+import { dedicatedFeeCents } from '../../lib/game/dedicated';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -39,8 +41,17 @@ const pageHtml = "\n<div class=\"app\">\n\n  <!-- Sidebar -->\n  <aside>\n    <a
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
-const activeCustomers = (await db.prepare('SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1')
+// 2026-11-12 (dedikált-kör): a sima ügyfelek a sima gépeken, a nagy ügyfelek a dedikált gépeken (vásárlási sorrendben).
+const activeCustomers = (await db.prepare("SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier != 'dedicated'")
   .bind(user.id).first<{ n: number }>())?.n ?? 0;
+const dedRule = ECONOMY.dedicated;
+const dedCustomers = ((await db.prepare("SELECT id, name, satisfaction FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier = 'dedicated' ORDER BY id ASC")
+  .bind(user.id).all<{ id: number; name: string; satisfaction: number }>()).results ?? [])
+  .map((c) => ({ ...c, fee_cents: dedRule ? dedicatedFeeCents(dedRule, c.id) : 0 }));
+const lastDedLost = (await db.prepare("SELECT MAX(spawned_at) AS t FROM events WHERE player_id = ? AND event_type = 'dedicated_lost'")
+  .bind(user.id).first<{ t: number | null }>())?.t ?? null;
+const nowSrv = Math.floor(Date.now() / 1000);
+const dedCooldownDays = dedRule && lastDedLost ? Math.max(0, Math.ceil((lastDedLost + dedRule.leave_cooldown_days * 86400 - nowSrv) / 86400)) : 0;
 // A nyitott incidens „leállít" egy gépet — a 2D sorokban és a 3D rackben ugyanazt.
 const openIncidents = ((await db.prepare('SELECT event_type FROM events WHERE player_id = ? AND resolved_at IS NULL')
   .bind(user.id).all<{ event_type: string }>()).results ?? []).map((r) => r.event_type);
@@ -52,6 +63,7 @@ const serversContent = renderServersContent({
   foundedAt: player.founded_at,
   activeCustomers,
   hobbyPriceCents: player.pricing_hobby_cents,
+  dedicated: { customers: dedCustomers, reputation: player.reputation, cooldownDays: dedCooldownDays },
   servers: effServers.map((sv) => ({ id: sv.id, type: sv.type, capacity: sv.capacity, monthly_cost_cents: sv.monthly_cost_cents, purchased_at: sv.purchased_at })),
   buyable: buyable.map((b) => ({ type: b.type, capacity: b.capacity, monthly_cost_cents: b.monthly_cost_cents, purchase_cost_cents: b.purchase_cost_cents })),
   upgrades: upgradesAvail.map((u) => ({ id: u.id, cost_usd_cents: u.cost_usd_cents })),
@@ -60,7 +72,10 @@ const shellHtml = applyContent(applyShell(pageHtml, shell, 'servers', [pt(locale
 // 3D rack (src/scripts/rack3d): ugyanaz a valós adat és állapot, mint a 2D soroké (rack-model).
 const rack3d = {
   page: 'servers',
-  model: buildRackModel({ servers: effServers, activeCustomers, openIncidents, nameOf: (t) => serverName(locale, t), minSlots: 12 }),
+  model: buildRackModel({
+    servers: effServers, activeCustomers, openIncidents, nameOf: (t) => serverName(locale, t), minSlots: 12,
+    dedicatedCustomers: dedCustomers.length, dedTag: pt(locale, 'srv.ded_tag'), dedNames: dedCustomers.map((c) => c.name),
+  }),
   labels: { ...clientStrings(locale, ['r3.']), 'r3.empty': pt(locale, 'dash.fleet.empty') },
 };
 ---

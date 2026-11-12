@@ -2,7 +2,9 @@
 // Egy forrás a 3D-nek (src/scripts/rack3d) és a 2D-tartaléknak: a gépek a valódi szerverek, a terhelés az
 // assignLoad szerint, az állapot a terhelésből és a futó incidensekből.
 
-import { assignLoad, type CapacityServer } from '../game/capacity';
+import { assignFleetLoad, type CapacityServer } from '../game/capacity';
+// 2026-11-12 (dedikált-kör): a dedikált gép külön jelölést kap (dedicated + tag), a terhelése a nagy ügyfél
+// (0 vagy 1), a sima ügyfelek nem kerülnek rá; a túlcsordulás a legutolsó SIMA gépen torlódik.
 
 export type UnitState = 'idle' | 'ok' | 'warn' | 'hot' | 'down';
 
@@ -16,6 +18,10 @@ export interface RackUnit {
   capacity: number;
   util: number;
   state: UnitState;
+  /** Dedikált gép (egy nagy ügyfélé). */
+  dedicated?: boolean;
+  /** Rövid felirat az előlapra (pl. „DEDIKÁLT"). */
+  tag?: string;
 }
 
 export interface RackModel {
@@ -77,23 +83,33 @@ export function unit2d(state: UnitState): Unit2d {
  * Az incidens a legterheltebb gépet „dönti le" (holtversenyben a rack tetején lévőt); ha valaki nem fér el,
  * az utolsó gép túlterhelt (a túlcsordulás rajta torlódik).
  */
-export function rackUnitStates<T extends CapacityServer>(
+export function rackUnitStates<T extends CapacityServer & { type?: string }>(
   servers: T[],
   activeCustomers: number,
   openIncidents: string[] = [],
+  /** Ennyi aktív dedikált ügyfél van (activeCustomers a SIMA ügyfelek száma). */
+  dedicatedCustomers = 0,
 ): {
-  loaded: { servers: Array<T & { load: number; util: number }>; overflow: number; totalCapacity: number };
+  loaded: { servers: Array<T & { load: number; util: number; dedicated: boolean }>; overflow: number; totalCapacity: number };
   incident: string | null;
   units: { util: number; state: UnitState }[];
 } {
-  const loaded = assignLoad(servers, activeCustomers);
+  const loaded = assignFleetLoad(servers.map((s) => ({ ...s, type: s.type ?? '' })), activeCustomers, dedicatedCustomers) as
+    { servers: Array<T & { load: number; util: number; dedicated: boolean }>; overflow: number; totalCapacity: number };
   const incident = openIncidents.find((t) => (DOWN_EVENTS as readonly string[]).includes(t)) ?? null;
   let downIdx = -1;
   if (incident && loaded.servers.length > 0) {
     downIdx = loaded.servers.reduce((best, s, i, arr) => (s.util > arr[best].util ? i : best), 0);
   }
+  // A túlcsordulás a legutolsó sima gépen torlódik (a dedikált gépen soha).
+  let lastGeneral = -1;
+  loaded.servers.forEach((s, i) => { if (!s.dedicated) lastGeneral = i; });
   const units = loaded.servers.map((s, i) => {
-    const overflowing = loaded.overflow > 0 && i === loaded.servers.length - 1;
+    if (s.dedicated) {
+      // Foglalt dedikált gép: „ok" (zöld) — a teli dedikált gép a cél, nem figyelmeztetés.
+      return { util: s.util, state: i === downIdx ? 'down' as const : s.load > 0 ? 'ok' as const : 'idle' as const };
+    }
+    const overflowing = loaded.overflow > 0 && i === lastGeneral;
     const util = overflowing ? Math.max(s.util, 100) : s.util;
     return { util, state: unitState(util, s.load, i === downIdx, overflowing) };
   });
@@ -102,17 +118,28 @@ export function rackUnitStates<T extends CapacityServer>(
 
 export function buildRackModel(input: {
   servers: { id: number; type: string; capacity: number }[];
+  /** A SIMA aktív ügyfelek száma (a dedikáltak nélkül). */
   activeCustomers: number;
+  /** Aktív dedikált ügyfelek; a dedikált gép sorának felirata (dedTag) és neve (dedName: az ügyfél neve). */
+  dedicatedCustomers?: number;
+  dedTag?: string;
+  dedNames?: string[];
   /** Nyitott (megoldatlan) incidens-esemény típusa, ha van. */
   openIncidents?: string[];
   nameOf: (type: string) => string;
   minSlots?: number;
 }): RackModel {
-  const { loaded, incident, units: st } = rackUnitStates(input.servers, input.activeCustomers, input.openIncidents);
-  const units = loaded.servers.map((s, i) => ({
-    id: s.id, u: 24 - i, type: s.type, name: input.nameOf(s.type),
-    load: s.load, capacity: s.capacity, util: st[i].util, state: st[i].state,
-  }));
+  const { loaded, incident, units: st } = rackUnitStates(input.servers, input.activeCustomers, input.openIncidents, input.dedicatedCustomers ?? 0);
+  let dIdx = 0;
+  const units: RackUnit[] = loaded.servers.map((s, i) => {
+    const base: RackUnit = {
+      id: s.id, u: 24 - i, type: s.type, name: input.nameOf(s.type),
+      load: s.load, capacity: s.capacity, util: st[i].util, state: st[i].state,
+    };
+    if (!s.dedicated) return base;
+    const who = s.load > 0 ? input.dedNames?.[dIdx++] : undefined;
+    return { ...base, dedicated: true, tag: input.dedTag, name: who ? `${base.name} · ${who}` : base.name };
+  });
   return {
     units: units.slice(0, 24),
     hidden: Math.max(0, units.length - 24),

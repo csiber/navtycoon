@@ -55,7 +55,9 @@ function faceTexture(u: RackUnit | null, label: string): CanvasTexture {
   const bg = g.createLinearGradient(0, 0, 0, 96);
   bg.addColorStop(0, u ? '#262c46' : '#141828'); bg.addColorStop(1, u ? '#1a1f33' : '#0e1220');
   g.fillStyle = bg; g.fillRect(0, 0, 1024, 96);
-  g.strokeStyle = u ? 'rgba(129,140,248,.35)' : 'rgba(255,255,255,.05)'; g.lineWidth = 3; g.strokeRect(2, 2, 1020, 92);
+  // Dedikált gép (egy nagy ügyfélé): arany keret, hogy a rackben is kiugorjon (2026-11-12).
+  g.strokeStyle = u?.dedicated ? 'rgba(251,191,36,.9)' : u ? 'rgba(129,140,248,.35)' : 'rgba(255,255,255,.05)';
+  g.lineWidth = u?.dedicated ? 5 : 3; g.strokeRect(2, 2, 1020, 92);
   // fülek (rack ears) csavarral
   for (const x of [8, 984]) {
     g.fillStyle = u ? '#2e3554' : '#191d2e'; g.fillRect(x, 6, 32, 84);
@@ -75,8 +77,15 @@ function faceTexture(u: RackUnit | null, label: string): CanvasTexture {
     const col = STATE_COL[u.state];
     g.fillStyle = 'rgba(7,9,15,.7)'; g.fillRect(150, 64, 330, 10);
     g.fillStyle = `#${col.getHexString()}`; g.fillRect(150, 64, Math.round(330 * Math.min(100, u.util) / 100), 10);
-    g.fillStyle = '#8b92ad'; g.font = '500 24px "JetBrains Mono", ui-monospace, monospace';
-    g.textAlign = 'right'; g.fillText(`${u.util}%`, 960, 48); g.textAlign = 'left';
+    if (u.dedicated && u.tag) {
+      // felirat-címke a szellőzőrács elején
+      g.font = '700 22px "JetBrains Mono", ui-monospace, monospace';
+      const w = g.measureText(u.tag).width + 24;
+      g.fillStyle = '#f59e0b'; g.fillRect(510, 30, w, 36);
+      g.fillStyle = '#1c1300'; g.fillText(u.tag, 522, 49);
+    }
+    g.fillStyle = u.dedicated ? '#fbbf24' : '#8b92ad'; g.font = '500 24px "JetBrains Mono", ui-monospace, monospace';
+    g.textAlign = 'right'; g.fillText(u.dedicated ? (u.load > 0 ? '1/1' : '0/1') : `${u.util}%`, 960, 48); g.textAlign = 'left';
   } else {
     g.fillStyle = '#3a4060'; g.font = '500 24px "JetBrains Mono", ui-monospace, monospace'; g.fillText(label, 150, 48);
   }

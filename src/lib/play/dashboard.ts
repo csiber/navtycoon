@@ -139,7 +139,10 @@ export function renderDashboardContent(d: DashboardData): string {
   const s = d.shell;
   const L = s.locale;
   const active = d.customersAll;
-  const paying = active.filter((c) => c.plan_tier === 'hobby' || c.plan_tier === 'business');
+  const paying = active.filter((c) => c.plan_tier === 'hobby' || c.plan_tier === 'business' || c.plan_tier === 'dedicated');
+  // 2026-11-12 (dedikált-kör): a nagy ügyfelek a saját dedikált gépükön ülnek, a flotta-kapacitás a többieké.
+  const dedActive = active.filter((c) => c.plan_tier === 'dedicated').sort((a, b) => a.id - b.id);
+  const generalN = active.length - dedActive.length;
   const hobby = active.filter((c) => c.plan_tier === 'hobby').length;
   const business = active.filter((c) => c.plan_tier === 'business').length;
   const atRisk = active.filter((c) => c.churn_risk >= 50).length;
@@ -195,7 +198,8 @@ export function renderDashboardContent(d: DashboardData): string {
 
   // ─── Fleet (real servers) ───
   // Állapot a 3D rackkel közös függvényből (rack-model): ≥ 70% borostyán, piros csak túlcsordulás / incidens.
-  const { loaded, units: rackStates } = rackUnitStates(d.servers, active.length, d.openIncidents ?? []);
+  const { loaded, units: rackStates } = rackUnitStates(d.servers, generalN, d.openIncidents ?? [], dedActive.length);
+  let dedK = 0;
   const totalCap = loaded.totalCapacity;
   const rows: string[] = [];
   for (let i = 0; i < Math.max(5, d.servers.length) && i < 8; i++) {
@@ -204,13 +208,19 @@ export function renderDashboardContent(d: DashboardData): string {
     if (sv) {
       const { util, state } = rackStates[i];
       const v = unit2d(state);
-      rows.push(`<div class="u${v.row}" data-state="${state}"><span class="lbl">${lbl}</span><span class="name">${esc(serverName(L, sv.type, SERVER_SPECS[sv.type as keyof typeof SERVER_SPECS]?.display_name ?? sv.type))}</span><span class="leds"><i class="${v.leds[0]}"></i><i class="${v.leds[1]}"></i><i class="${v.leds[2]}"></i></span><span class="util">${util}%</span></div>`);
+      const nm = esc(serverName(L, sv.type, SERVER_SPECS[sv.type as keyof typeof SERVER_SPECS]?.display_name ?? sv.type));
+      if (sv.dedicated) {
+        const who = sv.load > 0 ? dedActive[dedK++] : undefined;
+        rows.push(`<div class="u${v.row} ded" data-state="${state}"><span class="lbl">${lbl}</span><span class="name">${who ? esc(who.name) : nm}</span><span class="leds"><b class="ded-tag">${esc(pt(L, 'srv.ded_tag'))}</b></span><span class="util">${who ? '1/1' : esc(pt(L, 'srv.ded_empty'))}</span></div>`);
+      } else {
+        rows.push(`<div class="u${v.row}" data-state="${state}"><span class="lbl">${lbl}</span><span class="name">${nm}</span><span class="leds"><i class="${v.leds[0]}"></i><i class="${v.leds[1]}"></i><i class="${v.leds[2]}"></i></span><span class="util">${util}%</span></div>`);
+      }
     } else {
       rows.push(`<div class="u empty"><span class="lbl">${lbl}</span><span class="name">${esc(pt(L, 'dash.fleet.empty'))}</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>`);
     }
   }
   // 2026-11-12 (játékmag): a harmadik mini-stat a flotta terhelése (vagy az elmaradt ügyfelek, ha voltak).
-  const utilPct = fleetUtilPct(active.length, totalCap);
+  const utilPct = fleetUtilPct(generalN, totalCap);
   const utilCls = utilPct >= 100 ? ' bad' : utilPct >= FLEET_WARN_PCT ? ' warn' : '';
   const fleet = `
         <section class="panel">

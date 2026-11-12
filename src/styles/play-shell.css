@@ -543,3 +543,19 @@ aside[data-shell] .nav-item .badge.warn { background: rgba(245,158,11,.18); colo
 .fleet-banner a.fb-cta { flex: none; padding: 8px 14px; border-radius: 8px; background: var(--amber); color: #14110a; font-weight: 700; font-size: 13px; text-decoration: none; }
 .fleet-banner.full a.fb-cta { background: var(--pink); color: #fff; }
 .fleet-banner a.fb-cta:hover { filter: brightness(1.08); }
+
+/* 2026-11-12 (dedikált-kör): a dedikált gép és a nagy ügyfél jelölése (Szerverek, vezérlő Flotta, Ügyfelek) */
+.ded-tag, .ded-badge {
+  display: inline-block; vertical-align: 1px;
+  font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 4px; color: #1c1300;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b); border: 1px solid #f59e0b;
+}
+.ded-badge { margin-left: 6px; border-radius: 999px; }
+.u-row.ded, .rack-body .u.ded { border-color: rgba(245,158,11,.55); box-shadow: inset 3px 0 0 #f59e0b; }
+.u-row.ded .name, .rack-body .u.ded .name { color: #fde68a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.u-row.ded .util, .rack-body .u.ded .util { color: #fbbf24; }
+.badge-u.ded { background: linear-gradient(135deg, #fbbf24, #b45309); box-shadow: 0 0 0 2px rgba(251,191,36,.35); }
+.cat-item.ded { border-color: rgba(245,158,11,.45); background: linear-gradient(180deg, rgba(245,158,11,.08), transparent 70%), var(--panel-2); }
+.cat-item.ded .ded-offer { margin-top: 6px; font-weight: 600; font-size: 12.5px; color: #fde68a; }
+.srv-detail .dgrid .v.sm { font-size: 13px; line-height: 1.25; letter-spacing: -0.01em; }

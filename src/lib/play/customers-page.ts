@@ -10,6 +10,8 @@ import { pt, type PlayLocale, type PlayKey } from './strings';
 import { ago } from './events';
 import { tip } from './dashboard';
 import { localizePlaceholderTicket } from '../game/customer-spawn';
+import { ECONOMY } from '../game/economy';
+import { dedicatedFeeCents, isDedicatedCustomer } from '../game/dedicated';
 
 export interface CustRow {
   id: number; name: string; persona_archetype: string; plan_tier: string; joined_at: number;
@@ -43,6 +45,12 @@ export function planPrice(plan: string, prices: { hobby: number; business: numbe
   return plan === 'hobby' ? prices.hobby : plan === 'business' ? prices.business : 0;
 }
 
+/** Egy ügyfél havidíja: a dedikált (nagy) ügyfélé az azonosítójából (dedicated.ts), a többieké a csomag ára. */
+export function customerPrice(c: { id: number; plan_tier: string }, prices: { hobby: number; business: number }): number {
+  if (isDedicatedCustomer(c.plan_tier)) return ECONOMY.dedicated ? dedicatedFeeCents(ECONOMY.dedicated, c.id) : 0;
+  return planPrice(c.plan_tier, prices);
+}
+
 /**
  * Becsült élettartam-érték: a havidíj × eltelt hónapok (a tick folyamatosan, 5 percenként írja jóvá a bevételt).
  * A customers.lifetime_value_cents oszlopot semmi nem frissíti, ezért nem azt mutatjuk.
@@ -51,15 +59,18 @@ export function estimateLtvCents(priceCents: number, joinedAt: number, until: nu
   return Math.max(0, Math.round(priceCents * Math.max(0, until - joinedAt) / (30 * 86400)));
 }
 
-type Filter = 'all' | 'hobby' | 'business' | 'risk' | 'left';
+type Filter = 'all' | 'dedicated' | 'hobby' | 'business' | 'risk' | 'left';
 
 export function renderCustomersContent(d: CustomersPageData): string {
   const s = d.shell;
   const L = s.locale;
-  const sorted = [...d.customers].sort((a, b) => (b.is_active - a.is_active) || (a.satisfaction - b.satisfaction));
+  // A nagy (dedikált) ügyfelek az aktívak élén (2026-11-12), utánuk a legelégedetlenebbek.
+  const dedRank = (c: CustRow) => (isDedicatedCustomer(c.plan_tier) ? 1 : 0);
+  const sorted = [...d.customers].sort((a, b) => (b.is_active - a.is_active) || (dedRank(b) - dedRank(a)) || (a.satisfaction - b.satisfaction));
   const active = sorted.filter((c) => c.is_active === 1);
   const counts: Record<Filter, number> = {
     all: sorted.length,
+    dedicated: active.filter((c) => isDedicatedCustomer(c.plan_tier)).length,
     hobby: active.filter((c) => c.plan_tier === 'hobby').length,
     business: active.filter((c) => c.plan_tier === 'business').length,
     risk: active.filter((c) => c.churn_risk >= 50).length,
@@ -81,18 +92,21 @@ export function renderCustomersContent(d: CustomersPageData): string {
     const mood = c.satisfaction - 50;
     const moodCls = c.is_active !== 1 ? 'muted' : mood >= 20 ? 'good' : mood >= 0 ? 'warn' : 'bad';
     const tags = [c.is_active !== 1 ? 'left' : '', c.churn_risk >= 50 && c.is_active === 1 ? 'risk' : '', c.plan_tier].filter(Boolean).join(' ');
-    const price = planPrice(c.plan_tier, d.prices);
+    const price = customerPrice(c, d.prices);
+    const ded = isDedicatedCustomer(c.plan_tier);
+    const badge = ded ? ` <b class="ded-badge">${esc(pt(L, 'sx.ded'))}</b>` : '';
     return `<button type="button" class="cust-row${i === 0 ? ' selected' : ''}" data-cust="${c.id}" data-tags="${esc(tags)}">
             <div class="av av-${esc(c.name.charAt(0).toUpperCase())}${mood < -20 ? ' angry' : mood < 0 ? ' warn' : ''}">${esc(c.name.charAt(0).toUpperCase())}</div>
-            <div><div class="name">${esc(c.name)}</div><div class="meta">${esc(pt(L, (`plan.${c.plan_tier}`) as PlayKey))} · ${esc(personaLabel(L, c.persona_archetype))}</div></div>
+            <div><div class="name">${esc(c.name)}${badge}</div><div class="meta">${esc(ded ? pt(L, 'cust.ded_meta') : pt(L, (`plan.${c.plan_tier}`) as PlayKey) + ' · ' + personaLabel(L, c.persona_archetype))}</div></div>
             <div class="right"><div class="mrr">${c.is_active === 1 ? esc(pt(L, 'srv.per_month', { v: usd(price) })) : '—'}</div><div class="mood ${moodCls}">${c.is_active === 1 ? (mood > 0 ? '+' : '') + mood : esc(pt(L, 'cust.left'))}</div></div>
           </button>`;
   }).join('');
 
   const profiles = sorted.map((c, i) => {
     const mood = c.satisfaction - 50;
-    const price = c.is_active === 1 ? planPrice(c.plan_tier, d.prices) : 0;
-    const ltv = estimateLtvCents(planPrice(c.plan_tier, d.prices), c.joined_at, d.now);
+    const price = c.is_active === 1 ? customerPrice(c, d.prices) : 0;
+    const ltv = estimateLtvCents(customerPrice(c, d.prices), c.joined_at, d.now);
+    const dedP = isDedicatedCustomer(c.plan_tier);
     const tks = (byCust.get(c.id) ?? []).sort((a, b) => a.created_at - b.created_at);
     const open = tks.filter((t) => t.status === 'open' || t.status === 'in_progress').length;
     const pill = c.is_active !== 1 ? pt(L, 'cust.left') : c.churn_risk >= 50 ? pt(L, 'cust.pill.risk') : mood < 0 ? pt(L, 'cust.pill.watch') : pt(L, 'cust.pill.ok');
@@ -109,7 +123,7 @@ export function renderCustomersContent(d: CustomersPageData): string {
           <div class="prof-head">
             <div class="av" style="background-image:url(${PORTRAITS[c.persona_archetype] ?? '/img/persona-anon.webp'});background-size:cover;background-position:center;color:transparent">${esc(c.name.charAt(0))}</div>
             <div>
-              <h2>${esc(c.name)} <span class="pill">${esc(pill)}</span></h2>
+              <h2>${esc(c.name)} <span class="pill">${esc(pill)}</span>${dedP ? ` <b class="ded-badge">${esc(pt(L, 'sx.ded'))}</b>` : ''}</h2>
               <div class="org">${esc(pt(L, 'cust.org', { plan: pt(L, (`plan.${c.plan_tier}`) as PlayKey), persona: personaLabel(L, c.persona_archetype), day: Math.max(1, Math.floor((c.joined_at - (s.nextDayAt - s.day * 86400)) / 86400) + 1) }))}</div>
             </div>
             ${open > 0 && c.is_active === 1 ? `<div class="prof-actions"><a class="btn sm primary" href="/play/shift" data-open-shift="1">${esc(pt(L, 'cust.answer'))}</a></div>` : ''}
