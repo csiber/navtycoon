@@ -5,14 +5,17 @@
 // sablonból hozta. Most mindenki ezt hívja, és ugyanazt a szabályt követi, mint a tick (src/lib/game/tick.ts):
 //   bevétel / nap = MRR / 30  (a tick 5 percenként MRR × 5 / (60·24·30)-at ír jóvá)
 //   kiadás  / nap = PPC-hirdetés: PPC_FULL_COST_PER_TICK_CENTS × ppc% × (napi tickek száma)
-// A szerverek havidíja (monthly_cost_cents) jelenleg NEM vonódik le a tickben — ezért itt sem számoljuk.
-// TODO: ha a tick elkezdi levonni a szerver-havidíjat, itt is vegyük fel (serverMonthlyCents).
+//                 + szerver-havidíj / 30 (2026-11-12 óta a tick levonja; a fejlesztések fee_pct-jével)
 //
 // 2026-11-12 (egyensúly): a PPC-költés a megfizethetőhöz igazodik (economy.ppcSpendPerTick), és a $200-os
 // tartalék alá sosem visz. A kifutás ezért „hány nap múlva éri el a pénz a tartalékot", nem a nullát; a
 // tartalékon a hirdetés legfeljebb a bevétel felét költi, így ott már nem fogy a pénz.
+//
+// 2026-11-12 (játékmag): a havidíj a tartalék alatt is fogy, egészen a tartozás-határig (−debt_limit). Ha a
+// nettó negatív, a kifutás a tartalékig (vagy, ha a havidíj magában is több a bevételnél, a tartozás-határig)
+// hátralévő napok száma.
 
-import { ECONOMY, TICKS_PER_DAY, ppcSpendPerTick, type EconomyRules } from './economy';
+import { ECONOMY, TICKS_PER_DAY, ppcSpendPerTick, effectiveMonthlyFees, type EconomyRules } from './economy';
 
 export { TICKS_PER_DAY };
 
@@ -20,13 +23,21 @@ export interface CashFlowInput {
   cash_usd_cents: number;
   mrr_usd_cents: number;
   marketing_ppc_pct: number;
+  /** A gépek listázott havidíja összesen (servers.monthly_cost_cents összege; a kezdőgépé 0). */
+  server_monthly_cents?: number;
+  /** A fejlesztések fee_pct-je (negatív = olcsóbb). */
+  fee_pct?: number;
 }
 
 export interface CashFlow {
   /** Napi bevétel (centben). */
   income_per_day_cents: number;
-  /** Napi kiadás (centben) a mostani pénz- és bevételi szinten. */
+  /** Napi kiadás (centben) a mostani pénz- és bevételi szinten (hirdetés + havidíj). */
   cost_per_day_cents: number;
+  /** Ebből a hirdetés (centben / nap). */
+  ppc_per_day_cents: number;
+  /** Ebből a szerver-havidíj (centben / nap, a fejlesztésekkel csökkentve). */
+  servers_per_day_cents: number;
   /** income − cost (centben); negatív = fogy a pénz. */
   net_per_day_cents: number;
   /** Ennyi nap múlva éri el a pénz a tartalékot; null, ha nem fogy (nettó ≥ 0). */
@@ -40,13 +51,24 @@ export function dailyCashFlow(p: CashFlowInput, rules: EconomyRules = ECONOMY): 
   const spend = ppcSpendPerTick(rules, {
     ppc_pct: p.marketing_ppc_pct, cash_cents: p.cash_usd_cents, mrr_cents: p.mrr_usd_cents,
   });
-  const cost = spend.cost_cents * TICKS_PER_DAY;
+  const ppc = spend.cost_cents * TICKS_PER_DAY;
+  const servers = rules.server_fees
+    ? Math.round(effectiveMonthlyFees(p.server_monthly_cents ?? 0, rules.upgrade_effects ? p.fee_pct ?? 0 : 0) / 30)
+    : 0;
+  const cost = ppc + servers;
   const net = income - cost;
-  const floor = rules.ppc_budget?.reserve_cents ?? 0;
   let runway: number | null = null;
-  if (net < 0) runway = Math.max(0, Math.floor(Math.max(0, p.cash_usd_cents - floor) / -net));
+  if (net < 0) {
+    // A tartalék alatt a hirdetés leáll, csak a havidíj fogy tovább: ha a bevétel fedezi, a tartalékig számolunk,
+    // különben a tartozás-határig.
+    const reserve = rules.ppc_budget?.reserve_cents ?? 0;
+    const feesOutrunIncome = income - servers < 0;
+    const floor = feesOutrunIncome ? -rules.debt_limit_cents : reserve;
+    runway = Math.max(0, Math.floor(Math.max(0, p.cash_usd_cents - floor) / -net));
+  }
   return {
     income_per_day_cents: income, cost_per_day_cents: cost, net_per_day_cents: net,
+    ppc_per_day_cents: ppc, servers_per_day_cents: servers,
     runway_days: runway, ppc_throttled: spend.throttled,
   };
 }

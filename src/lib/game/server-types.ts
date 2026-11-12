@@ -5,6 +5,13 @@
 //  - Pénz INTEGER (USD cents).
 //  - capacity = max sites/customers per server (dedicated_box = 1, per-customer).
 //  - Era 3-4 placeholderek: capacity=0, monthly=0 → affordableServerTypes() szűri.
+//  - 2026-11-12 (játékmag): a kapacitás és a havidíj most SZÁMÍT. A kapacitás a típusból jön (nem a
+//    servers.capacity oszlopból — így a hangolás a meglévő gépekre is érvényes), × a fejlesztések
+//    capacity_pct-je (serverCapacity). A havidíjat a tick időarányosan vonja le a servers.monthly_cost_cents
+//    alapján (a kezdőgépé 0 marad). Régi → új: lamp_box 30 hely $5/hó $150 → 15 hely $30/hó $100;
+//    rack_unit 100 hely $30/hó → 60 hely $100/hó ($900); vps_node 250 hely $80/hó → 150 hely $220/hó ($2200).
+//    Egy hely havidíja így ~$2 (a hobby-ügyfél $5-öt fizet): a teli gép jól keres, az üres gép pénzt éget. Indoklás: a régi 30 hellyel a
+//    kezdőgép 60 nap alatt sem telt meg, így a szervervásárlás soha nem volt döntés (economy-sim.ts).
 
 import type { ServerType, EraId } from './types';
 
@@ -21,17 +28,17 @@ export interface ServerSpec {
 export const SERVER_SPECS: Record<ServerType, ServerSpec> = {
   lamp_box: {
     type: 'lamp_box', era: 1, display_name: 'Beige Tower (LAMP)',
-    capacity: 30, monthly_cost_cents: 500, purchase_cost_cents: 15000,
+    capacity: 15, monthly_cost_cents: 3000, purchase_cost_cents: 10000,
     flavor: 'Pentium III, 512MB, fan louder than the customer complaints. Honest work.',
   },
   rack_unit: {
     type: 'rack_unit', era: 2, display_name: '1U Rack Server',
-    capacity: 100, monthly_cost_cents: 3000, purchase_cost_cents: 90000,
+    capacity: 60, monthly_cost_cents: 10000, purchase_cost_cents: 90000,
     flavor: 'Dual Xeon, redundant PSU, smells of fresh datacenter.',
   },
   vps_node: {
     type: 'vps_node', era: 2, display_name: 'VPS Node',
-    capacity: 250, monthly_cost_cents: 8000, purchase_cost_cents: 220000,
+    capacity: 150, monthly_cost_cents: 22000, purchase_cost_cents: 220000,
     flavor: 'KVM-virtualized, 32GB RAM. The intern thinks "VPS" stands for "Very Powerful Server".',
   },
   dedicated_box: {
@@ -53,4 +60,12 @@ export const SERVER_SPECS: Record<ServerType, ServerSpec> = {
 
 export function affordableServerTypes(currentEra: EraId): ServerSpec[] {
   return Object.values(SERVER_SPECS).filter(s => s.era <= currentEra && s.capacity > 0);
+}
+
+/** Egy gép ügyfélhelye: a típus kapacitása × a fejlesztések capacity_pct-je (lefelé kerekítve).
+ *  Ismeretlen típusnál a sorban tárolt kapacitás. */
+export function serverCapacity(type: string, storedCapacity: number, capacityPct = 0): number {
+  const spec = (SERVER_SPECS as Record<string, ServerSpec | undefined>)[type];
+  const base = spec && spec.capacity > 0 ? spec.capacity : Math.max(0, storedCapacity);
+  return Math.floor(base * Math.max(0, 1 + capacityPct / 100));
 }

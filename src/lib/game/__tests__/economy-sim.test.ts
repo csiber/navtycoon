@@ -1,12 +1,16 @@
 // Hyperscales — a gazdaság regressziós tesztje a determinisztikus szimulátorral (economy-sim.ts).
 // A szimulátor a valódi tick képleteit (economy.ts) használja; több seeden fut, hogy ne egy szerencsés dobás döntsön.
 import { describe, it, expect } from 'vitest';
-import { simulate, type ProfileId, type SimResult } from '../economy-sim';
-import { ECONOMY, LEGACY_RULES } from '../economy';
+import { simulate, ALL_PROFILES, type ProfileId, type SimResult } from '../economy-sim';
+import { BALANCE_V2_RULES as ECONOMY, LEGACY_RULES, ECONOMY as LIVE } from '../economy';
+import { SERVER_SPECS } from '../server-types';
+
+// 2026-11-12 (játékmag): az ECONOMY itt az előző egyensúly-kör (v2) szabályai — a régi tesztek változatlanul
+// azt rögzítik. Az élő (v3) szabályok tesztjei lent, a „v3" blokkban (LIVE).
 
 const SEEDS = [1, 2, 3, 4, 5];
-const run = (rules: typeof ECONOMY, profile: ProfileId, days = 60): SimResult[] =>
-  SEEDS.map((seed) => simulate(rules, profile, { days, seed }));
+const run = (rules: typeof ECONOMY, profile: ProfileId, days = 60, buy_upgrades = true): SimResult[] =>
+  SEEDS.map((seed) => simulate(rules, profile, { days, seed, buy_upgrades }));
 const at = (r: SimResult, day: number) => r.days.find((d) => d.day === day)!;
 const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
 
@@ -77,15 +81,99 @@ describe('balance v2 (live rules)', () => {
   });
 });
 
+describe('v3 (live rules): server fees, capacity, upgrades with real effects', () => {
+  const lastDay = (r: SimResult) => r.days[r.days.length - 1];
+  const med = (rs: SimResult[], f: (r: SimResult) => number) => median(rs.map(f));
+
+  it('idle: the free starter server costs nothing, nobody goes broke, the 3 core customers stay', () => {
+    for (const r of run(LIVE, 'idle')) {
+      expect(r.fees_total_cents).toBe(0);
+      expect(r.broke_day).toBeNull();
+      expect(r.min_cash_cents).toBeGreaterThanOrEqual(LIVE.ppc_budget!.reserve_cents - 100);
+      for (const d of r.days) expect(d.customers).toBeGreaterThanOrEqual(LIVE.churn_floor_customers);
+      expect(lastDay(r).mrr_cents).toBeGreaterThanOrEqual(1500);
+      expect(r.bridge_day).toBeNull();
+    }
+  });
+
+  it('nobody goes below the debt limit; idle, casual and active never reach it or lose a server', () => {
+    for (const profile of ALL_PROFILES) {
+      for (const r of run(LIVE, profile)) expect(r.min_cash_cents).toBeGreaterThanOrEqual(-LIVE.debt_limit_cents);
+    }
+    for (const profile of ['idle', 'casual', 'active'] as const) {
+      for (const r of run(LIVE, profile)) {
+        expect(r.broke_day).toBeNull();
+        expect(r.sold_total).toBe(0);
+        expect(r.min_cash_cents).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it('casual grows slowly, and there is a point where buying a server is worth it', () => {
+    for (const r of run(LIVE, 'casual')) {
+      expect(at(r, 14).mrr_cents).toBeGreaterThan(at(r, 3).mrr_cents);
+      expect(at(r, 60).mrr_cents).toBeGreaterThan(at(r, 30).mrr_cents);
+      expect(at(r, 60).mrr_cents).toBeGreaterThanOrEqual(15000);
+      // a kezdőgép (15 hely) megtelik, és az alkalmi játékos vesz mellé
+      const firstBuy = r.days.find((d) => d.servers > 1)?.day ?? 999;
+      expect(firstBuy).toBeGreaterThanOrEqual(3);
+      expect(firstBuy).toBeLessThanOrEqual(30);
+      expect(lastDay(r).customers).toBeGreaterThan(SERVER_SPECS.lamp_box.capacity); // több, mint egy gépnyi
+      expect(r.fees_total_cents).toBeGreaterThan(0);
+    }
+  });
+
+  it('capacity really limits: without new servers the customer count is capped and customers are lost', () => {
+    for (const r of run(LIVE, 'never_buy')) {
+      for (const d of r.days) expect(d.customers).toBeLessThanOrEqual(d.capacity);
+      expect(lastDay(r).capacity).toBe(SERVER_SPECS.lamp_box.capacity);
+      expect(r.lost_total).toBeGreaterThanOrEqual(20);
+    }
+    // ugyanez a régi (v2) szabályokkal: semmi nem korlátoz
+    for (const r of run(ECONOMY, 'never_buy')) expect(lastDay(r).customers).toBeGreaterThan(SERVER_SPECS.lamp_box.capacity * 2);
+  });
+
+  it('good decisions beat bad ones: timely servers beat never buying and overbuying', () => {
+    const active = run(LIVE, 'active');
+    const never = run(LIVE, 'never_buy');
+    const over = run(LIVE, 'overbuy');
+    const mrr60 = (r: SimResult) => lastDay(r).mrr_cents;
+    const cash60 = (r: SimResult) => lastDay(r).cash_cents;
+    expect(med(active, mrr60)).toBeGreaterThan(3 * med(never, mrr60));
+    expect(med(active, mrr60)).toBeGreaterThan(1.3 * med(over, mrr60));
+    expect(med(active, cash60)).toBeGreaterThan(med(over, cash60));
+    // a túlvásárló üres gépekért fizet: több havidíj, és a tartozás-határig is eljut
+    expect(med(over, (r) => r.fees_total_cents)).toBeGreaterThan(2 * med(active, (r) => r.fees_total_cents));
+    expect(over.filter((r) => r.broke_day !== null || r.min_cash_cents < 0).length).toBeGreaterThanOrEqual(3);
+    // seedenként is: az aktív játékos legalább ugyanannyit ér el, mint aki soha nem vesz gépet
+    for (let i = 0; i < SEEDS.length; i++) expect(mrr60(active[i])).toBeGreaterThan(mrr60(never[i]));
+  });
+
+  it('good upgrades pay off: the same active player ends with more MRR when buying them', () => {
+    const withUp = run(LIVE, 'active');
+    const without = run(LIVE, 'active', 60, false);
+    expect(med(withUp, (r) => lastDay(r).mrr_cents)).toBeGreaterThan(med(without, (r) => lastDay(r).mrr_cents));
+  });
+
+  it('the active player outgrows casual, and still needs most of the 60 days for Era 3', () => {
+    const casual = run(LIVE, 'casual');
+    const active = run(LIVE, 'active');
+    expect(med(active, (r) => lastDay(r).mrr_cents)).toBeGreaterThan(med(casual, (r) => lastDay(r).mrr_cents));
+    const eraDay = (r: SimResult, era: number) => r.days.find((d) => d.era >= era)?.day ?? 999;
+    for (const r of active) expect(eraDay(r, 2)).toBeGreaterThanOrEqual(7);
+    expect(med(active, (r) => eraDay(r, 3))).toBeGreaterThanOrEqual(35);
+  });
+});
+
 // Görbék a grafikonhoz: SIM_DUMP=1 npx vitest run src/lib/game/__tests__/economy-sim.test.ts
 describe.runIf(!!process.env.SIM_DUMP)('dump', () => {
   it('prints the curves as JSON', () => {
     const outRows: unknown[] = [];
-    for (const rules of [LEGACY_RULES, ECONOMY]) {
-      for (const profile of ['idle', 'casual', 'active'] as const) {
+    for (const rules of [LEGACY_RULES, ECONOMY, LIVE]) {
+      for (const profile of ALL_PROFILES) {
         for (const seed of SEEDS) {
           const r = simulate(rules, profile, { days: 60, seed });
-          outRows.push({ rules: r.rules, profile, seed, broke_day: r.broke_day, min_cash: r.min_cash_cents, bridge_day: r.bridge_day, churned: r.churned_total, acquired: r.acquired_total, days: r.days });
+          outRows.push({ rules: r.rules, profile, seed, broke_day: r.broke_day, min_cash: r.min_cash_cents, bridge_day: r.bridge_day, churned: r.churned_total, acquired: r.acquired_total, lost: r.lost_total, sold: r.sold_total, fees: r.fees_total_cents, days: r.days });
         }
       }
     }

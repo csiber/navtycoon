@@ -7,6 +7,7 @@ import { applyAction, type ShiftAction } from '../lib/game/action-handler';
 import { ECONOMY } from '../lib/game/economy';
 import { generateAiReply, ratePlayerResponse } from '../lib/ai/reply-generator';
 import { tryConsumeLlmCall } from '../lib/game/llm-cap';
+import { loadUpgradeEffects } from '../lib/game/upgrade-effects';
 import type { WorkersAIBinding } from '../lib/ai/workers-ai';
 import { computeAchievementInput } from '../lib/game/achievements-helper';
 import { checkAndUnlockAchievements } from '../lib/game/achievements';
@@ -237,7 +238,10 @@ export class ShiftRoomDO {
     }
 
     const isPro = await this.isPlayerPro();
-    const budget = await tryConsumeLlmCall(this.env.DB, this.shift.player_id, isPro);
+    // A fejlesztések ai_calls-a (CI/CD) több napi MI-választ enged (2026-11-12, játékmag).
+    const aiBonus = ECONOMY.upgrade_effects
+      ? (await loadUpgradeEffects(this.env.DB as never, this.shift.player_id)).ai_calls : 0;
+    const budget = await tryConsumeLlmCall(this.env.DB, this.shift.player_id, isPro, aiBonus);
     if (!budget) {
       this.send({ type: 'error', error: 'daily LLM cap reached' });
       return;

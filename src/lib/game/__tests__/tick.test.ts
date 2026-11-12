@@ -22,6 +22,13 @@ async function addCoreCustomers(d: D1Database, uid: string, now: number): Promis
   }
 }
 
+// 2026-11-12 (játékmag): új ügyfél csak szabad helyre jön — a beszerzés-tesztekhez kell egy (ingyenes) gép.
+async function addStarterServer(d: D1Database, uid: string): Promise<void> {
+  await d.prepare(
+    "INSERT INTO servers (player_id, era, type, capacity, current_load, monthly_cost_cents, purchased_at) VALUES (?, 1, 'lamp_box', 15, 0, 0, 0)",
+  ).bind(uid).run();
+}
+
 describe('tickPlayer', () => {
   let db: D1Database;
   beforeEach(async () => {
@@ -103,6 +110,7 @@ describe('tickPlayer', () => {
   it('marketing-mix drives customer-acquisition (high marketing → eventual spawn)', async () => {
     const db2 = await createTestDb();
     await createPlayer(db2, { user_id: 'u-mkt', company_name: 'M', city: null });
+    await addStarterServer(db2, 'u-mkt');
     // Maximal marketing-mix: SEO 100, PPC 0 (free), referral 0
     await db2.prepare(
       'UPDATE players SET marketing_seo_pct = 100, marketing_ppc_pct = 0, marketing_referral_pct = 0, reputation = 50 WHERE user_id = ?',
@@ -221,6 +229,8 @@ describe('tickPlayer', () => {
       const db2 = await createTestDb();
       await createPlayer(db2, { user_id: 'u-pro', company_name: 'P', city: null });
       await createPlayer(db2, { user_id: 'u-free', company_name: 'F', city: null });
+      await addStarterServer(db2, 'u-pro');
+      await addStarterServer(db2, 'u-free');
       const oldFounded = 1715000000 - 14 * 86400;
       await db2.prepare(
         'UPDATE players SET founded_at = ?, marketing_seo_pct = 50, marketing_ppc_pct = 0, ' +
@@ -259,6 +269,8 @@ describe('tickPlayer', () => {
       const now = 1715000000;
       await createPlayer(db2, { user_id: 'u-new', company_name: 'N', city: null });
       await createPlayer(db2, { user_id: 'u-old', company_name: 'O', city: null });
+      await addStarterServer(db2, 'u-new');
+      await addStarterServer(db2, 'u-old');
       // u-new just signed up: founded_at = now
       // u-old: founded 14 days ago
       await db2.prepare(
@@ -516,5 +528,84 @@ describe('tickPlayer — balance v2 safety nets (2026-11-12)', { timeout: 30_000
     const r = await tickPlayer(d, (await getPlayer(d, 'u-ppc0'))!, now);
     expect(r.marketing_spent_cents).toBe(0); // a $200-os tartalék alatt és bevétel nélkül nincs hirdetés
     expect(r.marketing_throttled).toBe(true);
+  });
+});
+
+// ─── 2026-11-12 (játékmag): szerver-havidíj, tartozás-határ, kapacitás ───
+import { serverFeeForTick } from '../economy';
+
+describe('tickPlayer — server fees, debt limit, capacity (v3)', () => {
+  it('charges the monthly fee of paid servers pro rata; the free starter server costs nothing', async () => {
+    const d = await createTestDb();
+    await createPlayer(d, { user_id: 'u-fee', company_name: 'F', city: null });
+    await addStarterServer(d, 'u-fee');
+    await d.prepare(
+      "INSERT INTO servers (player_id, era, type, capacity, current_load, monthly_cost_cents, purchased_at) VALUES ('u-fee', 1, 'lamp_box', 15, 0, 3000, 1)",
+    ).run();
+    await d.prepare('UPDATE players SET cash_usd_cents = 50000, mrr_usd_cents = 0, marketing_seo_pct = 0, marketing_ppc_pct = 0, marketing_referral_pct = 0 WHERE user_id = ?').bind('u-fee').run();
+    const now = 1715000000;
+    const p = await getPlayer(d, 'u-fee');
+    const r = await tickPlayer(d, p!, now);
+    expect(r.server_fees_cents).toBe(serverFeeForTick(3000, now));
+    const after = await d.prepare('SELECT cash_usd_cents FROM players WHERE user_id = ?').bind('u-fee').first<{ cash_usd_cents: number }>();
+    expect(after?.cash_usd_cents).toBe(50000 - r.server_fees_cents!);
+    // egy hónapnyi tick összesen pontosan a havidíj (a cent-töredék nem vész el)
+    let sum = 0;
+    for (let t = now; t < now + 30 * 86400; t += 300) sum += serverFeeForTick(3000, t + 300, t);
+    expect(sum).toBe(3000);
+  });
+
+  it('at the debt limit the most expensive EMPTY paid server is sold (30% back), never the free starter', async () => {
+    const d = await createTestDb();
+    await createPlayer(d, { user_id: 'u-debt', company_name: 'D', city: null });
+    await addStarterServer(d, 'u-debt');
+    await d.prepare(
+      "INSERT INTO servers (player_id, era, type, capacity, current_load, monthly_cost_cents, purchased_at) VALUES ('u-debt', 1, 'lamp_box', 15, 0, 3000, 1)",
+    ).run();
+    await d.prepare(
+      "INSERT INTO servers (player_id, era, type, capacity, current_load, monthly_cost_cents, purchased_at) VALUES ('u-debt', 2, 'rack_unit', 60, 0, 10000, 2)",
+    ).run();
+    await d.prepare('UPDATE players SET cash_usd_cents = ?, mrr_usd_cents = 0, marketing_seo_pct = 0, marketing_ppc_pct = 0, marketing_referral_pct = 0 WHERE user_id = ?')
+      .bind(-ECONOMY.debt_limit_cents + 1, 'u-debt').run();
+    const p = await getPlayer(d, 'u-debt');
+    const r = await tickPlayer(d, p!, 1715000000);
+    expect(r.servers_auto_sold).toBe(1);
+    const left = (await d.prepare('SELECT type, monthly_cost_cents FROM servers WHERE player_id = ? ORDER BY id').bind('u-debt')
+      .all<{ type: string; monthly_cost_cents: number }>()).results ?? [];
+    expect(left.map((x) => x.type)).toEqual(['lamp_box', 'lamp_box']); // a rack (a legdrágább üres) ment el
+    const cash = (await d.prepare('SELECT cash_usd_cents FROM players WHERE user_id = ?').bind('u-debt').first<{ cash_usd_cents: number }>())!.cash_usd_cents;
+    expect(cash).toBe(-ECONOMY.debt_limit_cents + Math.round(90000 * ECONOMY.auto_sell_refund_pct / 100));
+    const ev = await d.prepare("SELECT data_json FROM events WHERE player_id = ? AND event_type = 'server_auto_sold'").bind('u-debt').first<{ data_json: string }>();
+    expect(JSON.parse(ev!.data_json).server_type).toBe('rack_unit');
+  });
+
+  it('a full fleet turns new customers away and counts them (capacity_lost, one row per day)', async () => {
+    const d = await createTestDb();
+    await createPlayer(d, { user_id: 'u-full', company_name: 'Full', city: null });
+    await addStarterServer(d, 'u-full');
+    const now = 1715000000;
+    for (let k = 0; k < 15; k++) {
+      await d.prepare(
+        "INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) VALUES ('u-full', 'C', 'loyalist', 'hobby', ?, 80)",
+      ).bind(now - 3600).run();
+    }
+    await d.prepare('UPDATE players SET marketing_seo_pct = 100, marketing_ppc_pct = 0, marketing_referral_pct = 0 WHERE user_id = ?').bind('u-full').run();
+    const origRandom = Math.random;
+    Math.random = () => 0.0000001; // minden dobás „igen" (ticket, beszerzés), esemény-pool: az első
+    try {
+      for (let k = 0; k < 2; k++) {
+        const p = await getPlayer(d, 'u-full');
+        const r = await tickPlayer(d, p!, now + k * 300);
+        expect(r.customers_acquired).toBe(0);
+        expect(r.customers_lost_capacity).toBe(1);
+      }
+    } finally {
+      Math.random = origRandom;
+    }
+    const n = (await d.prepare('SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1').bind('u-full').first<{ n: number }>())!.n;
+    expect(n).toBe(15);
+    const rows = (await d.prepare("SELECT data_json FROM events WHERE player_id = ? AND event_type = 'capacity_lost'").bind('u-full').all<{ data_json: string }>()).results ?? [];
+    expect(rows.length).toBe(1);
+    expect(JSON.parse(rows[0].data_json).count).toBe(2);
   });
 });

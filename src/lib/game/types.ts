@@ -45,7 +45,13 @@ export type EventType =
   | 'competitor_buyout'
   | 'staff_drama'
   // 2026-11-12: egyszeri áthidaló befektető (tick.ts 6.5, mindig lezárt sorként jön létre).
-  | 'bridge_investor';
+  | 'bridge_investor'
+  // 2026-11-12 (játékmag): tartozás miatt automatikusan eladott gép; helyhiány miatt elmaradt új ügyfelek
+  // (napi egy sor, data_json.count gyűlik). Mindkettő lezárt sorként jön létre.
+  | 'server_auto_sold'
+  | 'capacity_lost'
+  // …és ha egy fejlesztés kivédett egy eseményt (data_json.avoided_type).
+  | 'event_avoided';
 
 export type EventOutcome = 'positive' | 'neutral' | 'negative';
 

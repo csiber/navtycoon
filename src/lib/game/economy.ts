@@ -38,7 +38,7 @@ export interface BridgeRule {
 }
 
 export interface EconomyRules {
-  id: 'legacy' | 'v2';
+  id: 'legacy' | 'v2' | 'v3';
   /** Ügyfelenkénti ticket-esély tickenként. */
   ticket_spawn_prob_per_tick: number;
   /** Ennyi elégedettségtől számít „elégedettnek" az ügyfél (ritkább ticket, türelmesebb). */
@@ -90,6 +90,20 @@ export interface EconomyRules {
   price_elasticity: number;
   /** null = nincs; különben ennyi hírnév alatt tickenként ekkora eséllyel +1 (lassú visszatérés, nincs spirál). */
   rep_recovery: { below: number; prob_per_tick: number } | null;
+  // ─── v3 (2026-11-12, játékmag): a döntéseknek súlya van ───
+  /** true = a tick időarányosan levonja a szerverek havidíját (servers.monthly_cost_cents × fee_pct). */
+  server_fees: boolean;
+  /** true = új ügyfél csak szabad helyre jöhet; ha nincs hely, elmarad (és ezt számoljuk). */
+  capacity_limit: boolean;
+  /** true = a fejlesztések hatása (upgrade-effects.ts) érvényes. */
+  upgrade_effects: boolean;
+  /** A havidíj legfeljebb eddig viheti mínuszba a pénzt (centben, pozitív szám); ha eléri, egy gép leáll (eladjuk). */
+  debt_limit_cents: number;
+  /** Az automatikusan eladott gépért a vételár ennyi %-a jön vissza. */
+  auto_sell_refund_pct: number;
+  /** Túlterhelés (több ügyfél, mint hely): ticket-szorzó 1 + factor × min(1, túllógás aránya), és 12 óránként
+   *  −sat_step elégedettség mindenkinek. null = nincs. */
+  overload: { ticket_factor: number; sat_step: number } | null;
 }
 
 export const LEGACY_RULES: EconomyRules = {
@@ -121,10 +135,17 @@ export const LEGACY_RULES: EconomyRules = {
   engagement_window_hours: null,
   quiet_satisfaction: null,
   rep_recovery: null,
+  server_fees: false,
+  capacity_limit: false,
+  upgrade_effects: false,
+  debt_limit_cents: 0,
+  auto_sell_refund_pct: 0,
+  overload: null,
 };
 
-/** Az élő szabályok. Minden eltérés a LEGACY_RULES-tól szándékos; az indoklás a fejkommentben és a tesztben. */
-export const ECONOMY: EconomyRules = {
+/** Az előző egyensúly-kör (2026-11-12 délelőtt) szabályai: a szimulátor „előtte" görbéihez. Minden eltérés a
+ *  LEGACY_RULES-tól szándékos; az indoklás a fejkommentben és a tesztben. */
+export const BALANCE_V2_RULES: EconomyRules = {
   ...LEGACY_RULES,
   id: 'v2',
   // 1,15 → 0,29 ticket/ügyfél/nap: egy ingyenes műszak (10 ticket) ~35 ügyfelet visz el, elégedett ügyfelekkel ~70-et.
@@ -164,6 +185,89 @@ export const ECONOMY: EconomyRules = {
   // 40 alatti hírnév naponta ~3 ponttal (1%/tick) magától visszakúszik: egy rossz hét nem öli meg a beszerzést.
   rep_recovery: { below: 40, prob_per_tick: 0.01 },
 };
+
+/** Az élő szabályok (v3, játékmag-kör): a v2 + szerver-havidíj, kapacitás-korlát, a fejlesztések valódi hatása.
+ *  Hogy miért így, azt a szimulátor (economy-sim.ts) és a regressziós teszt mutatja. */
+export const ECONOMY: EconomyRules = {
+  ...BALANCE_V2_RULES,
+  id: 'v3',
+  server_fees: true,
+  capacity_limit: true,
+  upgrade_effects: true,
+  // Tartozás legfeljebb $100: ennyi elég, hogy egy rossz hét ne vigye el azonnal a gépet (a bevétel közben
+  // csordogál, és az áthidaló befektető $50 alatt egyszer amúgy is jön), de a havidíj nem visz végtelen mínuszba.
+  debt_limit_cents: 10000,
+  // Az automatikusan eladott gépért a vételár 30%-a jön vissza (használt vas), ez rendezi a tartozást.
+  auto_sell_refund_pct: 30,
+  // Túlterhelésnél (pl. egy gép eladása után) dupla-tripla ticket, és 12 óránként −2 elégedettség.
+  overload: { ticket_factor: 2, sat_step: 2 },
+};
+
+// ─── v3: szerver-havidíj, kapacitás, tartozás ───
+
+const MONTH_SEC = 30 * 86400;
+
+/**
+ * A havidíj ebben a tickben (centben), állapot nélkül pontosan: a [prev, now) időszakra jutó rész, a cent-töredék
+ * nem vész el (floor(total·now/hó) − floor(total·prev/hó)). monthlyTotalCents már a fee_pct-vel csökkentett összeg.
+ */
+export function serverFeeForTick(monthlyTotalCents: number, nowSec: number, prevSec: number = nowSec - TICK_MINUTES * 60): number {
+  if (monthlyTotalCents <= 0 || nowSec <= prevSec) return 0;
+  return Math.floor((monthlyTotalCents * nowSec) / MONTH_SEC) - Math.floor((monthlyTotalCents * prevSec) / MONTH_SEC);
+}
+
+/** A gépek havidíja a fejlesztésekkel (fee_pct, negatív = olcsóbb). */
+export function effectiveMonthlyFees(listedMonthlyCents: number, feePct: number): number {
+  return Math.max(0, Math.round(listedMonthlyCents * Math.max(0, 1 + feePct / 100)));
+}
+
+/** A havidíj levonása után a pénz: a tartozás-határnál (−debt_limit) megáll; ami nem fért le, az „over". */
+export function applyServerFee(rules: EconomyRules, cashCents: number, feeCents: number): { cash: number; over_limit: boolean } {
+  if (feeCents <= 0) return { cash: cashCents, over_limit: false };
+  const floor = -rules.debt_limit_cents;
+  const next = cashCents - feeCents;
+  if (next < floor) return { cash: Math.min(cashCents, floor), over_limit: true };
+  return { cash: next, over_limit: next <= floor };
+}
+
+/** Melyik gép áll le (kerül eladásra) a tartozás-határnál: a legdrágább ÜRES fizetős gép; ha nincs üres, a
+ *  legdrágább fizetős. A díjmentes (kezdő) gép soha. Visszaad: index vagy −1. */
+export function pickServerToSell(servers: Array<{ monthly_cost_cents: number; load: number }>): number {
+  let best = -1;
+  for (let i = 0; i < servers.length; i++) {
+    const s = servers[i];
+    if (s.monthly_cost_cents <= 0) continue;
+    if (best < 0) { best = i; continue; }
+    const b = servers[best];
+    const sEmpty = s.load === 0, bEmpty = b.load === 0;
+    if (sEmpty !== bEmpty) { if (sEmpty) best = i; continue; }
+    // azonos „üresség": a drágább; holtversenyben a később vett (a lista végén lévő)
+    if (s.monthly_cost_cents >= b.monthly_cost_cents) best = i;
+  }
+  return best;
+}
+
+/** Túlterhelés aránya: (ügyfelek − hely) / hely, 0 ha belefér. Hely nélkül, ügyféllel: 1. */
+export function overloadRatio(customers: number, capacity: number): number {
+  if (customers <= capacity) return 0;
+  if (capacity <= 0) return 1;
+  return Math.min(1, (customers - capacity) / capacity);
+}
+
+/** A ticket-esély szorzója a túlterhelésből (1 = nincs). */
+export function overloadTicketFactor(rules: EconomyRules, customers: number, capacity: number): number {
+  if (!rules.capacity_limit || !rules.overload) return 1;
+  return 1 + rules.overload.ticket_factor * overloadRatio(customers, capacity);
+}
+
+/** A flotta kihasználtsága (%, egészre kerekítve; hely nélkül 100, ha van ügyfél). */
+export function fleetUtilPct(customers: number, capacity: number): number {
+  if (capacity <= 0) return customers > 0 ? 100 : 0;
+  return Math.round((customers / capacity) * 100);
+}
+
+/** Ettől a kihasználtságtól szól a vezérlő: „vegyél szervert". */
+export const FLEET_WARN_PCT = 80;
 
 export interface PpcSpend {
   /** Ennyi centet von le a tick. */
@@ -205,6 +309,8 @@ export interface AcquisitionInput {
   /** A játékos árai (cent); ha hiányzik, az alapárral számol (szorzó 1). */
   pricing_hobby_cents?: number;
   pricing_business_cents?: number;
+  /** v3: a fejlesztések acq_pct-je (pl. +15 = 15%-kal több új ügyfél). */
+  acq_pct?: number;
 }
 
 export const DEFAULT_PRICING = { hobby: 500, business: 1500 } as const;
@@ -230,17 +336,21 @@ export function acquisitionProb(rules: EconomyRules, a: AcquisitionInput): numbe
   const proFactor = a.is_pro ? rules.pro_acquisition_factor : 1;
   const welcome = a.age_days < rules.welcome_boost_days ? rules.welcome_boost_factor : 1;
   const price = priceFactor(rules, a.pricing_hobby_cents, a.pricing_business_cents);
-  return rules.acquisition_base_prob * mixFactor * eraFactor * repFactor * proFactor * welcome * price;
+  const upg = rules.upgrade_effects ? Math.max(0, 1 + (a.acq_pct ?? 0) / 100) : 1;
+  return rules.acquisition_base_prob * mixFactor * eraFactor * repFactor * proFactor * welcome * price * upg;
 }
 
 /** Ügyfelenkénti ticket-esély tickenként. */
-export function ticketSpawnProb(rules: EconomyRules, satisfaction: number): number {
-  return rules.ticket_spawn_prob_per_tick * (satisfaction >= rules.happy_sat ? rules.happy_ticket_factor : 1);
+export function ticketSpawnProb(rules: EconomyRules, satisfaction: number, ticketPct = 0, overloadFactor = 1): number {
+  const upg = rules.upgrade_effects ? Math.max(0, 1 + ticketPct / 100) : 1;
+  return rules.ticket_spawn_prob_per_tick * (satisfaction >= rules.happy_sat ? rules.happy_ticket_factor : 1)
+    * upg * overloadFactor;
 }
 
 /** Lemorzsolódás-esély tickenként egy lejárt tickettel rendelkező ügyfélre. */
-export function churnProb(rules: EconomyRules, satisfaction: number, isPro: boolean): number {
-  return rules.churn_roll_prob
+export function churnProb(rules: EconomyRules, satisfaction: number, isPro: boolean, churnPct = 0): number {
+  const upg = rules.upgrade_effects ? Math.max(0, 1 + churnPct / 100) : 1;
+  return upg * rules.churn_roll_prob
     * (isPro ? rules.pro_churn_factor : 1)
     * (satisfaction >= rules.happy_sat ? rules.happy_churn_factor : 1);
 }

@@ -18,11 +18,12 @@ function todayKey(): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
+/** extraCap: a fejlesztésekből jövő plusz napi MI-hívás (upgrade-effects ai_calls, 2026-11-12). */
 export async function tryConsumeLlmCall(
-  db: D1Database, playerId: string, isPro: boolean,
+  db: D1Database, playerId: string, isPro: boolean, extraCap = 0,
 ): Promise<boolean> {
   const day = todayKey();
-  const cap = isPro ? PRO_DAILY_CAP : FREE_DAILY_CAP;
+  const cap = getDailyCap(isPro, extraCap);
   const r = await db.prepare(`
     INSERT INTO llm_usage (player_id, day, call_count) VALUES (?, ?, 1)
     ON CONFLICT (player_id, day) DO UPDATE SET call_count = call_count + 1
@@ -47,6 +48,6 @@ export async function getLlmUsageToday(
   return r?.call_count ?? 0;
 }
 
-export function getDailyCap(isPro: boolean): number {
-  return isPro ? PRO_DAILY_CAP : FREE_DAILY_CAP;
+export function getDailyCap(isPro: boolean, extraCap = 0): number {
+  return (isPro ? PRO_DAILY_CAP : FREE_DAILY_CAP) + Math.max(0, extraCap);
 }
