@@ -45,7 +45,7 @@ import {
 } from './economy';
 import { loadUpgradeEffects, eventAvoidProb, NO_EFFECTS, combineEffects } from './upgrade-effects';
 import {
-  type StaffMember, loadStaff, staffEffects, totalSalaryCents, staffSalaryCents, supportShare, supportPerDay,
+  type StaffMember, loadStaff, recruitCandidate, staffEffects, totalSalaryCents, staffSalaryCents, supportShare, supportPerDay,
   supportResolveSat, moraleStep, pickLeastUseful,
 } from './staff';
 import {
@@ -736,6 +736,10 @@ export async function tickPlayer(
       if (type === 'staff_drama' && SR && staff.length > 0) {
         const w = staff.reduce((a, m) => (m.morale < a.morale ? m : a));
         data = JSON.stringify({ staff_id: w.id, name: w.name, role: w.role, why: 'random' });
+      }
+      // 2026-11-12 (csapat-utókör): a toborzás a 2. korszaktól egy valódi jelöltet hoz (recruit.ts), díj nélküli felvétellel.
+      if (type === 'recruit_ad' && SR && player.current_era >= SR.min_era) {
+        data = JSON.stringify({ recruit: recruitCandidate(SR, `${player.user_id}:${now}`, staff.map((m) => m.name)) });
       }
       await db.prepare(
         'INSERT INTO events (player_id, event_type, data_json, spawned_at) VALUES (?, ?, ?, ?)',

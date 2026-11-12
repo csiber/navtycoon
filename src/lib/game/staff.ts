@@ -245,6 +245,21 @@ export function generateCandidates(rule: StaffRule, playerId: string, dayIdx: nu
   });
 }
 
+/**
+ * A „tehetséges rendszergazda jelentkezett" esemény (recruit_ad, 2. korszaktól) jelöltje: mindig SRE, 2. szintről
+ * indul (tapasztalt), a jelleme véletlen. Determinisztikus a kulcsból (a játékos + a spawn ideje), hogy a tick és a
+ * szimulátor ugyanígy sorsolja. A már a csapatban lévő neveket kerüli. (2026-11-12, csapat-utókör)
+ */
+export function recruitCandidate(rule: StaffRule, seedKey: string, takenNames: readonly string[] = []): StaffCandidate {
+  const r = rng(hash32(`recruit:${seedKey}`));
+  const taken = new Set(takenNames);
+  let i = Math.floor(r() * STAFF_NAMES.length);
+  for (let n = 0; n < STAFF_NAMES.length && taken.has(STAFF_NAMES[i]); n++) i = (i + 1) % STAFF_NAMES.length;
+  const trait = STAFF_TRAITS[Math.floor(r() * STAFF_TRAITS.length)];
+  const base = rule.base_salary_cents.sre * (trait === 'frugal' ? 0.85 : 1);
+  return { key: 'recruit', role: 'sre', name: STAFF_NAMES[i], trait, level_start: 2, base_salary_cents: Math.round(base / 100) * 100 };
+}
+
 /** Egy jelölt havi bére felvételkor (a kezdő szintjén). */
 export function candidateSalaryCents(rule: StaffRule, c: StaffCandidate): number {
   return Math.round((c.base_salary_cents * rule.level_salary[c.level_start - 1]) / 100) * 100;

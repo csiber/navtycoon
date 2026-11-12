@@ -34,6 +34,10 @@
 //               amikor a vezérlő szól (lassulás).
 //  - idle, never_buy: senkit, semmit. overbuy: hálózatot az active módján, csapatot nem.
 //
+// 2026-11-12 (csapat-utókör): a recruit_ad a 2. korszaktól valódi jelölt (SRE, díj nélkül, recruitDecision): a „team"
+// felveszi, ha még nincs SRE-je és a bér belefér, az „overhire" mindig, ha van hely, a casual kihagyja.
+// A competitor_buyout „take the money" $6000 (volt $25 000).
+//
 // Egyszerűsítések (tudatosan): a műszak egy pillanat alatt lezajlik; a chat AI-értékelését a profil átlagos
 // értékével közelítjük; a Pro-előfizetést és a piacteret nem modellezzük.
 
@@ -56,7 +60,7 @@ import type { EventType, EraId, ServerType } from './types';
 import { eventPoolForEra } from './event-pool';
 import { combineEffects } from './upgrade-effects';
 import {
-  type StaffMember, maxStaff, generateCandidates, hireFeeCents, candidateSalaryCents, staffSalaryCents, totalSalaryCents,
+  type StaffMember, maxStaff, generateCandidates, recruitCandidate, hireFeeCents, candidateSalaryCents, staffSalaryCents, totalSalaryCents,
   staffEffects, supportShare, supportPerDay, supportResolveSat, moraleStep, pickLeastUseful,
 } from './staff';
 import {
@@ -577,9 +581,9 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     sellOne();
   }
 
-  function hire(c: ReturnType<typeof generateCandidates>[number]): boolean {
+  function hire(c: ReturnType<typeof generateCandidates>[number], free = false): boolean {
     const rule = SR!;
-    const fee = hireFeeCents(rule, c);
+    const fee = free ? 0 : hireFeeCents(rule, c);
     if (p.cash < fee) return false;
     p.cash -= fee;
     invested += fee;
@@ -629,6 +633,21 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       const after = totalSalaryCents(rule, staff, nowSec) + candidateSalaryCents(rule, c);
       if (after <= 0.25 * p.mrr && p.cash >= hireFeeCents(rule, c) + 30000) { hire(c); break; }
     }
+  }
+
+  /** A toborzási esemény (recruit_ad): a profil a saját csapat-politikája szerint dönt. A „team" akkor veszi fel,
+   *  ha még nincs SRE-je és a bér belefér (a bérek legfeljebb az MRR negyede); az „overhire" mindig, ha van hely;
+   *  az alkalmi játékos a legolcsóbbat választja (kihagyja: a bér havonta jön). */
+  function recruitDecision(c: ReturnType<typeof generateCandidates>[number]): void {
+    const rule = SR!;
+    if (staffPolicy === 'none' || staffPolicy === 'casual') return;
+    if (staff.length >= maxStaff(rule, p.era)) return;
+    if (staffPolicy === 'team') {
+      const has = staff.filter((m) => m.role === 'sre').length;
+      const after = totalSalaryCents(rule, staff, nowSec) + candidateSalaryCents(rule, c);
+      if (has >= 1 || after > 0.25 * p.mrr) return;
+    }
+    hire(c, true);
   }
 
   function resolveDrama(i: number): void {
@@ -756,6 +775,11 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
           staff.forEach((m, i) => { if (m.morale < staff[w].morale) w = i; });
           if (!dramaQueue.includes(staff[w].id)) dramaQueue.push(staff[w].id);
         }
+        continue;
+      }
+      // Csapat-utókör: a toborzás a 2. korszaktól valódi jelölt (SRE, 2. szint), díj nélküli felvétellel (recruit.ts).
+      if (ev === 'recruit_ad' && SR && p.era >= SR.min_era) {
+        recruitDecision(recruitCandidate(SR, `sim-${seed}:${nowSec}`, staff.map((m) => m.name)));
         continue;
       }
       const opts = EVENT_DEFINITIONS[ev].options

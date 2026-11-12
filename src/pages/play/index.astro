@@ -10,6 +10,7 @@ import { renderDashboardContent, applyDashboardContent, type PendingEvent } from
 import { getEventDefinition } from '../../lib/game/event-options';
 import { localizeEvent } from '../../lib/game/event-i18n';
 import { dramaData, dramaView } from '../../lib/game/staff-drama';
+import { recruitData, recruitView } from '../../lib/game/recruit';
 import { ECONOMY as ECON_LIVE } from '../../lib/game/economy';
 import type { EventType } from '../../lib/game/types';
 import { availableUpgrades } from '../../lib/game/upgrade-tree';
@@ -262,6 +263,12 @@ const pendingEvents: PendingEvent[] = pendingRows.flatMap((r) => {
   const dd = r.event_type === 'staff_drama' && ECON_LIVE.staff ? dramaData(r.data_json) : null;
   if (dd && ECON_LIVE.staff) {
     const v = dramaView(ECON_LIVE.staff, locale, dd, shell.team.staff.find((m) => m.id === dd.staff_id) ?? null, nowSec);
+    return [{ id: r.id, title: v.title, narrative: v.narrative, options: v.options }];
+  }
+  // 2026-11-12 (csapat-utókör): a toborzás a 2. korszaktól valódi jelölt; teli csapatnál a felvétel tiltott (recruit.ts).
+  const rd = r.event_type === 'recruit_ad' && ECON_LIVE.staff ? recruitData(r.data_json) : null;
+  if (rd && ECON_LIVE.staff) {
+    const v = recruitView(ECON_LIVE.staff, locale, rd, player.current_era, shell.team.staff);
     return [{ id: r.id, title: v.title, narrative: v.narrative, options: v.options }];
   }
   const def = getEventDefinition(r.event_type as EventType);
@@ -550,7 +557,7 @@ const eraFeats = eraKnown ? pt(locale, `dash.era.f${eraE}` as PlayKey).split('|'
               var j = await r.json();
               if (!j.ok) {
                 if (window.hsToast) window.hsToast(String(j.message || j.error || '?'), 'bad'); else alert(j.error || '?');
-                card.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+                card.querySelectorAll('button:not([data-locked])').forEach(function (b) { b.disabled = false; });
                 btn.classList.remove('busy');
                 return;
               }
@@ -563,7 +570,7 @@ const eraFeats = eraKnown ? pt(locale, `dash.era.f${eraE}` as PlayKey).split('|'
               setTimeout(function () { location.reload(); }, 1500);
             } catch (e) {
               if (window.hsToast) window.hsToast(String(e && e.message || e), 'bad');
-              card.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
+              card.querySelectorAll('button:not([data-locked])').forEach(function (b) { b.disabled = false; });
               btn.classList.remove('busy');
             }
           });

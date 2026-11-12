@@ -11,6 +11,7 @@ import { localeFromRequest } from '../../../lib/i18n/api-errors';
 import type { EventType } from '../../../lib/game/types';
 import { dramaData, dramaView } from '../../../lib/game/staff-drama';
 import { loadStaff } from '../../../lib/game/staff';
+import { recruitData, recruitView } from '../../../lib/game/recruit';
 
 export const prerender = false;
 
@@ -40,18 +41,25 @@ export const GET = async (c: APIContext): Promise<Response> => {
 
   const locale = localeFromRequest(c.request);
   // 2026-11-12: a költség a cég méretéhez igazodik (economy.scaleEventCash); a feliratban is a valódi ár áll.
-  const mrrRow = await db.prepare('SELECT mrr_usd_cents FROM players WHERE user_id = ?')
-    .bind(user.id).first<{ mrr_usd_cents: number }>();
+  const mrrRow = await db.prepare('SELECT mrr_usd_cents, current_era FROM players WHERE user_id = ?')
+    .bind(user.id).first<{ mrr_usd_cents: number; current_era: number }>();
   const mrr = mrrRow?.mrr_usd_cents ?? 0;
-  // 2026-11-12 (csapat-kör): a csapatdráma egy valódi munkatársról szól (staff-drama.ts).
+  // 2026-11-12 (csapat-kör): a csapatdráma egy valódi munkatársról szól (staff-drama.ts);
+  // a toborzás (recruit_ad) a 2. korszaktól valódi jelöltet hoz (recruit.ts).
   const SR = ECONOMY.staff;
-  const needStaff = SR && rows.some((r) => r.event_type === 'staff_drama' && dramaData(r.data_json));
+  const needStaff = SR && rows.some((r) => (r.event_type === 'staff_drama' && dramaData(r.data_json))
+    || (r.event_type === 'recruit_ad' && recruitData(r.data_json)));
   const staff = needStaff ? await loadStaff(db, user.id) : [];
   const nowSec = Math.floor(Date.now() / 1000);
   const events = rows.map((r) => {
     const dd = r.event_type === 'staff_drama' && SR ? dramaData(r.data_json) : null;
     if (dd && SR) {
       const v = dramaView(SR, locale, dd, staff.find((m) => m.id === dd.staff_id) ?? null, nowSec);
+      return { id: r.id, event_type: r.event_type, spawned_at: r.spawned_at, title: v.title, narrative: v.narrative, options: v.options };
+    }
+    const rd = r.event_type === 'recruit_ad' && SR ? recruitData(r.data_json) : null;
+    if (rd && SR) {
+      const v = recruitView(SR, locale, rd, mrrRow?.current_era ?? 1, staff);
       return { id: r.id, event_type: r.event_type, spawned_at: r.spawned_at, title: v.title, narrative: v.narrative, options: v.options };
     }
     const def = getEventDefinition(r.event_type as EventType);

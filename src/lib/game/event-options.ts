@@ -143,7 +143,6 @@ export const EVENT_DEFINITIONS: Record<EventType, EventDefinition> = {
     ],
   },
 
-  // TODO(csapat): a 2. korszaktól a „hire" valódi munkatársat adhatna (staff.ts) — most csak egyszeri költség és üzenet.
   recruit_ad: {
     event_type: 'recruit_ad',
     title: '👥 Recruitment opportunity',
@@ -153,7 +152,9 @@ export const EVENT_DEFINITIONS: Record<EventType, EventDefinition> = {
       {
         id: 'hire',
         label: 'Hire ($400 one-time signing bonus)',
-        description: 'Boost: -50% incident impact for 30 days.',
+        // 2026-11-12 (csapat-utókör): a felirat a valódi hatást mondja (a régi „-50% incident impact" nem létezett).
+        // A 2. korszaktól ez az esemény valódi munkatársat ad (recruit.ts), ez a definíció csak az 1. korszaké.
+        description: 'Faster incident response: +2 reputation, +2 satisfaction for every customer.',
         apply: () => ({
           outcome: 'positive',
           cash_delta_cents: -40000,
@@ -327,11 +328,14 @@ export const EVENT_DEFINITIONS: Record<EventType, EventDefinition> = {
     options: [
       {
         id: 'take_the_money',
-        label: 'Sell for $25,000',
+        // 2026-11-12 (csapat-utókör): $25 000 → $6000. A szimulátorban a pénz a növekedést kb. $3000 (active) –
+        // $6000 (no_staff) fölött már nem gyorsítja, csak felhalmozódik: a $25 000 egy 100-szoros pénzugrás volt a
+        // görbén. $6000 ≈ a 3. korszak eleji cég 4–6 havi MRR-je: vonzó, de a játékot nem dönti el.
+        label: 'Sell for $6,000',
         description: 'Wallet bump. Game continues. Reputation drops (you sold out).',
         apply: () => ({
           outcome: 'positive',
-          cash_delta_cents: 2500000,
+          cash_delta_cents: 600000,
           satisfaction_delta_global: -8,
           reputation_delta: -10,
           message: 'You sold. Cash in the bank. Devon unsubscribed in protest.',

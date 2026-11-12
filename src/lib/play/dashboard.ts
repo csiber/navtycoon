@@ -28,7 +28,8 @@ export interface PendingEvent {
   id: number;
   title: string;
   narrative: string;
-  options: { id: string; label: string; description: string }[];
+  /** disabled: a döntés most nem választható (pl. teli csapat a toborzásnál) — a felirat megmondja, miért. */
+  options: { id: string; label: string; description: string; disabled?: boolean }[];
 }
 
 /** Ennyi döntés látszik egyszerre; a többi a „+N további" gombbal nyílik. */
@@ -47,7 +48,7 @@ export function renderPendingEvents(L: PlayLocale, events: PendingEvent[]): stri
             <p class="ev-narr">${esc(e.narrative)}</p>
           </div>
           <div class="ev-opts">${e.options.map((o) => `
-            <button class="ev-opt" type="button" data-event-opt="${esc(o.id)}"><span class="lbl">${esc(o.label)}</span>${o.description ? `<span class="dsc">${esc(o.description)}</span>` : ''}</button>`).join('')}
+            <button class="ev-opt" type="button" data-event-opt="${esc(o.id)}"${o.disabled ? ' disabled data-locked="1"' : ''}><span class="lbl">${esc(o.label)}</span>${o.description ? `<span class="dsc">${esc(o.description)}</span>` : ''}</button>`).join('')}
           </div>
         </article>`).join('');
   const more = events.length > PENDING_VISIBLE

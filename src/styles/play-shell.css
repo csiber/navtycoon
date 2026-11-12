@@ -232,6 +232,11 @@ header.topbar .tstat .v small:empty { display: none; }
 .ev-opt .lbl { font-weight: 600; font-size: 13px; }
 .ev-opt .dsc { color: var(--dim); font-size: 11px; line-height: 1.35; }
 .ev-opt[disabled] { opacity: .5; cursor: not-allowed; }
+/* Most nem választható döntés (pl. teli csapat a toborzásnál): a címe halvány, de az indoklás jól olvasható. */
+.ev-opt[data-locked] { opacity: 1; border-style: dashed; background: transparent; }
+.ev-opt[data-locked] .lbl { color: var(--dim); }
+.ev-opt[data-locked] .dsc { color: var(--amber); }
+.ev-opt[data-locked]:hover { border-color: var(--line-2); background: transparent; }
 .ev-opt.busy { opacity: 1; border-color: var(--amber); }
 .ev-more {
   margin-top: 10px; background: transparent; border: 1px dashed var(--line-2); color: var(--muted); cursor: pointer;

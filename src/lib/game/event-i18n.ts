@@ -46,7 +46,7 @@ const HU: Record<string, string> = {
   'recruit_ad.narrative':
     'Egy tehetséges rendszergazda írt LinkedInen. Havi $400-t kér, de felgyorsítaná a hibaelhárítást.',
   'recruit_ad.hire.label': 'Vedd fel ($400 belépési bónusz egyszeri összegben)',
-  'recruit_ad.hire.desc': 'Bónusz: 30 napig -50% hatás az incidensekre.',
+  'recruit_ad.hire.desc': 'Gyorsabb hibaelhárítás: +2 hírnév, +2 elégedettség minden ügyfélnél.',
   'recruit_ad.hire.msg': 'Hétfőn kezdett. Már egyszer megmentette a bőrödet.',
   'recruit_ad.pass.label': 'Hagyd ki',
   'recruit_ad.pass.desc': 'Nem kerül semmibe.',
@@ -102,7 +102,7 @@ const HU: Record<string, string> = {
   'competitor_buyout.title': '💼 Felvásárlási ajánlat az asztalon',
   'competitor_buyout.narrative':
     'A BigCloudCo fel akar vásárolni. Alacsony, de valódi pénz. Az ügyfeleid átköltöznének, az alapítói korszakodnak vége.',
-  'competitor_buyout.take_the_money.label': 'Add el $25,000-ért',
+  'competitor_buyout.take_the_money.label': 'Add el $6,000-ért',
   'competitor_buyout.take_the_money.desc':
     'Pénz a zsebbe, a játék megy tovább. A renoméd romlik (eladtad magad).',
   'competitor_buyout.take_the_money.msg':
@@ -181,7 +181,7 @@ const DE: Record<string, string> = {
   'recruit_ad.narrative':
     'Ein talentierter Sysadmin hat dir bei LinkedIn geschrieben. Er will $400 im Monat, würde aber die Störungsbehebung beschleunigen.',
   'recruit_ad.hire.label': 'Einstellen ($400 einmaliger Begrüßungsbonus)',
-  'recruit_ad.hire.desc': 'Bonus: 30 Tage lang -50 % Auswirkung von Störungen.',
+  'recruit_ad.hire.desc': 'Schnellere Störungsbehebung: +2 Ruf, +2 Zufriedenheit bei allen Kunden.',
   'recruit_ad.hire.msg': 'Er hat am Montag angefangen und dir schon einmal den Hals gerettet.',
   'recruit_ad.pass.label': 'Verzichten',
   'recruit_ad.pass.desc': 'Kostet nichts.',
@@ -237,7 +237,7 @@ const DE: Record<string, string> = {
   'competitor_buyout.title': '💼 Übernahmeangebot auf dem Tisch',
   'competitor_buyout.narrative':
     'BigCloudCo will dich kaufen. Ein Kampfpreis, aber echtes Geld. Deine Kunden würden migriert. Dein Gründer-Modus wäre vorbei.',
-  'competitor_buyout.take_the_money.label': 'Für $25,000 verkaufen',
+  'competitor_buyout.take_the_money.label': 'Für $6,000 verkaufen',
   'competitor_buyout.take_the_money.desc':
     'Geld aufs Konto, das Spiel geht weiter. Der Ruf leidet (Ausverkauf).',
   'competitor_buyout.take_the_money.msg':

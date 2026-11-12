@@ -6,7 +6,7 @@
 //   4. DDoS: az akkori ügyfélszám az eseménybe (customers_at_resolve); a survived_first_ddos-t a következő tick
 //      ítéli meg (achievement-tick.ts: az ügyfélszám legfeljebb 10%-ot eshet), nem a lezárás azonnal
 
-import { legacyError, localeFromRequest } from '../../../../../lib/i18n/api-errors';
+import { legacyError, jsonError, localeFromRequest } from '../../../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../../../lib/auth';
 import { localizeEventMessage } from '../../../../../lib/game/event-i18n';
@@ -18,7 +18,9 @@ import { computeAchievementInput } from '../../../../../lib/game/achievements-he
 import type { EventType } from '../../../../../lib/game/types';
 import type { D1Database } from '@cloudflare/workers-types/experimental';
 import { dramaData, dramaMessage, dramaGoneMessage } from '../../../../../lib/game/staff-drama';
-import { loadStaff } from '../../../../../lib/game/staff';
+import { loadStaff, maxStaff, candidateSalaryCents } from '../../../../../lib/game/staff';
+import { recruitData, recruitCanHire, recruitMessage } from '../../../../../lib/game/recruit';
+import { getPlayer } from '../../../../../lib/game/db';
 
 export const prerender = false;
 
@@ -59,6 +61,9 @@ export const POST = async (c: APIContext): Promise<Response> => {
   const SR = ECONOMY.staff;
   const dd = event.event_type === 'staff_drama' && SR ? dramaData(event.data_json) : null;
   if (dd && SR) return resolveStaffDrama(c, db as unknown as D1Database, user.id, event, dd, optionId);
+  // 2026-11-12 (csapat-utókör): a toborzás a 2. korszaktól valódi munkatársat ad (recruit.ts).
+  const rd = event.event_type === 'recruit_ad' && SR ? recruitData(event.data_json) : null;
+  if (rd && SR) return resolveRecruit(c, db as unknown as D1Database, user.id, event, rd, optionId);
 
   const def = getEventDefinition(event.event_type as EventType);
   if (!def) return jerr(500, 'unknown event type');
@@ -194,5 +199,52 @@ async function resolveStaffDrama(
   return new Response(JSON.stringify({
     ok: true, outcome, message, cash_delta_cents: 0, reputation_delta: rep, satisfaction_delta: sat,
     newly_unlocked_achievement: null, newly_unlocked: [],
+  }), { headers: { 'content-type': 'application/json' } });
+}
+
+async function resolveRecruit(
+  c: APIContext, db: D1Database, uid: string,
+  event: { id: number; data_json: string | null },
+  rd: NonNullable<ReturnType<typeof recruitData>>, optionId: string,
+): Promise<Response> {
+  const SR = ECONOMY.staff!;
+  const loc = localeFromRequest(c.request);
+  if (optionId !== 'hire' && optionId !== 'pass') return legacyError(c.request, 400, 'unknown option');
+  const now = Math.floor(Date.now() / 1000);
+  const r = rd.recruit;
+  if (optionId === 'hire') {
+    const player = await getPlayer(db as unknown as Parameters<typeof getPlayer>[0], uid);
+    if (!player) return jsonError(404, loc, 'no_player');
+    if (player.current_era < SR.min_era) return jsonError(403, loc, 'era_locked');
+    // A tábla megléte (a 0013-as migráció előtt élesített kód ne dőljön el).
+    try { await db.prepare('SELECT 1 FROM staff LIMIT 1').bind().all(); } catch { return jsonError(503, loc, 'feature_not_ready'); }
+    const staff = await loadStaff(db, uid);
+    if (!recruitCanHire(SR, player.current_era, staff, rd)) {
+      return jsonError(409, loc, 'staff_full', { max: maxStaff(SR, player.current_era) });
+    }
+  }
+  let prev: Record<string, unknown> = {};
+  try { prev = event.data_json ? JSON.parse(event.data_json) : {}; } catch { /* hibás JSON */ }
+  const outcome = optionId === 'hire' ? 'positive' : 'neutral';
+  // A lezárás a kapu (resolved_at IS NULL): két párhuzamos kattintásból csak az egyik vesz fel embert.
+  const gate = await db.prepare('UPDATE events SET resolved_at = ?, outcome = ?, data_json = ? WHERE id = ? AND resolved_at IS NULL')
+    .bind(now, outcome, JSON.stringify({ ...prev, option_id: optionId, cash_delta_cents: 0, reputation_delta: 0 }), event.id).run();
+  if (((gate as { meta?: { changes?: number } }).meta?.changes ?? 0) === 0) return legacyError(c.request, 409, 'already resolved');
+  if (optionId === 'hire') {
+    // Felvételi díj nélkül (ő keresett meg) — a bér a szokásos.
+    await db.prepare(
+      'INSERT INTO staff (player_id, role, name, trait, level_start, base_salary_cents, raise_pct, morale, four_day, hired_at) ' +
+      'VALUES (?, ?, ?, ?, ?, ?, 0, ?, 0, ?)',
+    ).bind(uid, r.role, r.name, r.trait, r.level_start, r.base_salary_cents, SR.morale.start, now).run();
+    await db.prepare(
+      'INSERT INTO events (player_id, event_type, data_json, spawned_at, outcome, resolved_at) ' +
+      "VALUES (?, 'staff_hired', ?, ?, 'positive', ?)",
+    ).bind(uid, JSON.stringify({
+      name: r.name, role: r.role, cash_delta_cents: 0, salary_cents: candidateSalaryCents(SR, r), via: 'recruit_ad',
+    }), now, now).run();
+  }
+  return new Response(JSON.stringify({
+    ok: true, outcome, message: recruitMessage(loc, optionId, r.name), cash_delta_cents: 0, reputation_delta: 0,
+    satisfaction_delta: 0, newly_unlocked_achievement: null, newly_unlocked: [],
   }), { headers: { 'content-type': 'application/json' } });
 }

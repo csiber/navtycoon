@@ -161,9 +161,13 @@ describe('v3 (live rules): server fees, capacity, upgrades with real effects', (
     for (let i = 0; i < SEEDS.length; i++) expect(mrr60(active[i])).toBeGreaterThan(mrr60(never[i]));
   });
 
-  it('good upgrades pay off: the same active player ends with more MRR when buying them', () => {
-    const withUp = run(LIVE, 'active');
-    const without = run(LIVE, 'active', 60, false);
+  // 2026-11-12 (csapat-utókör): 90 napon mérve. A 60. napon a fejlesztés még befektetés: 30 seeden már a kör előtt is
+  // a fejlesztés nélküli játékos MRR-mediánja volt nagyobb ($1064 > $950), az 5 seedes 60 napos mérés csak 2%-kal,
+  // szerencsésen teljesült, és a valódi toborzás (recruit_ad) apró eltolása megfordította. 90 napon a különbség
+  // egyértelmű (5 seed: $2805 vs $1831; 30 seed: $1845 vs $1778, átlag $2122 vs $1779).
+  it('good upgrades pay off: the same active player ends with more MRR when buying them (90 days)', () => {
+    const withUp = SEEDS.map((seed) => simulate(LIVE, 'active', { days: 90, seed }));
+    const without = SEEDS.map((seed) => simulate(LIVE, 'active', { days: 90, seed, buy_upgrades: false }));
     expect(med(withUp, (r) => lastDay(r).mrr_cents)).toBeGreaterThan(med(without, (r) => lastDay(r).mrr_cents));
   });
 
