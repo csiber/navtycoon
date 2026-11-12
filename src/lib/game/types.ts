@@ -43,7 +43,9 @@ export type EventType =
   | 'era_unlock'
   | 'compliance_audit'
   | 'competitor_buyout'
-  | 'staff_drama';
+  | 'staff_drama'
+  // 2026-11-12: egyszeri áthidaló befektető (tick.ts 6.5, mindig lezárt sorként jön létre).
+  | 'bridge_investor';
 
 export type EventOutcome = 'positive' | 'neutral' | 'negative';
 

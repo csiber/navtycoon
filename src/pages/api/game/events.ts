@@ -6,6 +6,7 @@ import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getEventDefinition } from '../../../lib/game/event-options';
 import { localizeEvent } from '../../../lib/game/event-i18n';
+import { ECONOMY, scaleEventCash, rescaleMoneyLabel } from '../../../lib/game/economy';
 import { localeFromRequest } from '../../../lib/i18n/api-errors';
 import type { EventType } from '../../../lib/game/types';
 
@@ -36,9 +37,22 @@ export const GET = async (c: APIContext): Promise<Response> => {
   ).results ?? [];
 
   const locale = localeFromRequest(c.request);
+  // 2026-11-12: a költség a cég méretéhez igazodik (economy.scaleEventCash); a feliratban is a valódi ár áll.
+  const mrrRow = await db.prepare('SELECT mrr_usd_cents FROM players WHERE user_id = ?')
+    .bind(user.id).first<{ mrr_usd_cents: number }>();
+  const mrr = mrrRow?.mrr_usd_cents ?? 0;
   const events = rows.map((r) => {
     const def = getEventDefinition(r.event_type as EventType);
-    const loc = def ? localizeEvent(def, locale) : null;
+    const loc0 = def ? localizeEvent(def, locale) : null;
+    const loc = def && loc0 ? {
+      ...loc0,
+      options: loc0.options.map((o, i) => {
+        // counter_offer kimenete véletlen (és bevétel) — nem hívjuk meg csak a felirat kedvéért.
+        const nominal = def.options[i].id === 'counter_offer' ? 0 : def.options[i].apply().cash_delta_cents;
+        const scaled = scaleEventCash(ECONOMY, nominal, mrr);
+        return { ...o, label: rescaleMoneyLabel(o.label, nominal, scaled), cost_cents: scaled < 0 ? -scaled : 0 };
+      }),
+    } : null;
     return {
       id: r.id,
       event_type: r.event_type,

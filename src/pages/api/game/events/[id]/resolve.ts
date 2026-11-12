@@ -10,6 +10,7 @@ import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../../../lib/auth';
 import { localizeEventMessage } from '../../../../../lib/game/event-i18n';
 import { getEventDefinition } from '../../../../../lib/game/event-options';
+import { ECONOMY, scaleEventCash } from '../../../../../lib/game/economy';
 import {
   unlockAchievement,
   checkAndUnlockAchievements,
@@ -61,11 +62,24 @@ export const POST = async (c: APIContext): Promise<Response> => {
   const result = opt.apply();
   const now = Math.floor(Date.now() / 1000);
 
+  // 2026-11-12: a döntés ára a cég méretéhez igazodik (economy.scaleEventCash) — ugyanaz a szám, amit a
+  // /api/game/events a feliratban mutatott. A bevétel (pl. felvásárlás) nem skálázódik.
+  const mrrRow = await db.prepare('SELECT mrr_usd_cents FROM players WHERE user_id = ?')
+    .bind(user.id).first<{ mrr_usd_cents: number }>();
+  const cashDelta = scaleEventCash(ECONOMY, result.cash_delta_cents, mrrRow?.mrr_usd_cents ?? 0);
+
   // Apply: cash, reputation, all-customer satisfaction
-  if (result.cash_delta_cents !== 0) {
+  if (cashDelta > 0 || (cashDelta < 0 && !ECONOMY.clamp_costs_at_zero)) {
     await db
       .prepare('UPDATE players SET cash_usd_cents = cash_usd_cents + ? WHERE user_id = ?')
-      .bind(result.cash_delta_cents, user.id)
+      .bind(cashDelta, user.id)
+      .run();
+  } else if (cashDelta < 0) {
+    // 2026-11-12: egy döntés költsége nem viheti 0 alá a pénzt (economy.applyCashDelta szabálya SQL-ben):
+    // amennyi van, annyit von le — a negatív kassza és a belőle induló spirál így nem alakulhat ki.
+    await db
+      .prepare('UPDATE players SET cash_usd_cents = CASE WHEN cash_usd_cents <= 0 THEN cash_usd_cents ELSE MAX(0, cash_usd_cents + ?) END WHERE user_id = ?')
+      .bind(cashDelta, user.id)
       .run();
   }
   if (result.reputation_delta !== 0) {
@@ -88,7 +102,7 @@ export const POST = async (c: APIContext): Promise<Response> => {
   // A döntés pénzhatása az eseménysorba kerül, hogy a Pénzügy lap „Pénzmozgások" listája valós legyen (2026-11-11).
   let prevData: Record<string, unknown> = {};
   try { prevData = event.data_json ? JSON.parse(event.data_json) : {}; } catch { /* hibás JSON */ }
-  const newData = JSON.stringify({ ...prevData, option_id: optionId, cash_delta_cents: result.cash_delta_cents, reputation_delta: result.reputation_delta });
+  const newData = JSON.stringify({ ...prevData, option_id: optionId, cash_delta_cents: cashDelta, reputation_delta: result.reputation_delta });
   await db
     .prepare('UPDATE events SET resolved_at = ?, outcome = ?, data_json = ? WHERE id = ?')
     .bind(now, result.outcome, newData, eventId)
@@ -127,7 +141,7 @@ export const POST = async (c: APIContext): Promise<Response> => {
       ok: true,
       outcome: result.outcome,
       message: localizeEventMessage(event.event_type, optionId, localeFromRequest(c.request), result.message),
-      cash_delta_cents: result.cash_delta_cents,
+      cash_delta_cents: cashDelta,
       reputation_delta: result.reputation_delta,
       satisfaction_delta: result.satisfaction_delta_global,
       // Legacy field kept for backwards compat with current frontend.

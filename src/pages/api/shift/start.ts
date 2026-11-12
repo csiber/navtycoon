@@ -6,6 +6,7 @@ import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getPlayer } from '../../../lib/game/db';
 import { shiftsUsedToday } from '../../../lib/game/shift-score';
+import { ECONOMY } from '../../../lib/game/economy';
 
 export const prerender = false;
 
@@ -30,7 +31,8 @@ export const POST = async (c: APIContext): Promise<Response> => {
       .bind(Math.floor(nowSec / 86400) * 86400, user.id).run();
   }
 
-  // Up to 10 tickets with their customers.
+  // Up to 10 tickets with their customers (ECONOMY.shift_ticket_limit). Csak aktív ügyfelekét (2026-11-12):
+  // korábban a már elpártolt ügyfél régi ticketje is elvitt egy helyet a 10-ből.
   // We accept BOTH 'open' and 'in_progress' so abandoned shifts (the
   // player closed the modal mid-shift; tickets got bumped to
   // in_progress but never resolved) get picked up again. Without this
@@ -41,9 +43,9 @@ export const POST = async (c: APIContext): Promise<Response> => {
     SELECT t.id AS ticket_id, t.summary, t.full_text,
            c.id AS customer_id, c.name, c.persona_archetype, c.satisfaction
     FROM tickets t JOIN customers c ON t.customer_id = c.id
-    WHERE t.player_id = ? AND t.status IN ('open', 'in_progress')
-    ORDER BY t.created_at ASC LIMIT 10
-  `).bind(user.id).all<{
+    WHERE t.player_id = ? AND t.status IN ('open', 'in_progress') AND c.is_active = 1
+    ORDER BY t.created_at ASC LIMIT ?
+  `).bind(user.id, ECONOMY.shift_ticket_limit).all<{
     ticket_id: number; summary: string; full_text: string;
     customer_id: number; name: string; persona_archetype: string; satisfaction: number;
   }>();

@@ -3,13 +3,14 @@
 //
 // Per-tick responsibilities:
 //   1. money-trickle proportional to MRR (cash += MRR * 5min/30days)
-//   2. ticket-spawn for active customers (~5%/hour ≈ 0.4%/tick)
+//   2. ticket-spawn for active customers (economy.ts: 0,15%/tick, elégedett ügyfélnél fele)
 //        – AI-generated ha env.ai + env.vectorize + LLM-cap engedi
 //        – egyébként placeholder-fallback (getPlaceholderTicketForPersona)
-//   3. customer-churn for tickets unanswered >48h (30% roll per tick)
+//   3. customer-churn for tickets unanswered >48h (30% roll per tick, elégedettnél ¼; 3 törzsügyfél marad)
 //   4. MRR-recompute from active customers' plan-tiers
-//   5. marketing-driven customer-acquisition (SEO+PPC+referral, PPC costs cash)
-//   6. random-event spawn (~0.7% per tick → ~2/hour at full active fleet)
+//   5. marketing-driven customer-acquisition (SEO+PPC+referral; PPC a megfizethetőhöz igazodik)
+//   5.5 egyszeri áthidaló befektető, ha a pénz a küszöb alá esik
+//   6. random-event spawn (economy.ts: 0,1%/tick ≈ hetente 2)
 //
 // Konvenciók:
 //  - Pénz INTEGER (USD cents)
@@ -17,56 +18,22 @@
 //  - Per-player-szigetelés: minden write WHERE player_id = ?
 
 import type { D1Database } from '@cloudflare/workers-types/experimental';
-import type { Player, PersonaArchetype, EventType, PlanTier, EraId } from './types';
+import type { Player, PersonaArchetype, PlanTier, EraId } from './types';
 import { getPlaceholderTicketForPersona, spawnCustomer } from './customer-spawn';
 import { generateAiTicket } from '../ai/ticket-generator';
 import { storeTicketMemory, type VectorizeBinding } from '../ai/vectorize';
 import { tryConsumeLlmCall } from './llm-cap';
 import type { WorkersAIBinding } from '../ai/workers-ai';
 import { maybeAdvanceEra } from './era-progress';
+import {
+  ECONOMY, TICK_MINUTES, ppcSpendPerTick, acquisitionProb, ticketSpawnProb, churnProb, bridgeDue, isEngaged,
+} from './economy';
+import { eventPoolForEra } from './event-pool';
 
-export const TICK_MINUTES = 5;
-const CHURN_HOURS = 48;
-const TICKET_SPAWN_PROB_PER_TICK = 0.004;
-const CHURN_ROLL_PROB = 0.30;
-const RANDOM_EVENT_PROB_PER_TICK = 0.007;
-// Customer acquisition (Plan 4): marketing-mix drives spawn-rate.
-// Base prob = base × (mix_total/300) × era_factor × rep_factor × pro_factor.
-// At full mix (300pct) + Era 1 + 50 rep: ~2.5%/tick ≈ 1 customer / ~3h.
-// PPC channel costs $1/tick at 100%, scales linearly. Unaffordable → PPC mix is dropped.
-// Pro perk: 2× acquisition + 0.5× churn.
-const ACQUISITION_BASE_PROB = 0.025;
-const ERA_FACTOR: Record<number, number> = { 1: 1, 2: 1.5, 3: 2, 4: 3 };
-export const PPC_FULL_COST_PER_TICK_CENTS = 100;
-const PRO_ACQUISITION_MULTIPLIER = 2;
-const PRO_CHURN_MULTIPLIER = 0.5;
-// Welcome-boost: first 7 days of a player's run get 2× acquisition rate so
-// new players see growth quickly (critical for retention given default
-// ~0.4%/tick rate at signup-default mix).
-const WELCOME_BOOST_DAYS = 7;
-const WELCOME_BOOST_MULTIPLIER = 2;
-
-// Era-gated event pools. Era 1 players see core events; Era 2+ unlocks
-// compliance_audit + staff_drama (mid-game flavor); Era 3+ unlocks
-// competitor_buyout (late-game stakes). Higher eras get the union.
-const EVENT_POOL_BASE: ReadonlyArray<EventType> = [
-  'ddos_attempt',
-  'viral_blog',
-  'electricity_spike',
-  'recruit_ad',
-  'intern_incident',
-  'dmca',
-  'cooling_failure',
-  'security_breach',
-];
-const EVENT_POOL_ERA2: ReadonlyArray<EventType> = ['compliance_audit', 'staff_drama'];
-const EVENT_POOL_ERA3: ReadonlyArray<EventType> = ['competitor_buyout'];
-
-function eventPoolForEra(era: number): ReadonlyArray<EventType> {
-  if (era >= 3) return [...EVENT_POOL_BASE, ...EVENT_POOL_ERA2, ...EVENT_POOL_ERA3];
-  if (era >= 2) return [...EVENT_POOL_BASE, ...EVENT_POOL_ERA2];
-  return EVENT_POOL_BASE;
-}
+// A gazdaság számai (ticket-, lemorzsolódás-, beszerzés-, PPC-szabályok) 2026-11-12 óta az economy.ts-ben
+// élnek: a tick, a pénzáramlás-kijelzés és a szimulátor (economy-sim.ts) ugyanazt használja.
+export { TICK_MINUTES };
+export const PPC_FULL_COST_PER_TICK_CENTS = ECONOMY.ppc_full_cost_per_tick_cents;
 
 export interface TickResult {
   player_id: string;
@@ -78,6 +45,10 @@ export interface TickResult {
   events_spawned: number;
   customers_acquired: number;
   marketing_spent_cents: number;
+  /** true, ha a PPC-keret miatt a beállítottnál kevesebb ment hirdetésre. */
+  marketing_throttled: boolean;
+  /** Az egyszeri áthidaló befektető összege, ha most jött (különben 0). */
+  bridge_granted_cents: number;
   era_advanced_to: EraId | null;
 }
 
@@ -100,6 +71,8 @@ export async function tickPlayer(
   let eventsSpawned = 0;
   let customersAcquired = 0;
   let marketingSpent = 0;
+  let marketingThrottled = false;
+  let bridgeGranted = 0;
 
   // Hard guard: NPCs use the archetype engine in npc-tick.ts, not this
   // real-player loop. Step 5 here recomputes MRR from active customers —
@@ -113,6 +86,7 @@ export async function tickPlayer(
       tickets_spawned: 0, ai_tickets: 0, placeholder_tickets: 0,
       money_added_cents: 0, churned: 0, events_spawned: 0,
       customers_acquired: 0, marketing_spent_cents: 0,
+      marketing_throttled: false, bridge_granted_cents: 0,
       era_advanced_to: null,
     };
   }
@@ -126,6 +100,20 @@ export async function tickPlayer(
     await db.prepare(
       'UPDATE players SET free_shifts_today = 0, paid_shifts_today = 0, last_shift_reset_at = ? WHERE user_id = ?',
     ).bind(todayUtcStart, player.user_id).run();
+  }
+
+  // 0.5. Csendes elégedettség (economy.quiet_satisfaction): 12 óránként egyszer (az első tick az új félnapban),
+  //      az aktív, nyitott ticket nélküli ügyfelek +step elégedettséget kapnak a cap-ig — ha a játékos az utóbbi
+  //      engagement_window_hours órában belépett.
+  const quiet = ECONOMY.quiet_satisfaction;
+  const lastTicked = (player as { last_ticked_at?: number }).last_ticked_at ?? 0;
+  const engaged = isEngaged(ECONOMY, now, player.last_active_at);
+  if (quiet && engaged && Math.floor(now / 43200) !== Math.floor(lastTicked / 43200)) {
+    await db.prepare(
+      'UPDATE customers SET satisfaction = MIN(?, satisfaction + ?) ' +
+      'WHERE player_id = ? AND is_active = 1 AND satisfaction < ? ' +
+      "  AND id NOT IN (SELECT customer_id FROM tickets WHERE player_id = ? AND status IN ('open', 'in_progress'))",
+    ).bind(quiet.cap, quiet.step, player.user_id, quiet.cap, player.user_id).run();
   }
 
   // 1. Money trickle: MRR cents/month → per-tick cents
@@ -154,7 +142,7 @@ export async function tickPlayer(
 
   // 3. Ticket spawn — per-active-customer roll; AI first, placeholder fallback
   for (const c of customers.results ?? []) {
-    if (Math.random() >= TICKET_SPAWN_PROB_PER_TICK) continue;
+    if (Math.random() >= ticketSpawnProb(ECONOMY, c.satisfaction)) continue;
 
     let summary = '';
     let fullText = '';
@@ -223,25 +211,33 @@ export async function tickPlayer(
     else placeholderTickets++;
   }
 
-  // 4. Churn check — customers with open/in_progress tickets older than CHURN_HOURS
+  // 4. Churn check — customers with open/in_progress tickets older than churn_hours.
+  //    Az elégedett ügyfél türelmesebb (happy_churn_factor), és a törzsügyfél-padló (churn_floor_customers)
+  //    alá a lemorzsolódás nem visz: így a tétlen játékosnak is marad egy kis MRR.
   const churnCandidates = await db.prepare(
-    'SELECT c.id FROM customers c ' +
+    'SELECT c.id, c.satisfaction FROM customers c ' +
     'JOIN tickets t ON t.customer_id = c.id ' +
     'WHERE c.player_id = ? AND c.is_active = 1 ' +
     "  AND t.status IN ('open', 'in_progress') " +
     '  AND t.created_at < ? ' +
     'GROUP BY c.id',
-  ).bind(player.user_id, now - CHURN_HOURS * 3600).all<{ id: number }>();
+  ).bind(player.user_id, now - ECONOMY.churn_hours * 3600).all<{ id: number; satisfaction: number }>();
 
-  const churnProb = player.is_pro === 1
-    ? CHURN_ROLL_PROB * PRO_CHURN_MULTIPLIER
-    : CHURN_ROLL_PROB;
+  let activeCount = (customers.results ?? []).length;
   for (const row of churnCandidates.results ?? []) {
-    if (Math.random() < churnProb) {
+    if (activeCount <= ECONOMY.churn_floor_customers) break;
+    if (Math.random() < churnProb(ECONOMY, row.satisfaction, player.is_pro === 1)) {
       await db.prepare(
         'UPDATE customers SET is_active = 0, churn_risk = 100 WHERE id = ?',
       ).bind(row.id).run();
+      if (ECONOMY.close_tickets_on_churn) {
+        // A távozott ügyfél ticketje ne foglaljon helyet a következő műszakban.
+        await db.prepare(
+          "UPDATE tickets SET status = 'churned' WHERE customer_id = ? AND status IN ('open', 'in_progress')",
+        ).bind(row.id).run();
+      }
       churned++;
+      activeCount--;
     }
   }
 
@@ -265,37 +261,31 @@ export async function tickPlayer(
   }
 
   // 6. Marketing-driven customer acquisition
-  //    Channels: SEO (free), PPC (costs cash), referral (free; rep-multiplied)
-  //    PPC cost per tick = full_cost × (ppc_pct / 100). If cash < ppc_cost,
-  //    PPC channel drops out of the mix this tick.
+  //    Channels: SEO (free), PPC (costs cash, ppc_acquisition_weight× stronger), referral (free; rep-multiplied).
+  //    A PPC-költés a megfizethetőhöz igazodik (economy.ppcSpendPerTick): a napi bevétel egy része + a tartalék
+  //    fölötti pénz kis hányada; a beszerzésbe csak a ténylegesen elköltött rész számít.
   {
-    const seoPct = player.marketing_seo_pct;
-    const referralPct = player.marketing_referral_pct;
-    let ppcPct = player.marketing_ppc_pct;
-    const ppcCost = Math.round(PPC_FULL_COST_PER_TICK_CENTS * (ppcPct / 100));
     // Re-read latest cash because money-trickle (#1) may have updated it.
     const cashRow = await db.prepare(
       'SELECT cash_usd_cents FROM players WHERE user_id = ?',
     ).bind(player.user_id).first<{ cash_usd_cents: number }>();
     const cashNow = cashRow?.cash_usd_cents ?? player.cash_usd_cents;
-    let ppcEffectiveCost = 0;
-    if (ppcPct > 0 && cashNow >= ppcCost) {
-      ppcEffectiveCost = ppcCost;
-    } else {
-      ppcPct = 0; // PPC drops if unaffordable
-    }
-    const mixTotal = seoPct + ppcPct + referralPct;
-    if (mixTotal > 0) {
-      // Referral bonus: rep boosts referral-channel weight
-      const referralBoost = 1 + Math.max(0, player.reputation - 50) / 100;
-      const effectiveMix = seoPct + ppcPct + referralPct * referralBoost;
-      const mixFactor = effectiveMix / 300;
-      const eraFactor = ERA_FACTOR[player.current_era] ?? 1;
-      const repFactor = Math.max(0.1, player.reputation / 100);
-      const proFactor = player.is_pro === 1 ? PRO_ACQUISITION_MULTIPLIER : 1;
-      const ageDays = (now - player.founded_at) / 86400;
-      const welcomeFactor = ageDays < WELCOME_BOOST_DAYS ? WELCOME_BOOST_MULTIPLIER : 1;
-      const acqProb = ACQUISITION_BASE_PROB * mixFactor * eraFactor * repFactor * proFactor * welcomeFactor;
+    const spend = ppcSpendPerTick(ECONOMY, {
+      ppc_pct: player.marketing_ppc_pct, cash_cents: cashNow, mrr_cents: newMrr,
+    });
+    marketingThrottled = spend.throttled;
+    const acqProb = acquisitionProb(ECONOMY, {
+      seo_pct: player.marketing_seo_pct,
+      ppc_effective_pct: spend.effective_pct,
+      referral_pct: player.marketing_referral_pct,
+      reputation: player.reputation,
+      era: player.current_era,
+      is_pro: player.is_pro === 1,
+      age_days: (now - player.founded_at) / 86400,
+      pricing_hobby_cents: player.pricing_hobby_cents,
+      pricing_business_cents: player.pricing_business_cents,
+    });
+    if (acqProb > 0) {
       if (Math.random() < acqProb) {
         // Plan-tier: rep-weighted. Higher rep → more business-tier customers.
         const tier: PlanTier = Math.random() < player.reputation / 200 ? 'business' : 'hobby';
@@ -306,17 +296,39 @@ export async function tickPlayer(
         ).bind(player.user_id, sp.name, sp.persona_archetype, tier, now, sp.starting_satisfaction).run();
         customersAcquired++;
       }
-      if (ppcEffectiveCost > 0) {
+      if (spend.cost_cents > 0) {
         await db.prepare(
           'UPDATE players SET cash_usd_cents = MAX(0, cash_usd_cents - ?) WHERE user_id = ?',
-        ).bind(ppcEffectiveCost, player.user_id).run();
-        marketingSpent = ppcEffectiveCost;
+        ).bind(spend.cost_cents, player.user_id).run();
+        marketingSpent = spend.cost_cents;
+      }
+    }
+
+    // 6.5. Egyszeri áthidaló befektető: ha a pénz a küszöb alá esett, cégenként egyszer jön egy juttatás
+    //      (eseményként a hírfolyamban). A „volt-e már" az events táblából derül ki, így nem kell új oszlop.
+    const bridge = ECONOMY.bridge;
+    const cashAfter = cashNow - marketingSpent;
+    if (bridge && cashAfter < bridge.below_cents) {
+      const used = await db.prepare(
+        "SELECT 1 AS x FROM events WHERE player_id = ? AND event_type = 'bridge_investor' LIMIT 1",
+      ).bind(player.user_id).first<{ x: number }>();
+      if (bridgeDue(ECONOMY, {
+        cash_cents: cashAfter, age_days: (now - player.founded_at) / 86400, already_used: !!used,
+      })) {
+        await db.prepare(
+          'UPDATE players SET cash_usd_cents = cash_usd_cents + ? WHERE user_id = ?',
+        ).bind(bridge.grant_cents, player.user_id).run();
+        await db.prepare(
+          'INSERT INTO events (player_id, event_type, data_json, spawned_at, outcome, resolved_at) ' +
+          "VALUES (?, 'bridge_investor', ?, ?, 'positive', ?)",
+        ).bind(player.user_id, JSON.stringify({ cash_delta_cents: bridge.grant_cents }), now, now).run();
+        bridgeGranted = bridge.grant_cents;
       }
     }
   }
 
   // 7. Random event spawn — pool depends on player's current era.
-  if (Math.random() < RANDOM_EVENT_PROB_PER_TICK) {
+  if (Math.random() < ECONOMY.random_event_prob_per_tick) {
     const pool = eventPoolForEra(player.current_era);
     const type = pool[Math.floor(Math.random() * pool.length)];
     await db.prepare(
@@ -342,7 +354,8 @@ export async function tickPlayer(
       //   <30 → 2% chance of -1 rep
       // Otherwise no change. Bounded: rep stays in [0, 100].
       const roll = Math.random();
-      if (avgSat >= 70 && roll < 0.02) {
+      const staleOk = !ECONOMY.rep_drift_requires_no_stale_tickets || (churnCandidates.results ?? []).length === 0;
+      if (avgSat >= 70 && staleOk && engaged && roll < 0.02) {
         await db.prepare(
           'UPDATE players SET reputation = MIN(100, reputation + 1) WHERE user_id = ?',
         ).bind(player.user_id).run();
@@ -351,6 +364,13 @@ export async function tickPlayer(
           'UPDATE players SET reputation = MAX(0, reputation - 1) WHERE user_id = ?',
         ).bind(player.user_id).run();
       }
+    }
+    // Lassú visszatérés: a mélyre esett hírnév magától visszakúszik a rec.below-ig (nincs hírnév-spirál).
+    const rec = ECONOMY.rep_recovery;
+    if (rec && player.reputation < rec.below && Math.random() < rec.prob_per_tick) {
+      await db.prepare(
+        'UPDATE players SET reputation = MIN(?, reputation + 1) WHERE user_id = ?',
+      ).bind(rec.below, player.user_id).run();
     }
   }
 
@@ -386,6 +406,8 @@ export async function tickPlayer(
     events_spawned: eventsSpawned,
     customers_acquired: customersAcquired,
     marketing_spent_cents: marketingSpent,
+    marketing_throttled: marketingThrottled,
+    bridge_granted_cents: bridgeGranted,
     era_advanced_to: eraAdvancedTo,
   };
 }
