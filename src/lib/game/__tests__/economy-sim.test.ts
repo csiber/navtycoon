@@ -182,13 +182,13 @@ describe('v3 dedicated box: one big business client (2026-11-12, dedikált-kör)
   const mrr60 = (r: SimResult) => at(r, 60).mrr_cents;
   const T = { timeout: 180_000 };
 
-  it('the box costs a little, the client pays a lot: payback in 2–4 months', () => {
+  it('the box costs a little, the client pays a lot: payback in 1.5–4 months', () => {
     const d = LIVE.dedicated!;
     const box = SERVER_SPECS.dedicated_box;
     expect(serverCapacity('dedicated_box', 1)).toBe(0); // a sima ügyfelek nem férnek rá
     const mid = dedicatedFeeMid(d);
     const months = box.purchase_cost_cents / (mid - box.monthly_cost_cents);
-    expect(months).toBeGreaterThanOrEqual(2);
+    expect(months).toBeGreaterThanOrEqual(1.5); // 2026-11-12 este: $350 → ~1,8 hónap
     expect(months).toBeLessThanOrEqual(4);
     // a díj jóval több, mint egy sima ügyfélé (business: $15–$30)
     expect(d.fee_min_cents).toBeGreaterThanOrEqual(10 * DEFAULT_PRICING.business);

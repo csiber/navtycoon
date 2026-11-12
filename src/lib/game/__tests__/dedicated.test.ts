@@ -73,12 +73,12 @@ describe('dedicated rules (pure)', () => {
     expect(localizePlaceholderTicket(ENTERPRISE_TICKET_TABLES.en[0], 'hu')).toBe(ENTERPRISE_TICKET_TABLES.hu[0]);
   });
 
-  it('catalog spec: era 2, cheaper than before, payback 2–4 months at the mid fee', () => {
+  it('catalog spec: era 2, cheaper than before, payback 1.5–4 months at the mid fee', () => {
     const box = SERVER_SPECS.dedicated_box;
     expect(box.era).toBe(2);
     const mid = (D.fee_min_cents + D.fee_max_cents) / 2;
     const months = box.purchase_cost_cents / (mid - box.monthly_cost_cents);
-    expect(months).toBeGreaterThanOrEqual(2);
+    expect(months).toBeGreaterThanOrEqual(1.5); // 2026-11-12 este: $350 → ~1,8 hónap
     expect(months).toBeLessThanOrEqual(4);
   });
 });

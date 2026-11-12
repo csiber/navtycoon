@@ -253,7 +253,10 @@ export const ECONOMY: EconomyRules = {
     // A távozás (bármi okból) 15 hírnév és 21 nap nagy ügyfél nélkül: a rá nem figyelő játékos így rosszabbul
     // jár, mintha meg sem vette volna a gépet (szimulátor: dedicated_neglect).
     leave_rep: 15,
-    leave_cooldown_days: 21,
+    // 21 → 30 nap (2026-11-12 este, a $350-os gép mellett): olcsóbb gépnél a magára hagyott nagy ügyfél díja a
+    // távozásig többet hozott, mint amennyit a rossz referencia elvitt — 30 nap várakozással a „megvettem, majd
+    // lesz valahogy" a 2. hónapban sem jobb, mint dedikált nélkül (szimulátor: dedicated_neglect).
+    leave_cooldown_days: 30,
     reply_gain_factor: 0.75,
     reply_loss_factor: 1.5,
     close: { happy_at: 70, happy: 3, ok_at: 45, ok: -5, meh_at: 30, meh: -10, angry: -30 },

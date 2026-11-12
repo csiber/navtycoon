@@ -8,7 +8,7 @@
 //
 // Elvárás: ticket_factor-szor annyi ticket, a műszakban a jó válasz kevesebbet ér, a lezárás csak akkor nem
 // árt, ha már elégedett; a 24 óránál régebbi megválaszolatlan ticket 12 óránként elégedettséget és hírnevet
-// visz, 25 alatti elégedettségnél felmond, és bárhogy megy el, 15 hírnevet visz magával, utána pedig 21 napig nem
+// visz, 25 alatti elégedettségnél felmond, és bárhogy megy el, 15 hírnevet visz magával, utána pedig 30 napig (2026-11-12 este: 21 → 30) nem
 // jelentkezik új nagy ügyfél (a gép közben üresen fizeti a díját).
 //
 // A tick (tick.ts), a műszak (api/shift/start.ts, shift-room DO), a felület és a szimulátor (economy-sim.ts)

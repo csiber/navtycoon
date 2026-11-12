@@ -18,6 +18,10 @@
 //    ~2,6 hónap + a várakozás). Indoklás: a régi gép egy $5-os helyet adott $120-ért (csapda), és $3500-ra a
 //    szimulátor aktív játékosa 90 nap alatt sem gyűjtött; $500-at a 2. korszak elején össze tud spórolni, ha
 //    addig nem vesz fejlesztést (economy-sim.ts, „dedicated" profil).
+//  - 2026-11-12 este (Csaba: „lemehet igen"): a dedikált gép vételára $500 → $350 (a $50/hó és a nagy ügyfél
+//    $200–$280-as díja marad). Megtérülés a sáv közepével ~2,6 → ~1,8 hónap. Szimulátor (10 seed, 90 nap, medián):
+//    „dedicated" profil 3. korszak a 80. → 66. napon (dedikált nélkül, „active": 64.), 90 napos MRR $1284 → $1576
+//    (active: $1377). A drágább gépre spórolás eddig a fejlesztéseket késleltette, ezért járt rosszabbul a dedikált nélküli úttal.
 
 import type { ServerType, EraId } from './types';
 
@@ -49,7 +53,7 @@ export const SERVER_SPECS: Record<ServerType, ServerSpec> = {
   },
   dedicated_box: {
     type: 'dedicated_box', era: 2, display_name: 'Dedicated Box (one big client)',
-    capacity: 1, monthly_cost_cents: 5000, purchase_cost_cents: 50000,
+    capacity: 1, monthly_cost_cents: 5000, purchase_cost_cents: 35000,
     flavor: 'One business client, their own bare metal, and a phone number they will actually call.',
   },
   cloud_region: {
