@@ -607,5 +607,5 @@ describe('tickPlayer — server fees, debt limit, capacity (v3)', () => {
     const rows = (await d.prepare("SELECT data_json FROM events WHERE player_id = ? AND event_type = 'capacity_lost'").bind('u-full').all<{ data_json: string }>()).results ?? [];
     expect(rows.length).toBe(1);
     expect(JSON.parse(rows[0].data_json).count).toBe(2);
-  });
+  }, 20000); // 2 tick × 15 ticket-beszúrás: a CT120 terhelése mellett az 5 s-os alapkeret kevés
 });
