@@ -11,6 +11,7 @@ import type { Player } from '../game/types';
 import { UPGRADE_SPECS } from '../game/upgrade-tree';
 import { eraProgress, daysAlive, type EraProgress } from '../game/era-progress';
 import { dailyCashFlow, type CashFlow } from '../game/runway';
+import { LOW_CASH_WARN_CENTS } from '../game/economy';
 import { pt, clientStrings, type PlayLocale, type PlayKey } from './strings';
 
 export interface ShellDbLike {
@@ -194,6 +195,19 @@ function renderEraBox(s: ShellData): string {
     </details>`;
 }
 
+/** Alacsony pénznél érthető figyelmeztetés (2026-11-12): mi történik, és mit tehetsz. Különben, ha a hirdetési
+ *  keret visszafogja a PPC-t, egy rövid megjegyzés. A stílus a meglévő .runway.danger osztályt használja. */
+export function cashWarning(s: ShellData): string {
+  const L = s.locale;
+  if (s.cashCents < LOW_CASH_WARN_CENTS) {
+    return `<div class="runway danger cash-warn" role="status"><span>⚠ ${esc(pt(L, 'cash.low_warn'))}</span></div>`;
+  }
+  if (s.flow.ppc_throttled) {
+    return `<div class="runway cash-note"><span>${esc(pt(L, 'cash.ads_capped'))}</span></div>`;
+  }
+  return '';
+}
+
 export function renderSidebar(s: ShellData, active: NavId): string {
   const L = s.locale;
   const runwayTxt = s.flow.runway_days === null ? pt(L, 'runway.safe') : pt(L, 'runway.days', { n: s.flow.runway_days });
@@ -227,6 +241,7 @@ export function renderSidebar(s: ShellData, active: NavId): string {
         <span>${esc(pt(L, 'runway.label'))}</span><b>${esc(runwayTxt)}</b>
       </div>
       <div class="bar"><i style="width:${runwayPct}%"></i></div>
+      ${cashWarning(s)}
     </div>
     ${sections}
     ${renderEraBox(s)}

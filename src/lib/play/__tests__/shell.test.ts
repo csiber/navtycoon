@@ -39,6 +39,15 @@ describe('shared play shell', () => {
     const burning = shell({ flow: dailyCashFlow({ cash_usd_cents: 100000, mrr_usd_cents: 1500, marketing_ppc_pct: 33 }) });
     expect(renderSidebar(burning, 'dashboard')).toMatch(/\d+ nap/);
   });
+  it('low cash: an explained warning instead of a silent drain; capped ads get a short note', () => {
+    expect(renderSidebar(shell(), 'dashboard')).not.toContain('cash-warn');
+    const low = shell({ cashCents: 4000, flow: dailyCashFlow({ cash_usd_cents: 4000, mrr_usd_cents: 1500, marketing_ppc_pct: 33 }) });
+    const html = renderSidebar(low, 'dashboard');
+    expect(html).toContain('cash-warn');
+    expect(html).toContain('A hirdetés magától leáll');
+    const capped = shell({ cashCents: 30000, flow: dailyCashFlow({ cash_usd_cents: 30000, mrr_usd_cents: 0, marketing_ppc_pct: 100 }) });
+    expect(renderSidebar(capped, 'dashboard')).toContain('megfizethetőhöz igazodik');
+  });
   it('era box shows the real 1/4 and the same requirements', () => {
     const html = renderSidebar(shell(), 'dashboard');
     expect(html).toContain('1/4');

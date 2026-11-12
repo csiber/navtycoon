@@ -30,7 +30,16 @@ export async function bootstrapStarterPlayer(db: D1Like, input: StarterInput): P
   await db.prepare('UPDATE players SET preferred_lang = ? WHERE user_id = ?')
     .bind(input.lang ?? 'en', input.user_id).run();
 
-  const userId = input.user_id;
+  await seedStarterKit(db, input.user_id, input.lang ?? 'en');
+
+  const p = await getPlayer(db, input.user_id);
+  if (!p) throw new Error('bootstrapStarterPlayer: player missing after insert');
+  return p;
+}
+
+/** A kezdőcsomag egy már létező player-sorhoz: 1 ingyenes szerver, 3 ügyfél egy-egy tickettel, $15 MRR.
+ *  (A signup és a „Vállalat újraindítása" — restart.ts — is ezt hívja.) */
+export async function seedStarterKit(db: D1Like, userId: string, lang: StarterLang): Promise<void> {
   const now = Math.floor(Date.now() / 1000);
   const starter = SERVER_SPECS.lamp_box;
 
@@ -43,7 +52,7 @@ export async function bootstrapStarterPlayer(db: D1Like, input: StarterInput): P
   // 3× hobby-ügyfél, mindegyiknek 1 nyitott ticket. A kezdő ticketek a persona-sablonszöveget kapják:
   // itt szándékosan nem fogyasztjuk a napi LLM-keretet (az az első műszakra kell).
   for (let i = 0; i < 3; i++) {
-    const sc = spawnCustomer('hobby', input.lang ?? 'en');
+    const sc = spawnCustomer('hobby', lang);
     const cRes = await db.prepare(
       'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, ' +
       'joined_at, satisfaction, churn_risk) ' +
@@ -59,10 +68,6 @@ export async function bootstrapStarterPlayer(db: D1Like, input: StarterInput): P
 
   // Kezdő MRR: 3 × $5 hobby = $15
   await db.prepare('UPDATE players SET mrr_usd_cents = 1500 WHERE user_id = ?').bind(userId).run();
-
-  const p = await getPlayer(db, userId);
-  if (!p) throw new Error('bootstrapStarterPlayer: player missing after insert');
-  return p;
 }
 
 /** A user játékosa; ha nincs (új fiók, nullázott mentés, félbemaradt signup), létrehozza a kezdőállást. */

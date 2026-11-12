@@ -1,12 +1,12 @@
-// POST /api/game/reset — törli az aktuális player save-et a navtycoon DB-ből.
-// Megőrzi: PromNET user-rekordot + leaderboard-historyt (shift_history-ban
-// marad). Törli: customers, tickets, servers, events, achievements,
-// upgrades, players. Új /play hit-en a player.signup-bootstrap újra
-// létrejön (kezdő 3 customer + 1 lamp_box + $1000 cash).
+// POST /api/game/reset — „Vállalat újraindítása": a cég állása nulláról indul, a fiók marad.
+// A logika a src/lib/game/restart.ts-ben (tesztelt): megmarad a cégnév, a nyelv, a Pro-előfizetés, a mai
+// műszak- és AI-keret (llm_usage) és a műszak-történet; ürül: ügyfelek, ticketek, szerverek, események,
+// eredmények, fejlesztések. Utána azonnal van kezdőállás, a /play nem irányít sehova.
 
 import { legacyError } from '../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
+import { restartCompany } from '../../../lib/game/restart';
 
 export const prerender = false;
 
@@ -19,16 +19,9 @@ export async function POST(context: APIContext): Promise<Response> {
   if (!db) return jerr(500, 'No DB');
 
   try {
-    // Sorrend fontos a FOREIGN KEY-k miatt: tickets → customers, servers, events,
-    // achievements, upgrades, llm_usage → players.
-    await db.prepare('DELETE FROM tickets WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM customers WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM servers WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM events WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM achievements WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM upgrades WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM llm_usage WHERE player_id = ?').bind(user.id).run();
-    await db.prepare('DELETE FROM players WHERE user_id = ?').bind(user.id).run();
+    const r = await restartCompany(db, user.id);
+    // Nincs még cége (pl. félbemaradt regisztráció): a /play ensurePlayer-e úgyis létrehozza a kezdőállást.
+    if (!r.ok && r.error === 'npc') return jerr(403, 'npc');
   } catch (e) {
     return jerr(500, 'Reset hiba: ' + (e as Error).message);
   }
