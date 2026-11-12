@@ -107,7 +107,7 @@ const HU: Record<string, string> = {
     'Pénz a zsebbe, a játék megy tovább. A renoméd romlik (eladtad magad).',
   'competitor_buyout.take_the_money.msg':
     'Eladtad. A pénz a bankban. Devon tiltakozásul leiratkozott.',
-  'competitor_buyout.counter_offer.label': 'Ellenajánlat $80k-ért',
+  'competitor_buyout.counter_offer.label': 'Ellenajánlat $18k-ért',
   'competitor_buyout.counter_offer.desc': 'Fej vagy írás: vagy fizetnek, vagy lelépnek.',
   'competitor_buyout.counter_offer.msg': 'Az ellenajánlat elment, a tárgyalás lezárult.',
   'competitor_buyout.reject.label': 'Utasítsd vissza udvariasan',
@@ -242,7 +242,7 @@ const DE: Record<string, string> = {
     'Geld aufs Konto, das Spiel geht weiter. Der Ruf leidet (Ausverkauf).',
   'competitor_buyout.take_the_money.msg':
     'Verkauft. Das Geld ist auf der Bank. Devon hat aus Protest gekündigt.',
-  'competitor_buyout.counter_offer.label': 'Gegenangebot über $80k',
+  'competitor_buyout.counter_offer.label': 'Gegenangebot über $18k',
   'competitor_buyout.counter_offer.desc': 'Münzwurf: Entweder sie zahlen oder sie springen ab.',
   'competitor_buyout.counter_offer.msg': 'Das Gegenangebot ist raus, die Verhandlung ist beendet.',
   'competitor_buyout.reject.label': 'Höflich ablehnen',
@@ -280,14 +280,14 @@ const DE: Record<string, string> = {
 // A competitor_buyout.counter_offer kimenetét a játéklogika dobja (win/lose),
 // ezért itt két üzenetvariáns van; az angol szöveg alapján választunk.
 const OUTCOME_HU: Record<string, string> = {
-  'They paid $80k. Holy crap. The runway is real now.':
-    'Kifizettek $80k-t. Atyaúristen. Most már tényleg van tartalék.',
+  'They paid $18k. Holy crap. The runway is real now.':
+    'Kifizettek $18k-t. Atyaúristen. Most már tényleg van tartalék.',
   'They walked. Indie cred intact, but the deal is dead.':
     'Továbbálltak. A független hírneved sértetlen, de az üzlet halott.',
 };
 const OUTCOME_DE: Record<string, string> = {
-  'They paid $80k. Holy crap. The runway is real now.':
-    'Sie haben $80k bezahlt. Wahnsinn. Jetzt ist die Runway wirklich da.',
+  'They paid $18k. Holy crap. The runway is real now.':
+    'Sie haben $18k bezahlt. Wahnsinn. Jetzt ist die Runway wirklich da.',
   'They walked. Indie cred intact, but the deal is dead.':
     'Sie sind abgesprungen. Indie-Credibility intakt, aber der Deal ist tot.',
 };

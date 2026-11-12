@@ -343,17 +343,17 @@ export const EVENT_DEFINITIONS: Record<EventType, EventDefinition> = {
       },
       {
         id: 'counter_offer',
-        label: 'Counter at $80k',
+        label: 'Counter at $18k',
         description: 'Coin flip — they might pay, or might walk.',
         apply: () => {
           const won = Math.random() < 0.4;
           return {
             outcome: won ? ('positive' as const) : ('negative' as const),
-            cash_delta_cents: won ? 8000000 : 0,
+            cash_delta_cents: won ? 1800000 : 0,
             satisfaction_delta_global: 0,
             reputation_delta: won ? -5 : 3,
             message: won
-              ? 'They paid $80k. Holy crap. The runway is real now.'
+              ? 'They paid $18k. Holy crap. The runway is real now.'
               : 'They walked. Indie cred intact, but the deal is dead.',
           };
         },
