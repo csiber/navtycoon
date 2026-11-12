@@ -1,5 +1,6 @@
 ---
 import '../../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a Vite hash-elt néven adja ki
+import PlayAudio from '../../components/PlayAudio.astro'; // közös hangmotor (src/scripts/audio)
 import templateCssUrl from '../../styles/template.css?url';
 import playShellCssUrl from '../../styles/play-shell.css?url'; // tartalom-hash-es URL: a CSS-változás azonnal kimegy
 // /play/pricing -- two-tier plan pricing. Dark template style.
@@ -323,6 +324,7 @@ const msT = { saving: pt(locale, 'set.saving'), saved: pt(locale, 'ms.saved'), e
 </script>
 <I18nDashboard />
 <DashboardAnims />
+<PlayAudio />
 <script is:inline src="/js/play-shell.js"></script>
 </body>
 </html>

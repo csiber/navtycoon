@@ -2,7 +2,8 @@
 //  - mobilmenü (☰ / ✕ / háttér / Esc)
 //  - „Következő nap: … múlva" visszaszámláló a felső sávban
 //  - korszak-doboz nyitott/zárt állapota (localStorage)
-//  - window.hsToast(text, kind, amountText) + window.hsSetCash(cents) számanimációval
+//  - window.hsToast(text, kind, amountText, silent) + window.hsSetCash(cents) számanimációval
+//  - 2026-11-12: a toastok hangja a közös hangmotoron át (window.hsSfx, src/scripts/audio); ha nincs betöltve, csend
 (function () {
   'use strict';
   var body = document.body;
@@ -65,7 +66,9 @@
     }
     return c;
   }
-  window.hsToast = function (text, kind, amountText) {
+  function sfx(name) { try { if (window.hsSfx) window.hsSfx(name); } catch (e) { /* hang nélkül is megy */ } }
+  window.hsToast = function (text, kind, amountText, silent) {
+    if (!silent) sfx(kind === 'bad' ? 'err' : 'ok');
     var t = document.createElement('div');
     t.className = 'hs-toast' + (kind ? ' ' + kind : '');
     if (amountText) {
@@ -110,10 +113,11 @@
       requestAnimationFrame(step);
     });
   };
-  /** Pénzmozgás: toast + számanimáció. deltaCents < 0 = kiadás. */
-  window.hsMoney = function (deltaCents, text, newCashCents) {
+  /** Pénzmozgás: toast + számanimáció. deltaCents < 0 = kiadás. sound: a hang neve (alap: bevételnél 'cash', kiadásnál 'ok'). */
+  window.hsMoney = function (deltaCents, text, newCashCents, sound) {
     var amt = (deltaCents >= 0 ? '+' : '−') + '$' + (Math.abs(deltaCents) / 100).toFixed(Math.abs(deltaCents) % 100 ? 2 : 0);
-    window.hsToast(text, deltaCents >= 0 ? 'good' : 'bad', amt);
+    sfx(sound || (deltaCents > 0 ? 'cash' : 'ok'));
+    window.hsToast(text, deltaCents >= 0 ? 'good' : 'bad', amt, true);
     if (typeof newCashCents === 'number') window.hsSetCash(newCashCents);
     else {
       var el = document.querySelector('[data-cash-cents]');

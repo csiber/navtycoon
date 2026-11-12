@@ -6,7 +6,7 @@
 
 import { formatClock, timerPhase, satPct, satTone, moodFace, signed, signedUsd } from '../../lib/play/shift-format';
 import { secondsUntilShiftReset, type ShiftTip } from '../../lib/game/shift-score';
-import { popAt, play, setSound, soundEnabled } from './shift-fx';
+import { popAt, play, setSound, soundEnabled, onSoundChange } from './shift-fx';
 
 // Régi, gyorsítótárazott vezérlő iframe-ablakából: ki a felső ablakba (a műszak teljes oldal lett).
 if (window.top && window.top !== window) {
@@ -143,7 +143,7 @@ function tickTimer() {
   if (box) box.className = 'sx-timer ' + (ended ? '' : ph);
   const bar = box?.querySelector<SVGCircleElement>('.bar');
   if (bar) bar.style.strokeDashoffset = String(213.6 * (1 - Math.max(0, ended ? 0 : left) / total));
-  if (!ended && ph !== 'ok' && !warned && left > 0) { warned = true; play('warn'); window.hsToast?.(tr('sx.timer.warn'), 'bad'); }
+  if (!ended && ph !== 'ok' && !warned && left > 0) { warned = true; play('warn'); window.hsToast?.(tr('sx.timer.warn'), 'bad', undefined, true); }
   if (!ended && left <= 0 && !endSent) { endSent = true; send({ type: 'end_shift' }); }
 }
 
@@ -474,7 +474,7 @@ $('sx-end')?.addEventListener('click', () => {
   send({ type: 'end_shift' });
 });
 
-// ─── sound toggle (default off) ───
+// ─── hangkapcsoló (a közös hangmotor fő némítása, src/scripts/audio) ───
 const sb = $<HTMLButtonElement>('sx-sound');
 function paintSound() {
   if (!sb) return;
@@ -486,5 +486,6 @@ function paintSound() {
 }
 sb?.addEventListener('click', () => { setSound(!soundEnabled()); paintSound(); });
 paintSound();
+onSoundChange(paintSound);
 
-declare global { interface Window { hsToast?: (t: string, k?: string, amt?: string) => void } }
+declare global { interface Window { hsToast?: (t: string, k?: string, amt?: string, silent?: boolean) => void } }

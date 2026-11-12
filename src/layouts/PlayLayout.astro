@@ -10,6 +10,7 @@ import { getPlayer } from '../lib/game/db';
 import { resolveLocale } from '../lib/i18n/server';
 import { loadShell, renderSidebar, renderTopbar, type NavId } from '../lib/play/shell';
 import I18nDashboard from '../components/I18nDashboard.astro';
+import PlayAudio from '../components/PlayAudio.astro'; // közös hangmotor (src/scripts/audio)
 
 interface Props {
   title: string;
@@ -49,6 +50,7 @@ const shell = user && db && player ? await loadShell(db, player, user, locale) :
     </main>
   </div>
   <I18nDashboard />
+  <PlayAudio />
   <script is:inline src="/js/play-shell.js"></script>
 </body>
 </html>

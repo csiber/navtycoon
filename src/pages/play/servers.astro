@@ -1,5 +1,6 @@
 ---
 import '../../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a Vite hash-elt néven adja ki
+import PlayAudio from '../../components/PlayAudio.astro'; // közös hangmotor (src/scripts/audio)
 import templateCssUrl from '../../styles/template.css?url';
 import playShellCssUrl from '../../styles/play-shell.css?url'; // tartalom-hash-es URL: a CSS-változás azonnal kimegy
 // /play/servers -- auth-required.
@@ -112,7 +113,8 @@ const rack3d = {
         const j = await r.json().catch(() => ({}));
         if (!r.ok || !j.ok) throw new Error(j.message || j.error || ('HTTP ' + r.status));
         const name = btn.dataset.name || '';
-        window.hsMoney && window.hsMoney(-parseInt(btn.dataset.cost || '0', 10), (isServer ? T.boughtServer : T.boughtUpgrade).replace('{name}', name));
+        // Vásárlás hangja: fémes kattanás (src/scripts/audio); a becsúszás a frissítés után, a rackben szól.
+        window.hsMoney && window.hsMoney(-parseInt(btn.dataset.cost || '0', 10), (isServer ? T.boughtServer : T.boughtUpgrade).replace('{name}', name), undefined, 'buy');
         btn.textContent = '✓';
         setTimeout(() => location.reload(), 1400);
       } catch (e) {
@@ -166,6 +168,7 @@ const rack3d = {
 </script>
 <I18nDashboard />
 <DashboardAnims />
+<PlayAudio />
 <script is:inline src="/js/play-shell.js"></script>
 </body>
 </html>

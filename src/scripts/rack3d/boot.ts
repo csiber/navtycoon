@@ -43,12 +43,14 @@ async function boot() {
   const cap = capability(force);
   panel.dataset.rack3d = cap.ok ? 'available' : 'off:' + cap.reason;
   const toggle = panel.querySelector<HTMLButtonElement>('[data-rack3d-toggle]');
-  if (!cap.ok || data.model.units.length === 0) { toggle?.remove(); return; }
-
   // Az új (még nem látott) gépek becsúsznak. Első látogatáskor nincs előzmény → nincs animáció.
+  // 2026-11-12: a 2D nézet is számon tartja, hogy a becsúszás hangja (src/scripts/audio) ott is megszólaljon.
   const seen = readSeen();
   const fresh = new Set<number>(seen ? data.model.units.filter((u) => !seen.has(u.id)).map((u) => u.id) : []);
-  try { localStorage.setItem(SEEN_KEY, JSON.stringify(data.model.units.map((u) => u.id))); } catch { /* sandboxed */ }
+  if (data.model.units.length > 0) try { localStorage.setItem(SEEN_KEY, JSON.stringify(data.model.units.map((u) => u.id))); } catch { /* sandboxed */ }
+  // A hang a 3D becsúszás közepére esik (0,35 mp várakozás + 1,2 mp csúszás); 2D-ben rögtön.
+  if (fresh.size > 0) setTimeout(() => window.hsSfx?.('slide'), cap.ok ? 650 : 150);
+  if (!cap.ok || data.model.units.length === 0) { toggle?.remove(); return; }
 
   let handle: RackHandle | null = null;
   let loading = false;

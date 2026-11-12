@@ -1,5 +1,6 @@
 ---
 import '../../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a Vite hash-elt néven adja ki
+import PlayAudio from '../../components/PlayAudio.astro'; // közös hangmotor (src/scripts/audio)
 import playShellCssUrl from '../../styles/play-shell.css?url'; // tartalom-hash-es URL: a CSS-változás azonnal kimegy
 // /play -- main dashboard. Auth-required.
 import { shiftsUsedToday } from '../../lib/game/shift-score';
@@ -365,6 +366,7 @@ const eraFeats = eraKnown ? pt(locale, `dash.era.f${eraE}` as PlayKey).split('|'
         const a = (j.achievements || []).find(x => x.id === id);
         if (!a) return;
         setTimeout(() => {
+          if (i === 0 && window.hsSfx) window.hsSfx('achievement'); // kis csilingelés (src/scripts/audio)
           if (typeof confetti === 'function') {
             confetti({
               particleCount: 60,
@@ -499,7 +501,8 @@ const eraFeats = eraKnown ? pt(locale, `dash.era.f${eraE}` as PlayKey).split('|'
 <script is:inline>
   // Döntésre váró események (szerveroldalon renderelt sáv) + achievement-toastok.
   (function () {
-    function showToast(text) {
+    function showToast(text, sound) {
+      if (window.hsSfx) window.hsSfx(sound || 'ok');
       var t = document.createElement('div');
       t.style.cssText = 'position:fixed;bottom:30px;right:30px;background:var(--panel);border:1px solid var(--indigo);color:var(--text);padding:12px 18px;border-radius:8px;z-index:200;max-width:400px;box-shadow:0 12px 32px -8px rgba(99,102,241,.4);font-size:13px;';
       t.textContent = text;
@@ -563,7 +566,7 @@ const eraFeats = eraKnown ? pt(locale, `dash.era.f${eraE}` as PlayKey).split('|'
         var byId = new Map((j.achievements || []).map(function (a) { return [a.id, a]; }));
         j.newly_unlocked.forEach(function (id) {
           var ach = byId.get(id);
-          if (ach) showToast('🎉 Achievement unlocked: ' + ach.emoji + ' ' + ach.title);
+          if (ach) showToast('🎉 Achievement unlocked: ' + ach.emoji + ' ' + ach.title, 'achievement');
         });
       })
       .catch(function () {});
@@ -698,6 +701,7 @@ const eraFeats = eraKnown ? pt(locale, `dash.era.f${eraE}` as PlayKey).split('|'
 </script>
 <I18nDashboard />
 <DashboardAnims />
+<PlayAudio />
 <script is:inline src="/js/play-shell.js"></script>
 </body>
 </html>

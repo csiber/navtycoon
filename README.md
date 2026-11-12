@@ -102,3 +102,13 @@ base64("hyperscales:<AIKAHUB_CLIENT_KEY>")`, a pairwise `sub`-ra; Hub-id = `hype
 - A fióktörlés most a `users`/`sessions`/`legacy_accounts` sort is törli.
 - A tesztek (`npm test`) a Pi-n nem futnak (a workerd/Miniflare jemalloc-gond miatt lefagy) — amd64-en (CT120) mind zöld.
 - TODO: saját Pro-forrás (most nincs Pro).
+
+## Hangok (ág: hangok, 2026-11-12)
+
+Közös hangmotor minden /play oldalon: `src/scripts/audio/` (`engine.ts` logika, `settings.ts` beállítások, `boot.ts` oldal-szintű
+jelzések, `ui.ts` vezérlők), betöltés: `src/components/PlayAudio.astro`. Három csatorna: effektek (70%), szerverterem-alapzaj (35%,
+csak vezérlő + Szerverek), zene (25%); fő némítás. Beállítás: localStorage `hs_audio`; a régi Műszak-kapcsoló (`hs_sound`='0')
+némítva marad. Vezérlő: a felső sáv hangszóró-gombja (1 kattintás = némítás) + lenyíló, és a Beállítások „Hang” kártyája
+(`src/lib/play/sound-ui.ts`). Az alapzaj és a zene csak az első interakció után indul (beúszik), a fájlok is csak akkor töltődnek;
+rejtett lapon elhalkul és szünetel. Kliensből: `window.hsSfx('ok' | 'err' | 'cash' | 'buy' | …)`. Fájlok és licencük:
+`public/audio/LICENSES.md`.

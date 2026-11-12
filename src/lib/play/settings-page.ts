@@ -8,6 +8,7 @@
 
 import { esc, usd, type ShellData } from './shell';
 import { pt, type PlayLocale } from './strings';
+import { renderSoundControl } from './sound-ui';
 
 export interface SettingsData {
   shell: ShellData;
@@ -91,6 +92,11 @@ export function renderSettingsContent(d: SettingsData): string {
           <p class="set-help">${esc(d.isPro
             ? pt(L, 'set.pro_on', { until: d.proUntil ?? '—', cap: d.proCap })
             : pt(L, 'set.free', { cap: d.freeCap }))}</p>
+        </section>
+
+        <section class="panel set-card" id="sound">
+          <h3>${esc(pt(L, 'snd.title'))}</h3>
+          ${renderSoundControl(L, 'panel')}
         </section>
 
         <section class="panel set-card set-danger">

@@ -9,6 +9,7 @@
 
 import type { Player } from '../game/types';
 import { UPGRADE_SPECS } from '../game/upgrade-tree';
+import { renderSoundControl } from './sound-ui';
 import { eraProgress, daysAlive, type EraProgress } from '../game/era-progress';
 import { dailyCashFlow, type CashFlow } from '../game/runway';
 import { LOW_CASH_WARN_CENTS } from '../game/economy';
@@ -274,7 +275,7 @@ export function renderTopbar(s: ShellData, crumbs: string[]): string {
         <div class="tstat" title="${esc(pt(L, 'tip.reputation'))}"><span class="k">${esc(pt(L, 'top.rep'))}</span><span class="v">${s.rep}</span></div>
         <div class="tstat" title="${esc(pt(L, 'tip.customers'))}"><span class="k">${esc(pt(L, 'top.customers'))}</span><span class="v">${s.counts.customers}${newC > 0 ? `<small>+${newC}</small>` : ''}</span></div>
       </div>
-      <div class="topbar-actions"><button class="bell" type="button" aria-label="Inbox">🔔</button></div>
+      <div class="topbar-actions">${renderSoundControl(L, 'top')}<button class="bell" type="button" aria-label="Inbox">🔔</button></div>
     </header>`;
 }
 

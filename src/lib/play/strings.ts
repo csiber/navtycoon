@@ -9,6 +9,16 @@
 export type PlayLocale = 'en' | 'hu' | 'de';
 
 const en = {
+  // ─── Sound (src/scripts/audio) ───
+  'snd.title': 'Sound',
+  'snd.mute': 'Mute sound',
+  'snd.unmute': 'Turn sound on',
+  'snd.settings': 'Sound settings',
+  'snd.sfx': 'Effects',
+  'snd.amb': 'Server room',
+  'snd.music': 'Music',
+  'snd.hint': 'Sound starts with your first click.',
+  'snd.set_help': 'Effects, a soft server-room hum and calm background music. Remembered on this device.',
   // ─── Navigation ───
   'nav.operate': 'Operate',
   'nav.grow': 'Grow',
@@ -441,6 +451,16 @@ const en = {
 type Key = keyof typeof en;
 
 const hu: Record<Key, string> = {
+  // ─── Hang (src/scripts/audio) ───
+  'snd.title': 'Hang',
+  'snd.mute': 'Hang némítása',
+  'snd.unmute': 'Hang bekapcsolása',
+  'snd.settings': 'Hangbeállítások',
+  'snd.sfx': 'Effektek',
+  'snd.amb': 'Szerverterem',
+  'snd.music': 'Zene',
+  'snd.hint': 'A hang az első kattintással indul.',
+  'snd.set_help': 'Effektek, halk szerverterem-zúgás és nyugodt háttérzene. Ez az eszköz megjegyzi.',
   'nav.operate': 'Üzemeltetés',
   'nav.grow': 'Növekedés',
   'nav.meta': 'Egyéb',
@@ -863,6 +883,16 @@ const hu: Record<Key, string> = {
 };
 
 const de: Record<Key, string> = {
+  // ─── Ton (src/scripts/audio) ───
+  'snd.title': 'Ton',
+  'snd.mute': 'Ton stummschalten',
+  'snd.unmute': 'Ton einschalten',
+  'snd.settings': 'Toneinstellungen',
+  'snd.sfx': 'Effekte',
+  'snd.amb': 'Serverraum',
+  'snd.music': 'Musik',
+  'snd.hint': 'Der Ton startet mit deinem ersten Klick.',
+  'snd.set_help': 'Effekte, leises Serverraum-Summen und ruhige Hintergrundmusik. Dieses Gerät merkt es sich.',
   'nav.operate': 'Betrieb',
   'nav.grow': 'Wachstum',
   'nav.meta': 'Sonstiges',

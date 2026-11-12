@@ -253,7 +253,9 @@ export function mountRack(host: HTMLElement, model: RackModel, opt: MountOptions
       const dx = e.clientX - dragX; dragMoved = Math.max(dragMoved, Math.abs(dx));
       dragBase = MathUtils.clamp(dragBase + dx * 0.006, -0.75, 0.75); dragX = e.clientX;
     }
+    const prevHover = hovered;
     hovered = dragging ? null : pick();
+    if (hovered && hovered !== prevHover && e.pointerType === 'mouse') window.hsSfx?.('hover'); // nagyon halk tick (src/scripts/audio)
     showTip(hovered, e.clientX - r.left, e.clientY - r.top);
     wake();
   };
