@@ -12,6 +12,10 @@ export interface ShiftCustomerState {
   status: 'pending' | 'active' | 'resolved' | 'abandoned';
   satisfaction_delta_total: number;
   refund_given_cents: number;
+  /** 2026-11-12 (dedikált-kör): a nagy ügyfél jelzője és havidíja (a visszatérítés ebből számol). Régi műszak-
+   *  állapotban hiányzik → sima ügyfél. */
+  plan_tier?: string;
+  fee_cents?: number;
 }
 
 export interface ShiftState {

@@ -4,6 +4,7 @@ import type { ShiftState, ShiftCustomerState } from '../lib/game/shift-state';
 import { advanceToNext, isShiftExpired, switchTo, unresolvedTicketIds, SHIFT_DURATION_SEC } from '../lib/game/shift-state';
 import { shiftStars, shiftScore, shiftTip, type ShiftTip } from '../lib/game/shift-score';
 import { applyAction, type ShiftAction } from '../lib/game/action-handler';
+import { dedicatedReplyDelta, isDedicatedCustomer } from '../lib/game/dedicated';
 import { ECONOMY } from '../lib/game/economy';
 import { generateAiReply, ratePlayerResponse } from '../lib/ai/reply-generator';
 import { tryConsumeLlmCall } from '../lib/game/llm-cap';
@@ -28,6 +29,8 @@ interface InitMessage {
     ticket_id: number; customer_id: number; customer_name: string;
     archetype: ShiftCustomerState['archetype']; current_satisfaction: number;
     ticket_subject: string; ticket_first_message: string;
+    /** 2026-11-12: a nagy ügyfél jelzője és havidíja (api/shift/start.ts). */
+    plan_tier?: string; fee_cents?: number;
   }[];
 }
 
@@ -97,6 +100,8 @@ export class ShiftRoomDO {
           status: i === 0 ? 'active' : 'pending',
           satisfaction_delta_total: 0,
           refund_given_cents: 0,
+          plan_tier: c.plan_tier,
+          fee_cents: c.fee_cents,
         })),
       };
       await this.state.storage.put('shift', this.shift);
@@ -258,6 +263,8 @@ export class ShiftRoomDO {
       });
       delta = rating.delta;
     } catch { /* delta stays 0 */ }
+    // A nagy ügyfél elvárása magasabb: a jó válasz kevesebbet ér, a rossz többet árt.
+    if (isDedicatedCustomer(c.plan_tier) && ECONOMY.dedicated) delta = dedicatedReplyDelta(ECONOMY.dedicated, delta);
 
     c.current_satisfaction = Math.max(-100, Math.min(100, c.current_satisfaction + delta));
     c.satisfaction_delta_total += delta;
@@ -293,7 +300,7 @@ export class ShiftRoomDO {
 
   async handleAction(c: ShiftCustomerState, action: ShiftAction) {
     if (!this.shift) return;
-    const planTier = 'hobby';
+    const planTier = isDedicatedCustomer(c.plan_tier) ? 'dedicated' : 'hobby';
     const result = applyAction(c, action, planTier);
     c.current_satisfaction = Math.max(-100, Math.min(100, c.current_satisfaction + result.satisfaction_delta));
     c.satisfaction_delta_total += result.satisfaction_delta;

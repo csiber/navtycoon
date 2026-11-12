@@ -1,5 +1,7 @@
 // src/lib/game/action-handler.ts
 import type { ShiftCustomerState } from './shift-state';
+import { ECONOMY } from './economy';
+import { dedicatedCloseDelta, isDedicatedCustomer } from './dedicated';
 
 export type ShiftAction = 'refund_30' | 'refund_50' | 'refund_100' | 'escalate' | 'investigate' | 'close';
 
@@ -46,7 +48,10 @@ export function applyInvestigateAction(_c: ShiftCustomerState): ActionResult {
 }
 
 export function applyCloseAction(c: ShiftCustomerState): ActionResult {
-  const delta = c.current_satisfaction >= 50 ? 5 : c.current_satisfaction >= 30 ? 0 : -30;
+  // A dedikált (nagy) ügyfél elvárása magasabb: a puszta lezárás csak akkor nem árt, ha már elégedett.
+  const ded = isDedicatedCustomer(c.plan_tier) ? ECONOMY.dedicated : null;
+  const delta = ded ? dedicatedCloseDelta(ded, c.current_satisfaction)
+    : c.current_satisfaction >= 50 ? 5 : c.current_satisfaction >= 30 ? 0 : -30;
   return {
     success: true,
     satisfaction_delta: delta,
@@ -57,7 +62,8 @@ export function applyCloseAction(c: ShiftCustomerState): ActionResult {
 }
 
 export function applyAction(c: ShiftCustomerState, action: ShiftAction, planTier: keyof typeof TIER_PRICE_CENTS): ActionResult {
-  const price = TIER_PRICE_CENTS[planTier] ?? TIER_PRICE_CENTS.hobby;
+  // A dedikált ügyfél visszatérítése a saját havidíjából számol (drága — inkább eszkalálj).
+  const price = planTier === 'dedicated' && (c.fee_cents ?? 0) > 0 ? c.fee_cents! : (TIER_PRICE_CENTS[planTier] ?? TIER_PRICE_CENTS.hobby);
   switch (action) {
     case 'refund_30': return applyRefundAction(c, 30, price);
     case 'refund_50': return applyRefundAction(c, 50, price);

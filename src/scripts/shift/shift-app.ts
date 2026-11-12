@@ -19,6 +19,8 @@ interface Cust {
   current_satisfaction: number; ticket_subject: string; conversation: Msg[];
   status: 'pending' | 'active' | 'resolved' | 'abandoned';
   satisfaction_delta_total: number; refund_given_cents: number;
+  /** 2026-11-12: nagy (dedikált) ügyfél — magasabb elvárás, a sor elején. */
+  plan_tier?: string;
 }
 interface ShiftState {
   shift_id: string; started_at: number; expires_at: number;
@@ -164,7 +166,9 @@ function renderQueue() {
       b.type = 'button';
       const right = el('div');
       const nm = el('div', 'nm');
-      nm.append(el('b', '', c.customer_name), el('span', 'sx-chip ' + c.archetype, L.arch?.[c.archetype] ?? c.archetype), el('span', 'st'));
+      nm.append(el('b', '', c.customer_name), el('span', 'sx-chip ' + c.archetype, L.arch?.[c.archetype] ?? c.archetype));
+      if (c.plan_tier === 'dedicated') nm.append(el('span', 'sx-chip ded', tr('sx.ded')));
+      nm.append(el('span', 'st'));
       const meta = el('div', 'meta');
       meta.append(satBar(c.current_satisfaction), el('span', 'sx-satv', String(c.current_satisfaction)));
       right.append(nm, meta);
@@ -198,7 +202,9 @@ function renderHead() {
     headFor = c.ticket_id;
     const who = el('div', 'who');
     const top = el('div'); top.append(el('b', '', c.customer_name), document.createTextNode(' '), el('span', 'sx-chip ' + c.archetype, L.arch?.[c.archetype] ?? c.archetype));
+    if (c.plan_tier === 'dedicated') top.append(document.createTextNode(' '), el('span', 'sx-chip ded', tr('sx.ded')));
     who.append(top, el('div', 'subj', c.ticket_subject));
+    if (c.plan_tier === 'dedicated') who.append(el('div', 'sx-ded-note', tr('sx.ded_note')));
     const mood = el('div', 'sx-mood');
     const row = el('div', 'row');
     const lbl = el('span', '', tr('sx.mood.label'));

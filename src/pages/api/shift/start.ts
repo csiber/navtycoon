@@ -8,6 +8,7 @@ import { getPlayer } from '../../../lib/game/db';
 import { shiftsUsedToday } from '../../../lib/game/shift-score';
 import { ECONOMY } from '../../../lib/game/economy';
 import { loadUpgradeEffects } from '../../../lib/game/upgrade-effects';
+import { dedicatedFeeCents, isDedicatedCustomer } from '../../../lib/game/dedicated';
 
 export const prerender = false;
 
@@ -45,13 +46,13 @@ export const POST = async (c: APIContext): Promise<Response> => {
   // which the user flagged as inconsistent.
   const tickets = await db.prepare(`
     SELECT t.id AS ticket_id, t.summary, t.full_text,
-           c.id AS customer_id, c.name, c.persona_archetype, c.satisfaction
+           c.id AS customer_id, c.name, c.persona_archetype, c.satisfaction, c.plan_tier
     FROM tickets t JOIN customers c ON t.customer_id = c.id
     WHERE t.player_id = ? AND t.status IN ('open', 'in_progress') AND c.is_active = 1
-    ORDER BY t.created_at ASC LIMIT ?
+    ORDER BY (c.plan_tier = 'dedicated') DESC, t.created_at ASC LIMIT ?
   `).bind(user.id, shiftLimit).all<{
     ticket_id: number; summary: string; full_text: string;
-    customer_id: number; name: string; persona_archetype: string; satisfaction: number;
+    customer_id: number; name: string; persona_archetype: string; satisfaction: number; plan_tier: string;
   }>();
 
   if (!tickets.results || tickets.results.length === 0) return jerr(400, 'no open tickets');
@@ -86,6 +87,9 @@ export const POST = async (c: APIContext): Promise<Response> => {
         current_satisfaction: t.satisfaction,
         ticket_subject: t.summary,
         ticket_first_message: t.full_text,
+        // 2026-11-12 (dedikált-kör): a nagy ügyfél ticketjei elöl állnak, és a DO tudja, hogy magasabb az elvárás.
+        plan_tier: t.plan_tier,
+        fee_cents: isDedicatedCustomer(t.plan_tier) && ECONOMY.dedicated ? dedicatedFeeCents(ECONOMY.dedicated, t.customer_id) : undefined,
       })),
     }),
   });
