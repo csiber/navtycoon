@@ -370,7 +370,7 @@ export function renderDashboardContent(d: DashboardData): string {
         <span class="fb-ico">▤</span>
         <span class="fb-txt">${esc(pt(L, key, { p: utilPct, n: active.length, c: totalCap, lost: (s.fleet?.lost24h ?? 0) }))}</span>
         <span class="fb-meter" aria-hidden="true"><i style="width:${Math.min(100, utilPct)}%"></i></span>
-        <a class="btn primary" href="/play/servers">${esc(pt(L, 'fleet.banner_cta'))}</a>
+        <a class="fb-cta" href="/play/servers">${esc(pt(L, 'fleet.banner_cta'))}</a>
       </section>`;
   }
 

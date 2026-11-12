@@ -338,7 +338,7 @@ button.cust-row[hidden], .cust-prof[hidden] { display: none; }
 .fleet-banner .fb-meter { width: 120px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; flex: none; }
 .fleet-banner .fb-meter i { display: block; height: 100%; background: var(--amber); }
 .fleet-banner.full .fb-meter i { background: var(--pink); }
-.fleet-banner .btn { flex: none; }
+
 a.runway.fleet-warn { display: block; text-decoration: none; color: var(--amber); margin-top: 6px; }
 a.runway.fleet-warn.danger { color: var(--pink); }
 .srv-lost { color: var(--amber); }
@@ -540,3 +540,6 @@ header.topbar .topbar-actions { display: flex; align-items: center; gap: 8px; }
 /* szűkülő flotta jelvénye az oldalsávban (borostyán; tele flottánál a sima piros jelvény) */
 aside[data-shell] .nav-item .badge.warn { background: rgba(245,158,11,.18); color: var(--amber); border: 1px solid rgba(245,158,11,.4); }
 .rs-nownode { display: block; font-size: 10.5px; color: var(--muted); line-height: 1.3; margin-bottom: 4px; }
+.fleet-banner a.fb-cta { flex: none; padding: 8px 14px; border-radius: 8px; background: var(--amber); color: #14110a; font-weight: 700; font-size: 13px; text-decoration: none; }
+.fleet-banner.full a.fb-cta { background: var(--pink); color: #fff; }
+.fleet-banner a.fb-cta:hover { filter: brightness(1.08); }
