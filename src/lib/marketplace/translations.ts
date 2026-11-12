@@ -152,7 +152,7 @@ const DE: Record<string, Translation> = {
   },
   'Avery Tran — business-tier, RFC-quoting senior engineer': {
     title: 'Avery Tran — Business-Tier, RFC-zitierender Senior-Engineer',
-    body: 'Avery ist Principal Engineer bei einem Fintech. Will ein Business-Tier-Setup für sein Side-Projekt. Wird deine Status-Seite lesen, wird über IPv6 schreiben, zahlt pünktlich, $30/Mon ist für ihn nichts. $400, um ihn vorzustellen. Er wählt den Anbieter.',
+    body: 'Avery ist Principal Engineer bei einem Fintech. Will ein Business-Paket für sein Nebenprojekt. Wird deine Status-Seite lesen, wird über IPv6 schreiben, zahlt pünktlich, $30/Mon ist für ihn nichts. $400, um ihn vorzustellen. Er wählt den Anbieter.',
   },
   'Jordan Smith — bargain-hunter, hobby-tier': {
     title: 'Jordan Smith — Schnäppchenjäger, Hobby-Tier',
@@ -160,7 +160,7 @@ const DE: Record<string, Translation> = {
   },
   'Beth Park — $50 fire-sale, do not say we didn\'t warn you': {
     title: 'Beth Park — $50 Ausverkauf, sag nicht, wir hätten dich nicht gewarnt',
-    body: 'Beth ist eine "Karen". Hat bei uns in zwei Wochen drei P1-Tickets eingereicht. Hasst ihren aktuellen Hoster. Wird ihren nächsten auch hassen. Wir verlangen $50, um sie jemand anderem aufzudrücken. Hobby-Tier, Zufriedenheit startet bei 25, du wurdest gewarnt.',
+    body: 'Beth ist die Sorte Kundin, die immer den Vorgesetzten verlangt. Hat bei uns in zwei Wochen drei P1-Tickets eingereicht. Hasst ihren aktuellen Hoster. Wird ihren nächsten auch hassen. Wir verlangen $50, um sie jemand anderem aufzudrücken. Hobby-Paket, Zufriedenheit startet bei 25, du wurdest gewarnt.',
   },
 };
 

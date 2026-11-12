@@ -433,7 +433,9 @@ header.topbar .clock .day { white-space: nowrap; }
 .rack-vis .u-row .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .content .detail-grid .dgrid { min-width: 0; }
 .content .detail-grid .dgrid .v { font-size: 17px; overflow-wrap: anywhere; }
-.content .detail-grid .dgrid .meta, .content .detail-grid .dgrid .k { overflow-wrap: anywhere; }
+.content .detail-grid .dgrid .meta { overflow-wrap: anywhere; }
+/* A címke (pl. KAPACITÁS) ne törjön szó közepén: csak ha tényleg nem fér el. */
+.content .detail-grid .dgrid .k { overflow-wrap: break-word; letter-spacing: 0.03em; }
 
 /* ─── Vezérlő: „N nyitott ticket vár" sáv (ux-2) ───
    Korábban középre igazítva a jobb oszlop Ügyfél-hangulat paneljére lógott. Most a bal (eseményfolyam)
