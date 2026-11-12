@@ -29,6 +29,24 @@ Helyi teszt: `wrangler pages dev dist --port 8788` → http://127.0.0.1:8788 (az
 mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d1 execute … --file`, mert a
 `wrangler d1 migrations apply` a `0010b_…`-t a `0010_…` elé sorolja és elhasal.
 
+## Csapat és Hálózat (ág: csapat-halozat, 2026-11-12)
+
+Mindkettő a 2. korszaktól. A szabályok egy helyen: `src/lib/game/staff.ts`, `src/lib/game/network.ts`, a számok az
+`economy.ts`-ben (`STAFF_RULE_V3`, `NETWORK_RULE_V3`); a tick, a szimulátor és a felület ugyanazt hívja.
+- **Csapat** (max. 3 fő a 2., 6 a 3. korszaktól): ügyfélszolgálatos (félnaponta megold néhány ticketet, gyengébben, mint a
+  műszak), SRE (kevesebb ticket, elmaradó hardver-/hálózati incidensek), értékesítő (+új ügyfél). Szint a munkanapokból
+  (emeléssel), hangulat (túlterhelés, tartozás, kevés pénz) → gyengébb munka / csapatdráma / felmondás. Naponta 3 jelölt,
+  MI nélkül (determinisztikus). Felvételi díj: fél havi bér. API: `POST /api/game/staff`.
+- **Hálózat**: tranzit-csomag (sávszélesség; kevés → lassulás, több ticket, −elégedettség), peering, DDoS-védelem.
+  API: `POST /api/game/network`.
+- A bér és a hálózati díj a szerver-havidíjjal együtt fogy; a tartozás-határnál előbb a legkevésbé hasznos ember megy,
+  aztán a DDoS-védelem, csak utána a gép. A `staff_drama` csak csapattal jön, és egy valódi munkatársról szól.
+- **Migráció: `migrations/0013_staff_network.sql`** (`staff`, `player_network`; additív). A kód a migráció előtt is fut:
+  üres csapat, alap-hálózat, az API `feature_not_ready` hibát ad. Futtatás: `wrangler d1 execute navtycoon-prod --remote --file migrations/0013_staff_network.sql`.
+- A tick változott → a `navtycoon-do` worker is újratelepítendő (a cron onnan tickel).
+- Szimulátor: új profilok `no_staff`, `overhire_staff`; az `active` jó csapatot épít. Teszt: `__tests__/economy-sim.test.ts`.
+- TODO: a piactér peering-hirdetései még dísznek vannak (`network.ts` fejkomment); a `recruit_ad` esemény még nem ad munkatársat.
+
 ## AikaHub-achievementek (ág: achi-hub, 2026-11-12)
 
 18 achievement (`src/lib/game/achievements.ts`, HU/DE: `src/lib/play/achievements-i18n.ts`); a rejtettek (`refund_king`,

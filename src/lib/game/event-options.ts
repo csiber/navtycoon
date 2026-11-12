@@ -143,6 +143,7 @@ export const EVENT_DEFINITIONS: Record<EventType, EventDefinition> = {
     ],
   },
 
+  // TODO(csapat): a 2. korszaktól a „hire" valódi munkatársat adhatna (staff.ts) — most csak egyszeri költség és üzenet.
   recruit_ad: {
     event_type: 'recruit_ad',
     title: '👥 Recruitment opportunity',

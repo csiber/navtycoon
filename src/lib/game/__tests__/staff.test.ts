@@ -196,3 +196,33 @@ describe('staff in the tick', { timeout: 30_000 }, () => {
     expect(r.network_fees_cents ?? 0).toBe(0);
   });
 });
+
+import { dramaData, dramaView } from '../staff-drama';
+import { dailyCashFlow } from '../runway';
+describe('staff drama and cash flow', () => {
+  it('the drama is about a real person, in every language, with a raise price', () => {
+    const d = dramaData(JSON.stringify({ staff_id: 7, name: 'Lena Fischer', role: 'sre', why: 'overwork' }))!;
+    expect(d.staff_id).toBe(7);
+    expect(dramaData('{}')).toBeNull();
+    expect(dramaData(null)).toBeNull();
+    for (const loc of ['en', 'hu', 'de'] as const) {
+      const v = dramaView(R, loc, d, mk({ id: 7, role: 'sre', name: 'Lena Fischer', base_salary_cents: 11000 }), NOW);
+      expect(v.title).toContain('Lena Fischer');
+      expect(v.options.map((o) => o.id)).toEqual(['give_raise', 'fridays_off', 'let_her_walk']);
+      expect(v.options[0].label).toContain('$22'); // 20% × $110
+      for (const o of v.options) expect(o.label).not.toMatch(/\{\w+\}/);
+    }
+    // aki már négynapos héten van, annak nincs újra „négynapos hét"
+    expect(dramaView(R, 'hu', d, mk({ id: 7, four_day: 1 }), NOW).options.map((o) => o.id)).toEqual(['give_raise', 'let_her_walk']);
+  });
+
+  it('salaries and network fees are part of the daily costs and the runway', () => {
+    const base = { cash_usd_cents: 50000, mrr_usd_cents: 30000, marketing_ppc_pct: 0 };
+    const a = dailyCashFlow(base);
+    const b = dailyCashFlow({ ...base, staff_monthly_cents: 15000, network_monthly_cents: 4500 });
+    expect(b.staff_per_day_cents).toBe(500);
+    expect(b.network_per_day_cents).toBe(150);
+    expect(b.cost_per_day_cents).toBe(a.cost_per_day_cents + 650);
+    expect(b.net_per_day_cents).toBe(a.net_per_day_cents - 650);
+  });
+});
