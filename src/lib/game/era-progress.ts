@@ -11,6 +11,8 @@
 
 import type { D1Database } from '@cloudflare/workers-types/experimental';
 import type { Player, EraId } from './types';
+import { ECONOMY } from './economy';
+import { dedicatedFeeCents, DEDICATED_TIER } from './dedicated';
 
 export interface EraRequirements {
   era: EraId;
@@ -32,7 +34,10 @@ export const ERA_REQUIREMENTS: EraRequirements[] = [
 
 export interface EraCheckInput {
   current_era: EraId;
+  /** A korszakhoz SZÁMÍTÓ MRR (2026-11-12: a nagy, dedikált ügyfelek díja nélkül — lásd eraMrrCents). */
   mrr_usd_cents: number;
+  /** Ennyi MRR nem számít bele (a nagy ügyfelek díja) — csak a kijelzéshez. */
+  mrr_excluded_cents?: number;
   server_count: number;
   days_alive: number;
   reputation: number;
@@ -56,6 +61,8 @@ export interface EraRequirementRow {
 }
 
 export interface EraProgress {
+  /** A nagy ügyfelek díja, ami nem számít a korszakhoz (0, ha nincs). */
+  mrr_excluded_cents: number;
   target_era: EraId;
   target_display: string;
   reqs: EraRequirementRow[];
@@ -94,12 +101,31 @@ export function eraProgress(input: EraCheckInput): EraProgress | null {
     done: doneOf[r.key],
   }));
   return {
+    mrr_excluded_cents: Math.max(0, input.mrr_excluded_cents ?? 0),
     target_era: target.era,
     target_display: target.display,
     reqs,
     met_count: reqs.filter((r) => r.done).length,
     total: reqs.length,
   };
+}
+
+/**
+ * A korszakhoz számító MRR (2026-11-12, dedikált-kör): a teljes MRR a dedikált (nagy) ügyfelek díja nélkül.
+ * Csaba döntése: „a 3. korszak nem hamar kipörgethető" — a nagy ügyfél bevétel, de nem korszak-ugrató.
+ * A kijelzett MRR, a pénz és a ranglista a teljes összeg marad.
+ */
+export function eraMrrCents(totalMrrCents: number, dedicatedFeesCents: number): number {
+  return Math.max(0, totalMrrCents - Math.max(0, dedicatedFeesCents));
+}
+
+/** Az aktív dedikált ügyfelek díjainak összege (cent). */
+export async function dedicatedMrrCents(db: D1Database, playerId: string): Promise<number> {
+  const d = ECONOMY.dedicated;
+  if (!d) return 0;
+  const rows = (await db.prepare('SELECT id FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier = ?')
+    .bind(playerId, DEDICATED_TIER).all<{ id: number }>()).results ?? [];
+  return rows.reduce((a, r) => a + dedicatedFeeCents(d, r.id), 0);
 }
 
 /**
@@ -137,7 +163,7 @@ export async function maybeAdvanceEra(
   const serverCount = srvRow?.n ?? 0;
   const target = meetsNextEra({
     current_era: player.current_era,
-    mrr_usd_cents: player.mrr_usd_cents,
+    mrr_usd_cents: eraMrrCents(player.mrr_usd_cents, await dedicatedMrrCents(db, player.user_id)),
     server_count: serverCount,
     days_alive: daysAlive(player.founded_at, now),
     reputation: player.reputation,

@@ -385,7 +385,8 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
 
     // 8. korszak-lépés
     const target = meetsNextEra({
-      current_era: p.era, mrr_usd_cents: p.mrr, server_count: p.servers.length,
+      // A nagy ügyfél díja nem számít a korszakhoz (era-progress.eraMrrCents).
+      current_era: p.era, mrr_usd_cents: p.mrr - dedMrr(), server_count: p.servers.length,
       days_alive: Math.floor(now / 86400), reputation: p.rep,
     });
     if (target) p.era = target.era;

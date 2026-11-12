@@ -10,7 +10,7 @@
 import type { Player } from '../game/types';
 import { UPGRADE_SPECS } from '../game/upgrade-tree';
 import { renderSoundControl } from './sound-ui';
-import { eraProgress, daysAlive, type EraProgress } from '../game/era-progress';
+import { eraProgress, daysAlive, eraMrrCents, dedicatedMrrCents, type EraProgress } from '../game/era-progress';
 import { dailyCashFlow, type CashFlow } from '../game/runway';
 import { LOW_CASH_WARN_CENTS, ECONOMY, FLEET_WARN_PCT, fleetUtilPct } from '../game/economy';
 import { effectsOf, type UpgradeEffects } from '../game/upgrade-effects';
@@ -96,6 +96,8 @@ export async function loadShell(
     // 2026-11-12 (dedikált-kör): a nagy ügyfelek a saját gépükön ülnek — a flotta-terhelésbe nem számítanak.
     one("SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier = 'dedicated'", uid),
   ]);
+  // A korszakhoz számító MRR a nagy ügyfelek díja nélkül (era-progress.eraMrrCents).
+  const dedFees = dedCustomers > 0 ? await dedicatedMrrCents(db as never, uid) : 0;
   const effects = effectsOf((upRows.results ?? []).map((r) => r.upgrade_id));
   const capPct = ECONOMY.upgrade_effects ? effects.capacity_pct : 0;
   const capacity = (srvRows.results ?? []).reduce((a, r) => a + serverCapacity(r.type, r.capacity, capPct), 0);
@@ -121,7 +123,8 @@ export async function loadShell(
     },
     era2: eraProgress({
       current_era: player.current_era,
-      mrr_usd_cents: player.mrr_usd_cents,
+      mrr_usd_cents: eraMrrCents(player.mrr_usd_cents, dedFees),
+      mrr_excluded_cents: dedFees,
       server_count: servers,
       days_alive: alive,
       reputation: player.reputation,
@@ -218,7 +221,8 @@ export function renderEraReqs(locale: PlayLocale, ep: EraProgress): string {
   return ep.reqs.map((r) => `
       <div class="era-req${r.done ? ' done' : ''}">
         <div class="era-req-row"><span>${r.done ? '✓' : '·'} ${esc(eraReqLabel(locale, r.key))}</span><span class="era-req-v">${esc(eraReqValue(r, true))} / ${esc(eraReqValue(r, false))}</span></div>
-        <div class="era-req-bar"><i style="width:${r.pct}%"></i></div>
+        <div class="era-req-bar"><i style="width:${r.pct}%"></i></div>${r.key === 'mrr' && (ep.mrr_excluded_cents ?? 0) > 0
+          ? `<div class="era-req-note" title="${esc(pt(locale, 'era.mrr_excl_tip', { v: '$' + Math.round(ep.mrr_excluded_cents / 100) }))}">${esc(pt(locale, 'era.mrr_excl', { x: '$' + r.current.toLocaleString('en-US') }))}</div>` : ''}
       </div>`).join('');
 }
 

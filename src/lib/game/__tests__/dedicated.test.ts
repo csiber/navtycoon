@@ -155,6 +155,28 @@ describe('dedicated client in the real tick', { timeout: 30_000 }, () => {
     expect(r2.dedicated_signed).toBe(0);
   });
 
+  it('era advancement ignores the big client fee, the displayed MRR keeps it', async () => {
+    const d = await setup('u-era', 80);
+    const now = 1715000000;
+    // 3. korszak feltételei: MRR $1000, 3 gép, 30 nap, hírnév 70 — a nagy ügyfél nélkül csak ~$900 MRR van.
+    await d.prepare("INSERT INTO servers (player_id, era, type, capacity, current_load, monthly_cost_cents, purchased_at) VALUES ('u-era', 2, 'lamp_box', 15, 0, 0, 2)").run();
+    for (let k = 0; k < 60; k++) {
+      await d.prepare(
+        "INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) VALUES ('u-era', 'C', 'loyalist', 'business', ?, 80)",
+      ).bind(now - 3600).run();
+    }
+    await d.prepare(
+      "INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) VALUES ('u-era', 'Big', 'pro', 'dedicated', ?, 80)",
+    ).bind(now - 3600).run();
+    await d.prepare('UPDATE players SET founded_at = ?, pricing_business_cents = 1500 WHERE user_id = ?').bind(now - 40 * 86400, 'u-era').run();
+    Math.random = () => 0.99;
+    const r = await tickPlayer(d, (await getPlayer(d, 'u-era'))!, now);
+    const p = await getPlayer(d, 'u-era');
+    expect(p!.mrr_usd_cents).toBeGreaterThan(100000); // 60 × $15 + a nagy ügyfél díja
+    expect(r.era_advanced_to).toBeNull();
+    expect(p!.current_era).toBe(2);
+  });
+
   it('an SLA breach (unanswered ticket > sla_hours) costs satisfaction and reputation every half day', async () => {
     const d = await setup('u-sla', 80);
     const now = 1715000000;

@@ -171,12 +171,14 @@ describe('v3 dedicated box: one big business client (2026-11-12, dedikált-kör)
   const SEEDS10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
   const cache = new Map<ProfileId, SimResult[]>();
   const runs = (profile: ProfileId): SimResult[] => {
-    if (!cache.has(profile)) cache.set(profile, SEEDS10.map((seed) => simulate(LIVE, profile, { days: 60, seed })));
+    // 90 nap (a 3. korszak méréséhez); a 60 napos mutatók ugyanezekből a futásokból jönnek (a futás első 60 napja
+    // bitre azonos egy 60 napos futással).
+    if (!cache.has(profile)) cache.set(profile, SEEDS10.map((seed) => simulate(LIVE, profile, { days: 90, seed })));
     return cache.get(profile)!;
   };
   const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
   // Az átlagos MRR a 2. hónapban (31–60. nap): kevésbé zajos, mint egyetlen nap.
-  const mrrMonth2 = (r: SimResult) => mean(r.days.filter((d) => d.day > 30).map((d) => d.mrr_cents));
+  const mrrMonth2 = (r: SimResult) => mean(r.days.filter((d) => d.day > 30 && d.day <= 60).map((d) => d.mrr_cents));
   const mrr60 = (r: SimResult) => at(r, 60).mrr_cents;
   const T = { timeout: 180_000 };
 
@@ -217,9 +219,17 @@ describe('v3 dedicated box: one big business client (2026-11-12, dedikált-kör)
     expect(mean(ded.map(mrrMonth2))).toBeGreaterThan(1.1 * mean(act.map(mrrMonth2)));
     expect(median(ded.map(mrr60))).toBeGreaterThan(median(act.map(mrr60)));
     expect(median(ded.map(mrrMonth2))).toBeLessThan(2 * median(act.map(mrrMonth2)));
-    // …és a 3. korszak így sem jön hamar (a tempóhoz nem nyúltunk)
+  });
+
+  it('the big client does not speed up Era 3: its fee does not count for the era MRR (Csaba: „nem hamar kipörgethető")', T, () => {
+    const act = runs('active');
+    const ded = runs('dedicated');
     const eraDay = (r: SimResult, era: number) => r.days.find((d) => d.era >= era)?.day ?? 999;
-    expect(median(ded.map((r) => eraDay(r, 3)))).toBeGreaterThanOrEqual(42);
+    expect(median(ded.map((r) => eraDay(r, 3)))).toBeGreaterThanOrEqual(median(act.map((r) => eraDay(r, 3))));
+    expect(median(ded.map((r) => eraDay(r, 3)))).toBeGreaterThanOrEqual(35);
+    // a kijelzett MRR viszont a teljes összeg: a nagy ügyfél díja benne van
+    for (const r of ded) for (const d of r.days) expect(d.mrr_cents).toBeGreaterThanOrEqual(d.dedicated_mrr_cents);
+    expect(ded.some((r) => r.days.some((d) => d.dedicated_mrr_cents > 0))).toBe(true);
   });
 
   it('buying the box and ignoring the client is not better than never buying it', T, () => {
