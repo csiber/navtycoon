@@ -1,4 +1,7 @@
 ---
+import '../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a Vite hash-elt néven adja ki
+import templateCssUrl from '../styles/template.css?url';
+import playShellCssUrl from '../styles/play-shell.css?url'; // tartalom-hash-es URL: a CSS-változás azonnal kimegy
 // src/layouts/PlayLayout.astro — a Tailwind-alapú /play oldalak (fórum, piactér, műszak) kerete (2026-11-11).
 // Ugyanazt a közös oldalsávot és felső sávot kapják (src/lib/play/shell.ts), mint a sablon-oldalak, így a
 // navigáció minden oldalon egyforma; mobilon ugyanaz a kicsúszó menü. A tartalom a <slot /> marad.
@@ -31,11 +34,8 @@ const shell = user && db && player ? await loadShell(db, player, user, locale) :
   <meta name="theme-color" content="#07090f" />
   <meta name="color-scheme" content="dark" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/template.css" />
-  <link rel="stylesheet" href="/css/play-shell.css" />
+  <link rel="stylesheet" href={templateCssUrl} />
+  <link rel="stylesheet" href={playShellCssUrl} />
   <script is:inline defer src="https://stats.aika.hu/aika.js" data-website-id="4edd333d-1a25-461f-bcd3-25a8bcf7f694" data-domains="hyperscales.app,www.hyperscales.app"></script>
 </head>
 <body class="text-nt-text font-sans">

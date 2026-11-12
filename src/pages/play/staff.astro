@@ -1,4 +1,7 @@
 ---
+import '../../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a Vite hash-elt néven adja ki
+import templateCssUrl from '../../styles/template.css?url';
+import playShellCssUrl from '../../styles/play-shell.css?url'; // tartalom-hash-es URL: a CSS-változás azonnal kimegy
 // /play/staff -- backend wiring complete (placeholder; hire feature ships post Plan 3).
 import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
 import { renderLockedFeature } from '../../lib/play/locked-page';
@@ -58,11 +61,8 @@ const shellHtml = applyContent(applyShell(pageHtml, shell, 'staff', [pt(locale, 
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Hyperscales — Staff</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="/css/template.css" />
-<link rel="stylesheet" href="/css/play-shell.css" />
+<link rel="stylesheet" href={templateCssUrl} />
+<link rel="stylesheet" href={playShellCssUrl} />
 <style is:global set:html={pageCss}></style>
 <style is:inline>
   body { transition: opacity 200ms ease-out; }

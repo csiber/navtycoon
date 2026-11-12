@@ -1,4 +1,5 @@
 ---
+import '../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a Vite hash-elt néven adja ki
 // Shared layout for legal pages — minimal, fast, themed to match landing.
 // Used by /legal/*, /hu/*, /de/* legal pages.
 interface Props {
@@ -38,9 +39,6 @@ const PATH = Astro.url.pathname;
 <meta property="og:type" content="article" />
 <meta property="og:url" content={`${SITE}${PATH}`} />
 <meta property="og:image" content={`${SITE}/og.webp`} />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
 <style is:global>
   :root { color-scheme: dark; }
   html, body { margin: 0; padding: 0; background: #07090f; color: #e9ecf5; }

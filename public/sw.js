@@ -7,7 +7,7 @@
 //
 // Bump CACHE_VERSION to invalidate everything on next visit.
 
-const CACHE_VERSION = 'hs-v4';
+const CACHE_VERSION = 'hs-v5'; // v5 (ux-3): a CSS és a fontok /_astro/ alatt, tartalom-hash-es néven
 const STATIC_CACHE  = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -37,11 +37,10 @@ self.addEventListener('activate', (event) => {
 
 function isStaticAsset(url) {
   const p = url.pathname;
-  return p.startsWith('/img/') || p.startsWith('/audio/') || p.startsWith('/css/') ||
+  return p.startsWith('/img/') || p.startsWith('/audio/') || p.startsWith('/_astro/') ||
          p.startsWith('/icon-') || p === '/apple-touch-icon.png' || p === '/favicon.svg' ||
          p === '/manifest.webmanifest' || p === '/og.webp' || p === '/og.jpg' ||
-         p.endsWith('.woff2') || p.endsWith('.woff') || p.endsWith('.css') ||
-         (url.host.includes('fonts.gstatic.com'));
+         p.endsWith('.woff2') || p.endsWith('.woff') || p.endsWith('.css');
 }
 
 function isHTMLNav(req) {

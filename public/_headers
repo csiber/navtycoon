@@ -1,0 +1,5 @@
+# Cloudflare Pages — statikus fejlécek.
+# Az /_astro/ alatti fájlok neve tartalom-hash-t tartalmaz (CSS, fontok, JS): ha változik a tartalom, változik az URL is,
+# ezért ezek nyugodtan gyorsítótárazhatók örökre. (A public/ többi fájlja a CF alapértékével megy ki.)
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable

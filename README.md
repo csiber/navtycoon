@@ -41,9 +41,14 @@ mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d
   2D tartalék mobilon, `prefers-reduced-motion` mellett, WebGL / erős gép nélkül. `?rack3d=1` kényszeríti,
   `?rack3d=debug` fps-kijelzővel.
 - Migráció nincs. A fióktörlés a fórum-, piactér-, műszak-történet- és audit-sorokat is törli.
-- TODO: a `public/css/*.css` 4 órás böngésző-gyorsítótárral megy ki (CF Pages alapérték) — a `play-shell.css`
-  változása (ticket-sáv helye) visszatérő játékosnál pár óráig a régi lehet. Hosszabb távon verziózott/bundolt CSS.
-- TODO: a Google Fonts még CDN-ről jön (minden /play lap) — önkiszolgálás (GDPR, LG München 2022) külön körben.
+- A konzol-CSS (`src/styles/template.css`, `src/styles/play-shell.css`) `?url`-importtal, tartalom-hash-es
+  `/_astro/…` URL-en megy ki (ux-3): a CSS-változás azonnal látszik, a `public/_headers` az `/_astro/*`-ot
+  „immutable"-ként gyorsítótárazza.
+- Webfontok saját kiszolgálásban (ux-3, GDPR): `src/styles/fonts.css` + `src/assets/fonts/` (Inter, Space Grotesk,
+  JetBrains Mono, @fontsource 5.3.0, latin + latin-ext, csak a használt súlyok; licenc: SIL OFL 1.1). Google Fonts-kérés nincs.
+- TODO: a `public/js/play-shell.js` még a CF alapérték szerinti 4 órás cache-sel megy ki (a CSS-hez hasonlóan verziózható).
+- TODO: a landing (`/`) a gsap / lenis / canvas-confetti könyvtárat a jsdelivr CDN-ről tölti (harmadik fél, GDPR) —
+  a `canvas-confetti` már npm-függőség, a többi is helyben kiszolgálható.
 
 ## Állapot (2026-11-11)
 
