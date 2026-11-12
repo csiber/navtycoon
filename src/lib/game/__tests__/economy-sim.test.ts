@@ -2,8 +2,9 @@
 // A szimulátor a valódi tick képleteit (economy.ts) használja; több seeden fut, hogy ne egy szerencsés dobás döntsön.
 import { describe, it, expect } from 'vitest';
 import { simulate, ALL_PROFILES, type ProfileId, type SimResult } from '../economy-sim';
-import { BALANCE_V2_RULES as ECONOMY, LEGACY_RULES, ECONOMY as LIVE } from '../economy';
-import { SERVER_SPECS } from '../server-types';
+import { BALANCE_V2_RULES as ECONOMY, LEGACY_RULES, ECONOMY as LIVE, DEFAULT_PRICING } from '../economy';
+import { SERVER_SPECS, serverCapacity } from '../server-types';
+import { dedicatedFeeCents, dedicatedFeeMid } from '../dedicated';
 
 // 2026-11-12 (játékmag): az ECONOMY itt az előző egyensúly-kör (v2) szabályai — a régi tesztek változatlanul
 // azt rögzítik. Az élő (v3) szabályok tesztjei lent, a „v3" blokkban (LIVE).
@@ -165,6 +166,73 @@ describe('v3 (live rules): server fees, capacity, upgrades with real effects', (
   });
 });
 
+describe('v3 dedicated box: one big business client (2026-11-12, dedikált-kör)', () => {
+  // 10 seed, mert a dedikált ügyfél egy-egy jelentkezése/távozása nagyot mozdít egy futáson.
+  const SEEDS10 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const cache = new Map<ProfileId, SimResult[]>();
+  const runs = (profile: ProfileId): SimResult[] => {
+    if (!cache.has(profile)) cache.set(profile, SEEDS10.map((seed) => simulate(LIVE, profile, { days: 60, seed })));
+    return cache.get(profile)!;
+  };
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  // Az átlagos MRR a 2. hónapban (31–60. nap): kevésbé zajos, mint egyetlen nap.
+  const mrrMonth2 = (r: SimResult) => mean(r.days.filter((d) => d.day > 30).map((d) => d.mrr_cents));
+  const mrr60 = (r: SimResult) => at(r, 60).mrr_cents;
+  const T = { timeout: 180_000 };
+
+  it('the box costs a little, the client pays a lot: payback in 2–4 months', () => {
+    const d = LIVE.dedicated!;
+    const box = SERVER_SPECS.dedicated_box;
+    expect(serverCapacity('dedicated_box', 1)).toBe(0); // a sima ügyfelek nem férnek rá
+    const mid = dedicatedFeeMid(d);
+    const months = box.purchase_cost_cents / (mid - box.monthly_cost_cents);
+    expect(months).toBeGreaterThanOrEqual(2);
+    expect(months).toBeLessThanOrEqual(4);
+    // a díj jóval több, mint egy sima ügyfélé (business: $15–$30)
+    expect(d.fee_min_cents).toBeGreaterThanOrEqual(10 * DEFAULT_PRICING.business);
+    for (let id = 1; id <= 200; id++) {
+      const f = dedicatedFeeCents(d, id);
+      expect(f).toBeGreaterThanOrEqual(d.fee_min_cents);
+      expect(f).toBeLessThanOrEqual(d.fee_max_cents);
+    }
+  });
+
+  it('the dedicated player buys the box early in Era 2 and signs a big client', T, () => {
+    const ded = runs('dedicated');
+    for (const r of ded) {
+      expect(r.dedicated_bought_day).not.toBeNull();
+      expect(r.dedicated_bought_day!).toBeLessThanOrEqual(20);
+      expect(r.min_cash_cents).toBeGreaterThanOrEqual(0);
+      expect(r.sold_total).toBe(0);
+    }
+    expect(ded.filter((r) => r.dedicated_signed >= 1).length).toBeGreaterThanOrEqual(8);
+    // aki rendesen kiszolgálja, az meg is tartja
+    expect(mean(ded.map((r) => r.dedicated_lost))).toBeLessThanOrEqual(0.3);
+  });
+
+  it('dedicated is measurably better than no dedicated, but not by orders of magnitude', T, () => {
+    const act = runs('active');
+    const ded = runs('dedicated');
+    expect(median(ded.map(mrrMonth2))).toBeGreaterThan(1.15 * median(act.map(mrrMonth2)));
+    expect(mean(ded.map(mrrMonth2))).toBeGreaterThan(1.1 * mean(act.map(mrrMonth2)));
+    expect(median(ded.map(mrr60))).toBeGreaterThan(median(act.map(mrr60)));
+    expect(median(ded.map(mrrMonth2))).toBeLessThan(2 * median(act.map(mrrMonth2)));
+    // …és a 3. korszak így sem jön hamar (a tempóhoz nem nyúltunk)
+    const eraDay = (r: SimResult, era: number) => r.days.find((d) => d.era >= era)?.day ?? 999;
+    expect(median(ded.map((r) => eraDay(r, 3)))).toBeGreaterThanOrEqual(42);
+  });
+
+  it('buying the box and ignoring the client is not better than never buying it', T, () => {
+    const act = runs('active');
+    const neg = runs('dedicated_neglect');
+    expect(mean(neg.map(mrrMonth2))).toBeLessThanOrEqual(mean(act.map(mrrMonth2)));
+    expect(median(neg.map(mrr60))).toBeLessThanOrEqual(median(act.map(mrr60)));
+    // a nagy ügyfél nála nem marad meg
+    expect(mean(neg.map((r) => r.dedicated_lost))).toBeGreaterThanOrEqual(1);
+    for (const r of neg) expect(r.min_cash_cents).toBeGreaterThanOrEqual(-LIVE.debt_limit_cents);
+  });
+});
+
 // Görbék a grafikonhoz: SIM_DUMP=1 npx vitest run src/lib/game/__tests__/economy-sim.test.ts
 describe.runIf(!!process.env.SIM_DUMP)('dump', () => {
   it('prints the curves as JSON', () => {
@@ -173,7 +241,7 @@ describe.runIf(!!process.env.SIM_DUMP)('dump', () => {
       for (const profile of ALL_PROFILES) {
         for (const seed of SEEDS) {
           const r = simulate(rules, profile, { days: 60, seed });
-          outRows.push({ rules: r.rules, profile, seed, broke_day: r.broke_day, min_cash: r.min_cash_cents, bridge_day: r.bridge_day, churned: r.churned_total, acquired: r.acquired_total, lost: r.lost_total, sold: r.sold_total, fees: r.fees_total_cents, days: r.days });
+          outRows.push({ rules: r.rules, profile, seed, broke_day: r.broke_day, min_cash: r.min_cash_cents, bridge_day: r.bridge_day, churned: r.churned_total, acquired: r.acquired_total, lost: r.lost_total, sold: r.sold_total, fees: r.fees_total_cents, ded_signed: r.dedicated_signed, ded_lost: r.dedicated_lost, days: r.days });
         }
       }
     }

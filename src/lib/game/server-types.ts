@@ -12,6 +12,12 @@
 //    rack_unit 100 hely $30/hó → 60 hely $100/hó ($900); vps_node 250 hely $80/hó → 150 hely $220/hó ($2200).
 //    Egy hely havidíja így ~$2 (a hobby-ügyfél $5-öt fizet): a teli gép jól keres, az üres gép pénzt éget. Indoklás: a régi 30 hellyel a
 //    kezdőgép 60 nap alatt sem telt meg, így a szervervásárlás soha nem volt döntés (economy-sim.ts).
+//  - 2026-11-12 (dedikált-kör): a dedikált gép 1 helyére csak egy nagy (üzleti/nagyvállalati) ügyfél jöhet
+//    (dedicated.ts), a sima ügyfelek kapacitásába NEM számít (serverCapacity → 0). Régi → új: $3500 vételár,
+//    $120/hó → $500 vételár, $50/hó; az ügyfél $200–$280/hót fizet (átlag $240 → nettó ~$190/hó, megtérülés
+//    ~2,6 hónap + a várakozás). Indoklás: a régi gép egy $5-os helyet adott $120-ért (csapda), és $3500-ra a
+//    szimulátor aktív játékosa 90 nap alatt sem gyűjtött; $500-at a 2. korszak elején össze tud spórolni, ha
+//    addig nem vesz fejlesztést (economy-sim.ts, „dedicated" profil).
 
 import type { ServerType, EraId } from './types';
 
@@ -42,9 +48,9 @@ export const SERVER_SPECS: Record<ServerType, ServerSpec> = {
     flavor: 'KVM-virtualized, 32GB RAM. The intern thinks "VPS" stands for "Very Powerful Server".',
   },
   dedicated_box: {
-    type: 'dedicated_box', era: 2, display_name: 'Dedicated Box (per-customer)',
-    capacity: 1, monthly_cost_cents: 12000, purchase_cost_cents: 350000,
-    flavor: 'For The Pro who insists on bare metal. They will still complain.',
+    type: 'dedicated_box', era: 2, display_name: 'Dedicated Box (one big client)',
+    capacity: 1, monthly_cost_cents: 5000, purchase_cost_cents: 50000,
+    flavor: 'One business client, their own bare metal, and a phone number they will actually call.',
   },
   cloud_region: {
     type: 'cloud_region', era: 3, display_name: 'Cloud Region (Phase 2)',
@@ -62,9 +68,11 @@ export function affordableServerTypes(currentEra: EraId): ServerSpec[] {
   return Object.values(SERVER_SPECS).filter(s => s.era <= currentEra && s.capacity > 0);
 }
 
-/** Egy gép ügyfélhelye: a típus kapacitása × a fejlesztések capacity_pct-je (lefelé kerekítve).
- *  Ismeretlen típusnál a sorban tárolt kapacitás. */
+/** Egy gép SIMA ügyfélhelye: a típus kapacitása × a fejlesztések capacity_pct-je (lefelé kerekítve).
+ *  Ismeretlen típusnál a sorban tárolt kapacitás. A dedikált gép 0: az egyetlen helye a dedikált ügyfélé
+ *  (dedicated.ts), és a fejlesztés sem bővíti. */
 export function serverCapacity(type: string, storedCapacity: number, capacityPct = 0): number {
+  if (type === 'dedicated_box') return 0;
   const spec = (SERVER_SPECS as Record<string, ServerSpec | undefined>)[type];
   const base = spec && spec.capacity > 0 ? spec.capacity : Math.max(0, storedCapacity);
   return Math.floor(base * Math.max(0, 1 + capacityPct / 100));

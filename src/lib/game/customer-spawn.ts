@@ -139,6 +139,37 @@ const PLACEHOLDER_TICKETS_I18N: Record<'hu' | 'de', Record<PersonaArchetype, str
   },
 };
 
+// 2026-11-12 (dedikált-kör): a dedikált (nagyvállalati) ügyfél ticketjei — nehezebbek, SLA-ra hivatkoznak.
+const ENTERPRISE_TICKETS: Record<TicketLang, string[]> = {
+  en: [
+    'Our checkout API p99 latency doubled since 09:00. We have a 99.9% SLA with you. Root cause and ETA, please.',
+    'Auditors need the access logs of the last 90 days and proof of encrypted backups by Friday.',
+    'We are launching a campaign tomorrow at 08:00, expecting 5x traffic. What is your capacity plan?',
+    'Nightly replication to the DR site failed twice this week. This is a board-level risk for us.',
+    'Our security team found TLS 1.0 still enabled on the box. Please disable it today and confirm in writing.',
+  ],
+  hu: [
+    'A pénztár-API p99 késleltetése 9 óra óta a duplája. 99,9%-os SLA-nk van veletek. Kérem a kiváltó okot és a határidőt.',
+    'Az auditoroknak péntekig kell az utolsó 90 nap hozzáférési naplója és a titkosított mentések igazolása.',
+    'Holnap 8-kor indul a kampányunk, ötszörös forgalmat várunk. Mi a kapacitástervetek?',
+    'A katasztrófa-telephelyre menő éjszakai replikáció a héten kétszer elhasalt. Ez nálunk igazgatósági szintű kockázat.',
+    'A biztonsági csapatunk szerint a gépen még be van kapcsolva a TLS 1.0. Kérjük, ma kapcsoljátok ki, és írásban erősítsétek meg.',
+  ],
+  de: [
+    'Die p99-Latenz unserer Checkout-API hat sich seit 09:00 verdoppelt. Wir haben ein SLA von 99,9 %. Ursache und ETA bitte.',
+    'Die Prüfer brauchen bis Freitag die Zugriffslogs der letzten 90 Tage und einen Nachweis verschlüsselter Backups.',
+    'Morgen um 08:00 startet unsere Kampagne, wir erwarten 5x Traffic. Wie sieht euer Kapazitätsplan aus?',
+    'Die nächtliche Replikation zum DR-Standort ist diese Woche zweimal fehlgeschlagen. Für uns ein Risiko auf Vorstandsebene.',
+    'Unser Security-Team hat festgestellt, dass auf dem Server noch TLS 1.0 aktiv ist. Bitte heute abschalten und schriftlich bestätigen.',
+  ],
+};
+
+/** Sablon-ticket a dedikált (nagyvállalati) ügyfélnek, a játékos nyelvén. */
+export function getEnterpriseTicket(lang: TicketLang = 'en', r: () => number = Math.random): string {
+  const list = ENTERPRISE_TICKETS[lang] ?? ENTERPRISE_TICKETS.en;
+  return list[Math.floor(r() * list.length)];
+}
+
 function ticketsFor(archetype: PersonaArchetype, lang: TicketLang = 'en'): string[] {
   if (lang === 'hu' || lang === 'de') return PLACEHOLDER_TICKETS_I18N[lang][archetype];
   return PLACEHOLDER_TICKETS[archetype];
@@ -147,6 +178,11 @@ function ticketsFor(archetype: PersonaArchetype, lang: TicketLang = 'en'): strin
 /** Egy már eltárolt ANGOL sablon-ticket szövegét a néző nyelvére fordítja; minden más szöveg változatlan. */
 export function localizePlaceholderTicket(text: string, lang: TicketLang): string {
   if (lang === 'en' || !text) return text;
+  const ent = ENTERPRISE_TICKETS.en;
+  for (let i = 0; i < ent.length; i++) {
+    if (ent[i] === text) return ENTERPRISE_TICKETS[lang][i];
+    if (ent[i].slice(0, 80) === text) return ENTERPRISE_TICKETS[lang][i].slice(0, 80);
+  }
   for (const arch of Object.keys(PLACEHOLDER_TICKETS) as PersonaArchetype[]) {
     const en = PLACEHOLDER_TICKETS[arch];
     for (let i = 0; i < en.length; i++) {
@@ -161,6 +197,7 @@ export function localizePlaceholderTicket(text: string, lang: TicketLang): strin
 
 /** Tesztekhez. */
 export const PLACEHOLDER_TICKET_TABLES = { en: PLACEHOLDER_TICKETS, ...PLACEHOLDER_TICKETS_I18N };
+export const ENTERPRISE_TICKET_TABLES = ENTERPRISE_TICKETS;
 
 export interface SpawnedCustomer {
   name: string;

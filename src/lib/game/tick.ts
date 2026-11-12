@@ -15,6 +15,9 @@
 //
 // 2026-11-12 (játékmag): kapacitás — új ügyfél csak szabad helyre jön (különben capacity_lost), túlterhelésnél
 // több ticket és lassan romló elégedettség; a fejlesztések hatása (upgrade-effects.ts) mindenhol érvényes.
+// 2026-11-12 (dedikált-kör): a dedikált gépre csak egy nagy ügyfél (plan_tier = 'dedicated') jön, saját úton
+// (6.2. lépés); több ticketet hoz, az SLA-t (24 óra) és az elégedettségét félnaponta nézzük (2.2. lépés), és ha
+// elmegy, hírnevet visz és egy ideig nem jön új (dedicated.ts). A kapacitás csak a sima ügyfelekre vonatkozik.
 //
 // Konvenciók:
 //  - Pénz INTEGER (USD cents)
@@ -35,7 +38,12 @@ import {
 } from './economy';
 import { loadUpgradeEffects, eventAvoidProb, NO_EFFECTS } from './upgrade-effects';
 import { SERVER_SPECS, serverCapacity } from './server-types';
-import { assignLoad } from './capacity';
+import { assignFleetLoad } from './capacity';
+import {
+  isDedicatedCustomer, isDedicatedServer, dedicatedFeeCents, dedicatedArrivalProb, dedicatedBoxes, pickDedicatedClient,
+  DEDICATED_TIER,
+} from './dedicated';
+import { getEnterpriseTicket } from './customer-spawn';
 import { eventPoolForEra } from './event-pool';
 import { tickAchievements } from './achievement-tick';
 import type { HubCtx } from '../aikahub-achi';
@@ -67,6 +75,9 @@ export interface TickResult {
   servers_auto_sold?: number;
   /** Fejlesztés által kivédett esemény típusa (ha volt). */
   event_avoided?: string | null;
+  /** Dedikált-kör: most jelentkezett / távozott nagy ügyfél (0/1, illetve darab). */
+  dedicated_signed?: number;
+  dedicated_lost?: number;
   era_advanced_to: EraId | null;
   /** A tick végén feloldott achievementek (lásd achievement-tick.ts). */
   achievements_unlocked?: string[];
@@ -99,6 +110,26 @@ export async function tickPlayer(
   let lostCapacity = 0;
   let autoSold = 0;
   let eventAvoided: string | null = null;
+  let dedSigned = 0;
+  let dedLostN = 0;
+  const DED = ECONOMY.dedicated;
+  // Egy nagy ügyfél távozása: inaktív, a ticketjei lezárulnak, hírnevet visz, és eseménysor (ebből számoljuk a
+  // várakozási időt is, így nem kell új oszlop).
+  const loseDedicated = async (c: { id: number; name: string }, reason: 'unhappy' | 'sla' | 'sold'): Promise<void> => {
+    await db.prepare('UPDATE customers SET is_active = 0, churn_risk = 100 WHERE id = ?').bind(c.id).run();
+    await db.prepare("UPDATE tickets SET status = 'churned' WHERE customer_id = ? AND status IN ('open', 'in_progress')").bind(c.id).run();
+    const repLoss = DED?.leave_rep ?? 0;
+    if (repLoss > 0) {
+      await db.prepare('UPDATE players SET reputation = MAX(0, reputation - ?) WHERE user_id = ?').bind(repLoss, player.user_id).run();
+    }
+    await db.prepare(
+      'INSERT INTO events (player_id, event_type, data_json, spawned_at, outcome, resolved_at) ' +
+      "VALUES (?, 'dedicated_lost', ?, ?, 'negative', ?)",
+    ).bind(player.user_id, JSON.stringify({
+      customer_name: c.name, reason, rep_delta: repLoss, cooldown_days: DED?.leave_cooldown_days ?? 0,
+    }), now, now).run();
+    dedLostN++;
+  };
 
   // Hard guard: NPCs use the archetype engine in npc-tick.ts, not this
   // real-player loop. Step 5 here recomputes MRR from active customers —
@@ -177,6 +208,9 @@ export async function tickPlayer(
   //      −debt_limit-ig mehet; ha eléri, a legdrágább ÜRES fizetős gép leáll (eladjuk a vételár 30%-áért, ami a
   //      tartozást rendezi), és ezt eseményként látja a játékos. A díjmentes kezdőgép soha nem áll le.
   const activeNow = (customers.results ?? []).length;
+  // A kapacitás csak a sima ügyfelekre vonatkozik; a dedikáltak a saját gépükön ülnek.
+  let dedCustomers = (customers.results ?? []).filter((c) => isDedicatedCustomer(c.plan_tier));
+  const generalNow = activeNow - dedCustomers.length;
   if (ECONOMY.server_fees && fleet.length > 0) {
     const listed = fleet.reduce((a, sv) => a + Math.max(0, sv.monthly_cost_cents), 0);
     const fee = serverFeeForTick(effectiveMonthlyFees(listed, eff.fee_pct), now);
@@ -190,7 +224,9 @@ export async function tickPlayer(
         await db.prepare('UPDATE players SET cash_usd_cents = cash_usd_cents - ? WHERE user_id = ?').bind(serverFees, player.user_id).run();
       }
       if (res.over_limit) {
-        const loads = assignLoad(fleet.map((sv) => ({ ...sv, capacity: serverCapacity(sv.type, sv.capacity, eff.capacity_pct) })), activeNow);
+        const loads = assignFleetLoad(
+          fleet.map((sv) => ({ ...sv, capacity: serverCapacity(sv.type, sv.capacity, eff.capacity_pct) })), generalNow, dedCustomers.length,
+        );
         const idx = pickServerToSell(loads.servers.map((sv) => ({ monthly_cost_cents: sv.monthly_cost_cents, load: sv.load })));
         if (idx >= 0) {
           const sold = fleet[idx];
@@ -206,24 +242,58 @@ export async function tickPlayer(
           }), now, now).run();
           fleet = fleet.filter((_, i) => i !== idx);
           autoSold = 1;
+          // Ha a nagy ügyfél gépét kellett eladni, az ügyfél is elmegy.
+          if (isDedicatedServer(sold.type) && loads.servers[idx].load > 0 && dedCustomers.length > 0) {
+            const gone = dedCustomers[dedCustomers.length - 1];
+            await loseDedicated(gone, 'sold');
+            dedCustomers = dedCustomers.filter((c) => c.id !== gone.id);
+          }
         }
       }
     }
   }
   const capacityNow = fleetCapacity();
 
+  // 2.2. Dedikált ügyfél (félnaponta, a csendes elégedettséggel egy ütemben): a sla_hours óránál régebbi
+  //      megválaszolatlan ticket elégedettséget és hírnevet visz; leave_below_sat alatt felmond.
+  const halfDayTurn = Math.floor(now / 43200) !== Math.floor(lastTicked / 43200);
+  if (DED && halfDayTurn && dedCustomers.length > 0) {
+    const stale = new Set(((await db.prepare(
+      "SELECT DISTINCT t.customer_id AS id FROM tickets t JOIN customers c ON c.id = t.customer_id " +
+      "WHERE t.player_id = ? AND c.plan_tier = ? AND c.is_active = 1 AND t.status IN ('open', 'in_progress') AND t.created_at < ?",
+    ).bind(player.user_id, DEDICATED_TIER, now - DED.sla_hours * 3600).all<{ id: number }>()).results ?? []).map((r) => r.id));
+    for (const c of [...dedCustomers]) {
+      const breached = stale.has(c.id);
+      if (breached) {
+        c.satisfaction = Math.max(-100, c.satisfaction - DED.sla_sat);
+        await db.prepare('UPDATE customers SET satisfaction = ? WHERE id = ?').bind(c.satisfaction, c.id).run();
+        await db.prepare('UPDATE players SET reputation = MAX(0, reputation - ?) WHERE user_id = ?').bind(DED.sla_rep, player.user_id).run();
+      }
+      if (c.satisfaction < DED.leave_below_sat) {
+        await loseDedicated(c, breached ? 'sla' : 'unhappy');
+        dedCustomers = dedCustomers.filter((x) => x.id !== c.id);
+      }
+    }
+  }
+  const dedIds = new Set(dedCustomers.map((c) => c.id));
+
   // 3. Ticket spawn — per-active-customer roll; AI first, placeholder fallback.
   //    A fejlesztések ticket_pct-je kevesebb ticketet hoz; túlterhelésnél (több ügyfél, mint hely) több jön.
-  const ovlFactor = overloadTicketFactor(ECONOMY, activeNow, capacityNow);
-  if (ECONOMY.capacity_limit && ECONOMY.overload && overloadRatio(activeNow, capacityNow) > 0
-    && Math.floor(now / 43200) !== Math.floor(lastTicked / 43200)) {
-    // Túlterhelés: 12 óránként −sat_step elégedettség minden aktív ügyfélnek (lassú oldalak, kiesések).
+  const ovlFactor = overloadTicketFactor(ECONOMY, generalNow, capacityNow);
+  if (ECONOMY.capacity_limit && ECONOMY.overload && overloadRatio(generalNow, capacityNow) > 0 && halfDayTurn) {
+    // Túlterhelés: 12 óránként −sat_step elégedettség minden aktív sima ügyfélnek (lassú oldalak, kiesések).
     await db.prepare(
-      'UPDATE customers SET satisfaction = MAX(-100, satisfaction - ?) WHERE player_id = ? AND is_active = 1',
-    ).bind(ECONOMY.overload.sat_step, player.user_id).run();
+      'UPDATE customers SET satisfaction = MAX(-100, satisfaction - ?) WHERE player_id = ? AND is_active = 1 AND plan_tier != ?',
+    ).bind(ECONOMY.overload.sat_step, player.user_id, DEDICATED_TIER).run();
   }
   for (const c of customers.results ?? []) {
-    if (Math.random() >= ticketSpawnProb(ECONOMY, c.satisfaction, eff.ticket_pct, ovlFactor)) continue;
+    const isDed = isDedicatedCustomer(c.plan_tier);
+    if (isDed && !dedIds.has(c.id)) continue; // most mondott fel
+    // A dedikált ügyfél saját gépen ül (nincs túlterhelés), de ticket_factor-szor annyi ticketet hoz.
+    const pTicket = isDed && DED
+      ? ticketSpawnProb(ECONOMY, c.satisfaction, eff.ticket_pct, 1) * DED.ticket_factor
+      : ticketSpawnProb(ECONOMY, c.satisfaction, eff.ticket_pct, ovlFactor);
+    if (Math.random() >= pTicket) continue;
 
     let summary = '';
     let fullText = '';
@@ -255,10 +325,10 @@ export async function tickPlayer(
     }
 
     if (!usedAi) {
-      const placeholder = getPlaceholderTicketForPersona(
-        c.persona_archetype as PersonaArchetype,
-        ((player as { preferred_lang?: string }).preferred_lang as 'en' | 'hu' | 'de' | undefined) ?? 'en',
-      );
+      const plLang = ((player as { preferred_lang?: string }).preferred_lang as 'en' | 'hu' | 'de' | undefined) ?? 'en';
+      const placeholder = isDed
+        ? getEnterpriseTicket(plLang)
+        : getPlaceholderTicketForPersona(c.persona_archetype as PersonaArchetype, plLang);
       summary = placeholder.slice(0, 80);
       fullText = placeholder;
     }
@@ -305,9 +375,20 @@ export async function tickPlayer(
   ).bind(player.user_id, now - ECONOMY.churn_hours * 3600).all<{ id: number; satisfaction: number }>();
 
   let activeCount = (customers.results ?? []).length;
+  activeCount -= (customers.results ?? []).filter((c) => isDedicatedCustomer(c.plan_tier)).length - dedCustomers.length;
   for (const row of churnCandidates.results ?? []) {
     if (activeCount <= ECONOMY.churn_floor_customers) break;
+    const dedRow = dedCustomers.find((c) => c.id === row.id);
+    if (isDedicatedCustomer(customers.results?.find((c) => c.id === row.id)?.plan_tier) && !dedRow) continue; // már elment
     if (Math.random() < churnProb(ECONOMY, row.satisfaction, player.is_pro === 1, eff.churn_pct)) {
+      if (dedRow) {
+        // A nagy ügyfél is elmehet a 48 órás határon — ugyanúgy hírnévvel és várakozással.
+        await loseDedicated(dedRow, 'sla');
+        dedCustomers = dedCustomers.filter((c) => c.id !== dedRow.id);
+        churned++;
+        activeCount--;
+        continue;
+      }
       await db.prepare(
         'UPDATE customers SET is_active = 0, churn_risk = 100 WHERE id = ?',
       ).bind(row.id).run();
@@ -328,14 +409,16 @@ export async function tickPlayer(
     "  COALESCE(SUM(CASE WHEN plan_tier = 'hobby' THEN ? " +
     "                    WHEN plan_tier = 'business' THEN ? " +
     "                    ELSE 0 END), 0) AS mrr " +
-    "FROM customers WHERE player_id = ? AND is_active = 1",
+    "FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier != 'dedicated'",
   ).bind(
     player.pricing_hobby_cents,
     player.pricing_business_cents,
     player.user_id,
   ).first<{ mrr: number }>();
   // A fejlesztések mrr_pct-je (pl. PostgreSQL-kiegészítő) ügyfelenként több bevételt hoz.
-  const newMrr = Math.round((mrrRow?.mrr ?? 0) * (ECONOMY.upgrade_effects ? 1 + eff.mrr_pct / 100 : 1));
+  // A dedikált ügyfél szerződéses díja fix (az azonosítójából, dedicated.ts) — a fejlesztés nem emeli.
+  const dedMrr = DED ? dedCustomers.reduce((a, c) => a + dedicatedFeeCents(DED, c.id), 0) : 0;
+  const newMrr = Math.round((mrrRow?.mrr ?? 0) * (ECONOMY.upgrade_effects ? 1 + eff.mrr_pct / 100 : 1)) + dedMrr;
   if (newMrr !== player.mrr_usd_cents) {
     await db.prepare(
       'UPDATE players SET mrr_usd_cents = ? WHERE user_id = ?',
@@ -370,7 +453,7 @@ export async function tickPlayer(
     });
     if (acqProb > 0) {
       const acquired = Math.random() < acqProb;
-      if (acquired && ECONOMY.capacity_limit && activeCount >= capacityNow) {
+      if (acquired && ECONOMY.capacity_limit && activeCount - dedCustomers.length >= capacityNow) {
         // Nincs szabad hely: az új ügyfél máshoz megy. Naponta egy eseménysor gyűjti (data_json.count).
         lostCapacity = 1;
         const dayStart = Math.floor(now / 86400) * 86400;
@@ -402,6 +485,35 @@ export async function tickPlayer(
           'UPDATE players SET cash_usd_cents = MAX(0, cash_usd_cents - ?) WHERE user_id = ?',
         ).bind(spend.cost_cents, player.user_id).run();
         marketingSpent = spend.cost_cents;
+      }
+    }
+
+    // 6.2. Nagy ügyfél jelentkezése a szabad dedikált gépre (saját beszerzési út: a marketing és az árak nem
+    //      számítanak, a hírnév igen; egy távozás után leave_cooldown_days napig senki).
+    if (DED) {
+      const free = dedicatedBoxes(fleet, dedCustomers.length).free;
+      if (free > 0 && player.reputation >= DED.min_reputation) {
+        const lastLost = await db.prepare(
+          "SELECT MAX(spawned_at) AS t FROM events WHERE player_id = ? AND event_type = 'dedicated_lost'",
+        ).bind(player.user_id).first<{ t: number | null }>();
+        const pArr = dedicatedArrivalProb(ECONOMY, {
+          free_boxes: free, reputation: player.reputation, now, last_lost_at: lastLost?.t ?? null,
+        });
+        if (pArr > 0 && Math.random() < pArr) {
+          const client = pickDedicatedClient();
+          const ins = await db.prepare(
+            'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) ' +
+            'VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
+          ).bind(player.user_id, client.name, client.archetype, DEDICATED_TIER, now, DED.start_sat).first<{ id: number }>();
+          const fee = ins ? dedicatedFeeCents(DED, ins.id) : DED.fee_min_cents;
+          await db.prepare(
+            'INSERT INTO events (player_id, event_type, data_json, spawned_at, outcome, resolved_at) ' +
+            "VALUES (?, 'dedicated_signed', ?, ?, 'positive', ?)",
+          ).bind(player.user_id, JSON.stringify({ customer_name: client.name, fee_cents: fee }), now, now).run();
+          // Az MRR azonnal tartalmazza (különben a következő tickig hiányozna).
+          await db.prepare('UPDATE players SET mrr_usd_cents = mrr_usd_cents + ? WHERE user_id = ?').bind(fee, player.user_id).run();
+          dedSigned = 1;
+        }
       }
     }
 
@@ -532,6 +644,8 @@ export async function tickPlayer(
     customers_lost_capacity: lostCapacity,
     servers_auto_sold: autoSold,
     event_avoided: eventAvoided,
+    dedicated_signed: dedSigned,
+    dedicated_lost: dedLostN,
     era_advanced_to: eraAdvancedTo,
     achievements_unlocked: achievementsUnlocked,
   };

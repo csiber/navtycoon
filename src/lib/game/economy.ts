@@ -104,6 +104,40 @@ export interface EconomyRules {
   /** Túlterhelés (több ügyfél, mint hely): ticket-szorzó 1 + factor × min(1, túllógás aránya), és 12 óránként
    *  −sat_step elégedettség mindenkinek. null = nincs. */
   overload: { ticket_factor: number; sat_step: number } | null;
+  /** v3 (2026-11-12, dedikált-kör): a dedikált gép egyetlen nagy ügyfele. null = nincs ilyen ügyfél
+   *  (a dedikált gép a régi szabályokkal sima 1 helyes gép volt). Részletek: dedicated.ts. */
+  dedicated: DedicatedRule | null;
+}
+
+/** A dedikált (üzleti / nagyvállalati) ügyfél szabályai — lásd dedicated.ts. */
+export interface DedicatedRule {
+  /** Ennyi hírnévtől jelentkezik nagy ügyfél (alatta senki nem bízza ránk a rendszerét). */
+  min_reputation: number;
+  /** Szabad dedikált gépenként naponta ekkora eséllyel jelentkezik egy (átlag 1/p nap várakozás). */
+  arrival_per_day: number;
+  /** A havidíj sávja (cent): az ügyfél azonosítójából determinisztikusan, step lépésekben (nem kell új oszlop). */
+  fee_min_cents: number;
+  fee_max_cents: number;
+  fee_step_cents: number;
+  /** Kezdő elégedettség. */
+  start_sat: number;
+  /** Ticket-szorzó a sima ügyfélhez képest (több, nehezebb ticket). */
+  ticket_factor: number;
+  /** Ennél régebbi megválaszolatlan ticket = megszegett SLA: 12 óránként −sla_sat elégedettség és −sla_rep hírnév. */
+  sla_hours: number;
+  sla_sat: number;
+  sla_rep: number;
+  /** Ennyi elégedettség alatt felmondja a szerződést (12 óránként nézzük). */
+  leave_below_sat: number;
+  /** A távozó nagy ügyfél ennyi hírnevet visz magával (bárhogy megy el). */
+  leave_rep: number;
+  /** …és utána ennyi napig nem jelentkezik új nagy ügyfél (rossz referencia; a gép közben üresen fizeti a díját). */
+  leave_cooldown_days: number;
+  /** A műszakban adott MI-értékelés szorzója: a jó válasz kevesebbet ér, a rossz többet árt. */
+  reply_gain_factor: number;
+  reply_loss_factor: number;
+  /** Lezárás („close") elégedettség-hatása: ≥happy_at → happy, ≥ok_at → ok, ≥meh_at → meh, különben angry. */
+  close: { happy_at: number; happy: number; ok_at: number; ok: number; meh_at: number; meh: number; angry: number };
 }
 
 export const LEGACY_RULES: EconomyRules = {
@@ -141,6 +175,7 @@ export const LEGACY_RULES: EconomyRules = {
   debt_limit_cents: 0,
   auto_sell_refund_pct: 0,
   overload: null,
+  dedicated: null,
 };
 
 /** Az előző egyensúly-kör (2026-11-12 délelőtt) szabályai: a szimulátor „előtte" görbéihez. Minden eltérés a
@@ -201,6 +236,28 @@ export const ECONOMY: EconomyRules = {
   auto_sell_refund_pct: 30,
   // Túlterhelésnél (pl. egy gép eladása után) dupla-tripla ticket, és 12 óránként −2 elégedettség.
   overload: { ticket_factor: 2, sat_step: 2 },
+  // 2026-11-12 (dedikált-kör): a dedikált gép egyetlen nagy, jól fizető ügyfélé. Régi: a gép 1 sima ügyfélhely
+  // volt $120/hó díjjal és $3500 vételárral — csapda (a hely $5-öt hozott). Az új értékek indoklása a
+  // szimulátorban (economy-sim.ts, „dedicated" / „dedicated_neglect" profil) és a server-types.ts fejében.
+  dedicated: {
+    min_reputation: 55,
+    arrival_per_day: 0.33,
+    // $200–$280/hó (5 lépcső, átlag $240): egy ügyfél ≈ 35 hobbi-ügyfél bevétele, ~1 ticket/nap mellett.
+    // A brief $400–$900-at javasolt, de a szimulátorban a 2. korszak eleji cég MRR-je $100–$350: ekkora díj
+    // egymaga többet hozna, mint az egész cég, és a 3. korszakot (MRR $1000) hetekkel előbbre hozná.
+    fee_min_cents: 20000, fee_max_cents: 28000, fee_step_cents: 2000,
+    start_sat: 60,
+    ticket_factor: 3,
+    sla_hours: 24, sla_sat: 6, sla_rep: 1,
+    leave_below_sat: 25,
+    // A távozás (bármi okból) 15 hírnév és 21 nap nagy ügyfél nélkül: a rá nem figyelő játékos így rosszabbul
+    // jár, mintha meg sem vette volna a gépet (szimulátor: dedicated_neglect).
+    leave_rep: 15,
+    leave_cooldown_days: 21,
+    reply_gain_factor: 0.75,
+    reply_loss_factor: 1.5,
+    close: { happy_at: 70, happy: 3, ok_at: 45, ok: -5, meh_at: 30, meh: -10, angry: -30 },
+  },
 };
 
 // ─── v3: szerver-havidíj, kapacitás, tartozás ───

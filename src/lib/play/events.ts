@@ -60,6 +60,11 @@ const L = {
     customer_acquired: 'New customer: {who} ({plan} plan).',
     customer_churned: '{who} left.',
     era_unlock: '🎉 Era {n} unlocked{name}.',
+    dedicated_signed: '🏢 A big client signed for your dedicated box: {who}, {v}/mo. They expect fast, real answers.',
+    dedicated_lost: '🏢 {who} cancelled the dedicated contract ({why}). Reputation −{rep}; no new big client for {days} days.',
+    ded_why_unhappy: 'unhappy with the support',
+    ded_why_sla: 'unanswered tickets',
+    ded_why_sold: 'the box was sold',
     server_auto_sold: 'Debt limit reached: your {name} was sold for {v} to cover the server fees.',
     capacity_lost: '{n} new customer(s) went elsewhere today: no free slot on your servers.',
     event_avoided: '🛡 Your upgrades prevented it: {title}.',
@@ -84,6 +89,11 @@ const L = {
     customer_acquired: 'Új ügyfél: {who} ({plan} csomag).',
     customer_churned: '{who} elpártolt.',
     era_unlock: '🎉 Megnyílt a(z) {n}. korszak{name}.',
+    dedicated_signed: '🏢 Nagy ügyfél bérli a dedikált gépedet: {who}, {v}/hó. Gyors, érdemi választ vár.',
+    dedicated_lost: '🏢 {who} felmondta a dedikált szerződést ({why}). Hírnév −{rep}; {days} napig nem jön új nagy ügyfél.',
+    ded_why_unhappy: 'elégedetlen a támogatással',
+    ded_why_sla: 'megválaszolatlan ticketek',
+    ded_why_sold: 'eladtuk a gépét',
     server_auto_sold: 'Elérted a tartozás-határt: a(z) {name} gépedet eladtuk {v}-ért, hogy kifizesse a havidíjakat.',
     capacity_lost: 'Ma {n} új ügyfél ment el máshoz: nem volt szabad hely a szervereiden.',
     event_avoided: '🛡 A fejlesztéseid kivédték: {title}.',
@@ -108,6 +118,11 @@ const L = {
     customer_acquired: 'Neuer Kunde: {who} (Tarif {plan}).',
     customer_churned: '{who} hat gekündigt.',
     era_unlock: '🎉 Ära {n} freigeschaltet{name}.',
+    dedicated_signed: '🏢 Ein Großkunde mietet deinen dedizierten Server: {who}, {v}/Monat. Er erwartet schnelle, echte Antworten.',
+    dedicated_lost: '🏢 {who} hat den dedizierten Vertrag gekündigt ({why}). Ruf −{rep}; {days} Tage lang kein neuer Großkunde.',
+    ded_why_unhappy: 'unzufrieden mit dem Support',
+    ded_why_sla: 'unbeantwortete Tickets',
+    ded_why_sold: 'der Server wurde verkauft',
     server_auto_sold: 'Schuldengrenze erreicht: dein {name} wurde für {v} verkauft, um die Servergebühren zu decken.',
     capacity_lost: 'Heute sind {n} neue Kunden woanders hingegangen: kein freier Platz auf deinen Servern.',
     event_avoided: '🛡 Deine Upgrades haben es verhindert: {title}.',
@@ -173,6 +188,17 @@ export function eventLine(locale: PlayLocale, ev: FeedEvent): FeedLine {
       const c = typeof d.cash_delta_cents === 'number' ? d.cash_delta_cents : 0;
       const name = (SERVER_NAMES[str(d.server_type)]?.[locale]) ?? str(d.server_type) ?? '—';
       return { text: fill(t.server_auto_sold, { name, v: money(c).replace('+', '') }), tone: 'alert', ico: '!', tag: '' };
+    }
+    case 'dedicated_signed': {
+      const c = typeof d.fee_cents === 'number' ? d.fee_cents : 0;
+      return { text: fill(t.dedicated_signed, { who, v: '$' + Math.round(c / 100) }), tone: 'good', ico: '🏢', tag: '' };
+    }
+    case 'dedicated_lost': {
+      const why = d.reason === 'sla' ? t.ded_why_sla : d.reason === 'sold' ? t.ded_why_sold : t.ded_why_unhappy;
+      return {
+        text: fill(t.dedicated_lost, { who, why, rep: Number(d.rep_delta) || 0, days: Number(d.cooldown_days) || 0 }),
+        tone: 'alert', ico: '!', tag: '',
+      };
     }
     case 'capacity_lost':
       return { text: fill(t.capacity_lost, { n: Number(d.count) || 1 }), tone: 'warn', ico: '▤', tag: '' };

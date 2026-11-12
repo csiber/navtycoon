@@ -51,7 +51,10 @@ export type EventType =
   | 'server_auto_sold'
   | 'capacity_lost'
   // …és ha egy fejlesztés kivédett egy eseményt (data_json.avoided_type).
-  | 'event_avoided';
+  | 'event_avoided'
+  // 2026-11-12 (dedikált-kör): nagy ügyfél bérli / felmondja a dedikált gépet (lezárt sorok).
+  | 'dedicated_signed'
+  | 'dedicated_lost';
 
 export type EventOutcome = 'positive' | 'neutral' | 'negative';
 

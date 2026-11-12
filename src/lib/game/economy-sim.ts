@@ -17,6 +17,10 @@
 //  - never_buy: mint az active, de soha nem vesz se szervert, se fejlesztést (rossz döntés #1).
 //  - overbuy:   mint az active, de minden nap vesz egy gépet, ha kifizeti (max 12), és minden fejlesztést
 //               megvesz, amint kifizeti — tartalék nélkül (rossz döntés #2).
+//  - dedicated: mint az active, de már az 1. korszaktól egy dedikált gépre spórol (addig nem vesz fejlesztést),
+//               a 2. korszakban megveszi, és a nagy ügyfél ticketjeit rendesen megválaszolja (2026-11-12, dedikált-kör).
+//  - dedicated_neglect: ugyanígy megveszi a dedikált gépet, de a nagy ügyfél ticketjeit csak lezárja, nem
+//               beszélget vele (rossz döntés #3: „megvettem, majd lesz valahogy").
 //
 // Egyszerűsítések (tudatosan): a műszak egy pillanat alatt lezajlik; a chat AI-értékelését a profil átlagos
 // értékével közelítjük; a Pro-előfizetést és a piacteret nem modellezzük.
@@ -26,6 +30,10 @@ import {
   bridgeDue, applyCashDelta, scaleEventCash, isEngaged, serverFeeForTick, effectiveMonthlyFees, applyServerFee,
   pickServerToSell, overloadTicketFactor, overloadRatio, fleetUtilPct,
 } from './economy';
+import {
+  isDedicatedServer, dedicatedArrivalProb, dedicatedBoxes, dedicatedCloseDelta, dedicatedReplyDelta, feeSteps,
+} from './dedicated';
+import { assignFleetLoad } from './capacity';
 import { EVENT_DEFINITIONS } from './event-options';
 import { PERSONAS } from './persona-pool';
 import { meetsNextEra } from './era-progress';
@@ -35,8 +43,8 @@ import { effectsOf, eventAvoidProb, NO_EFFECTS, type UpgradeEffects } from './up
 import type { EventType, EraId, ServerType } from './types';
 import { eventPoolForEra } from './event-pool';
 
-export type ProfileId = 'idle' | 'casual' | 'active' | 'never_buy' | 'overbuy';
-export const ALL_PROFILES: readonly ProfileId[] = ['idle', 'casual', 'active', 'never_buy', 'overbuy'];
+export type ProfileId = 'idle' | 'casual' | 'active' | 'never_buy' | 'overbuy' | 'dedicated' | 'dedicated_neglect';
+export const ALL_PROFILES: readonly ProfileId[] = ['idle', 'casual', 'active', 'never_buy', 'overbuy', 'dedicated', 'dedicated_neglect'];
 
 /** A jó döntéshozó (active) fejlesztési sorrendje: ami most a legtöbbet hozza, az előbb. */
 export const ACTIVE_UPGRADE_ORDER = [
@@ -61,6 +69,9 @@ export interface SimDay {
   fees_cents: number;
   /** v3: eddig összesen ennyi új ügyfél maradt el helyhiány miatt. */
   lost_total: number;
+  /** Dedikált ügyfelek a nap végén, és az ő havidíjuk (az MRR része). */
+  dedicated_customers: number;
+  dedicated_mrr_cents: number;
 }
 
 export interface SimResult {
@@ -83,11 +94,19 @@ export interface SimResult {
   invested_cents: number;
   /** Az összes levont havidíj. */
   fees_total_cents: number;
+  /** Dedikált-kör: ennyi nagy ügyfél jött / ment el, és ennyi bevételt hoztak összesen (cent). */
+  dedicated_signed: number;
+  dedicated_lost: number;
+  dedicated_income_cents: number;
+  /** Az első dedikált gép vásárlásának napja (null = nem vett). */
+  dedicated_bought_day: number | null;
 }
 
 interface SimCustomer {
   sat: number;
-  tier: 'hobby' | 'business';
+  tier: 'hobby' | 'business' | 'dedicated';
+  /** Dedikált ügyfél havidíja (cent). */
+  fee?: number;
   active: boolean;
   tickets: number[]; // a nyitott ticketek létrehozási ideje
 }
@@ -116,7 +135,7 @@ function pickPersonaSat(r: () => number): number {
 }
 
 const clampSat = (v: number) => Math.max(-100, Math.min(100, v));
-const PROFILE_SALT: Record<ProfileId, number> = { idle: 1, casual: 2, active: 3, never_buy: 4, overbuy: 5 };
+const PROFILE_SALT: Record<ProfileId, number> = { idle: 1, casual: 2, active: 3, never_buy: 4, overbuy: 5, dedicated: 6, dedicated_neglect: 7 };
 
 export interface SimOptions {
   days?: number;
@@ -129,11 +148,14 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
   const days = opts.days ?? 60;
   const seed = opts.seed ?? 1;
   // A rossz döntéshozók ugyanazt a véletlen-sorozatot kapják, mint az active: a különbség csak a döntés.
-  const salt = profile === 'never_buy' || profile === 'overbuy' ? PROFILE_SALT.active : PROFILE_SALT[profile];
+  const salt = profile === 'never_buy' || profile === 'overbuy' || profile === 'dedicated' || profile === 'dedicated_neglect'
+    ? PROFILE_SALT.active : PROFILE_SALT[profile];
   const r = makeRng(seed * 7919 + salt);
   const v3 = rules.capacity_limit || rules.server_fees || rules.upgrade_effects;
   const plays = profile !== 'idle';
-  const activeLike = profile === 'active' || profile === 'never_buy' || profile === 'overbuy';
+  const buysDedicated = profile === 'dedicated' || profile === 'dedicated_neglect';
+  const activeLike = profile === 'active' || profile === 'never_buy' || profile === 'overbuy' || buysDedicated;
+  const ded = rules.dedicated;
 
   // Kezdőállás = bootstrap.ts: $1000, 3 hobby-ügyfél egy-egy nyitott tickettel, 1 ingyenes szerver, $15 MRR.
   const p = {
@@ -166,10 +188,27 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
   let ppcToday = 0;
   let feesToday = 0;
   let lastActive = 0;
+  let dedSigned = 0;
+  let dedLost = 0;
+  let dedIncome = 0;
+  let dedBoughtDay: number | null = null;
+  let dedLastLost: number | null = null;
+  let nowSec = 0;
 
   const eff = (): UpgradeEffects => (rules.upgrade_effects ? p.eff : NO_EFFECTS);
   const capacity = (): number => p.servers.reduce((s, sv) => s + serverCapacity(sv.type, 0, eff().capacity_pct), 0);
   const activeN = (): number => customers.reduce((s, c) => s + (c.active ? 1 : 0), 0);
+  // A sima ügyfelek (a kapacitás csak rájuk vonatkozik) és a dedikáltak.
+  const dedN = (): number => customers.reduce((s, c) => s + (c.active && c.tier === 'dedicated' ? 1 : 0), 0);
+  const generalN = (): number => activeN() - dedN();
+  const dedMrr = (): number => customers.reduce((s, c) => s + (c.active && c.tier === 'dedicated' ? (c.fee ?? 0) : 0), 0);
+  const loseDedicated = (c: SimCustomer): void => {
+    c.active = false;
+    c.tickets = [];
+    dedLost++;
+    dedLastLost = nowSec;
+    if (ded) p.rep = Math.max(0, p.rep - ded.leave_rep);
+  };
   const listedFees = (): number => p.servers.reduce((s, sv) => s + sv.monthly, 0);
 
   // A profil napi döntésének ideje (a nap hányadik tickje).
@@ -183,6 +222,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
   const totalTicks = days * TICKS_PER_DAY;
   for (let t = 1; t <= totalTicks; t++) {
     const now = t * TICK_MINUTES * 60;
+    nowSec = now;
     const dayIdx = Math.floor(now / 86400);
     const tickOfDay = t % TICKS_PER_DAY;
 
@@ -199,12 +239,28 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       const q = rules.quiet_satisfaction;
       for (const c of customers) if (c.active && c.tickets.length === 0 && c.sat < q.cap) c.sat = Math.min(q.cap, c.sat + q.step);
     }
-    if (rules.capacity_limit && rules.overload && halfDay && overloadRatio(activeN(), capacity()) > 0) {
-      for (const c of customers) if (c.active) c.sat = clampSat(c.sat - rules.overload.sat_step);
+    if (rules.capacity_limit && rules.overload && halfDay && overloadRatio(generalN(), capacity()) > 0) {
+      for (const c of customers) if (c.active && c.tier !== 'dedicated') c.sat = clampSat(c.sat - rules.overload.sat_step);
+    }
+    // Dedikált ügyfél (félnaponta): megszegett SLA → −elégedettség, −hírnév; túl elégedetlen → felmond.
+    if (ded && halfDay) {
+      const slaCut = now - ded.sla_hours * 3600;
+      for (const c of customers) {
+        if (!c.active || c.tier !== 'dedicated') continue;
+        if (c.tickets.some((ts) => ts < slaCut)) {
+          c.sat = clampSat(c.sat - ded.sla_sat);
+          p.rep = Math.max(0, p.rep - ded.sla_rep);
+        }
+        if (c.sat < ded.leave_below_sat) loseDedicated(c);
+      }
     }
 
     // 1. MRR-csordogálás
-    if (p.mrr > 0) p.cash += Math.round(p.mrr * (TICK_MINUTES / (60 * 24 * 30)));
+    if (p.mrr > 0) {
+      p.cash += Math.round(p.mrr * (TICK_MINUTES / (60 * 24 * 30)));
+      const dm = dedMrr();
+      if (dm > 0) dedIncome += Math.round(dm * (TICK_MINUTES / (60 * 24 * 30)));
+    }
 
     // 1.5 szerver-havidíj (v3) + tartozás-határnál automatikus eladás
     if (rules.server_fees) {
@@ -223,10 +279,14 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
 
     // 3. ticketek
     {
-      const ovl = overloadTicketFactor(rules, activeN(), capacity());
+      const ovl = overloadTicketFactor(rules, generalN(), capacity());
       for (const c of customers) {
         if (!c.active) continue;
-        if (r() < ticketSpawnProb(rules, c.sat, eff().ticket_pct, ovl)) c.tickets.push(now);
+        // A dedikált ügyfél saját gépen ül (nincs túlterhelés), de ticket_factor-szor annyi ticketet hoz.
+        const prob = c.tier === 'dedicated' && ded
+          ? ticketSpawnProb(rules, c.sat, eff().ticket_pct, 1) * ded.ticket_factor
+          : ticketSpawnProb(rules, c.sat, eff().ticket_pct, ovl);
+        if (r() < prob) c.tickets.push(now);
       }
     }
 
@@ -238,6 +298,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
         if (!c.active || !c.tickets.some((ts) => ts < cutoff)) continue;
         if (act <= rules.churn_floor_customers) break;
         if (r() < churnProb(rules, c.sat, false, eff().churn_pct)) {
+          if (c.tier === 'dedicated') loseDedicated(c);
           c.active = false;
           act--;
           churnedTotal++;
@@ -249,8 +310,9 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
 
     // 5. MRR újraszámolás (v3: × mrr_pct)
     {
-      const base = customers.reduce((s, c) => s + (c.active ? (c.tier === 'business' ? p.business : p.hobby) : 0), 0);
-      p.mrr = Math.round(base * (1 + eff().mrr_pct / 100));
+      const base = customers.reduce((s, c) => s + (c.active && c.tier !== 'dedicated' ? (c.tier === 'business' ? p.business : p.hobby) : 0), 0);
+      // A dedikált ügyfél szerződéses díja fix (a fejlesztések mrr_pct-je nem emeli).
+      p.mrr = Math.round(base * (1 + eff().mrr_pct / 100)) + dedMrr();
     }
 
     // 6. marketing + beszerzés (v3: csak szabad helyre)
@@ -265,7 +327,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
         if (r() < prob) {
           const tier = r() < p.rep / 200 ? 'business' : 'hobby';
           const sat = pickPersonaSat(r);
-          if (rules.capacity_limit && activeN() >= capacity()) {
+          if (rules.capacity_limit && generalN() >= capacity()) {
             lostTotal++;
           } else {
             customers.push({ sat, tier, active: true, tickets: [] });
@@ -276,6 +338,17 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
           p.cash = Math.max(Math.min(p.cash, 0), p.cash - spend.cost_cents);
           ppcToday += spend.cost_cents;
         }
+      }
+    }
+
+    // 6.2 dedikált ügyfél jelentkezése (szabad dedikált gépre). Csak akkor dob, ha van esély (a régi
+    //     profilok véletlen-sorozata így változatlan).
+    if (ded) {
+      const prob = dedicatedArrivalProb(rules, { free_boxes: dedicatedBoxes(p.servers, dedN()).free, reputation: p.rep, now, last_lost_at: dedLastLost });
+      if (prob > 0 && r() < prob) {
+        const fee = ded.fee_min_cents + Math.floor(r() * feeSteps(ded)) * ded.fee_step_cents;
+        customers.push({ sat: ded.start_sat, tier: 'dedicated', fee, active: true, tickets: [] });
+        dedSigned++;
       }
     }
 
@@ -335,6 +408,8 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
         capacity: capacity(),
         fees_cents: feesToday,
         lost_total: lostTotal,
+        dedicated_customers: dedN(),
+        dedicated_mrr_cents: dedMrr(),
       });
       ppcToday = 0;
       feesToday = 0;
@@ -346,20 +421,24 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     min_cash_cents: minCash, broke_day: brokeDay,
     churned_total: churnedTotal, acquired_total: acquiredTotal, bridge_day: bridgeDay,
     lost_total: lostTotal, sold_total: soldTotal, invested_cents: invested, fees_total_cents: feesTotal,
+    dedicated_signed: dedSigned, dedicated_lost: dedLost, dedicated_income_cents: dedIncome, dedicated_bought_day: dedBoughtDay,
   };
 
   // ——— segédek ———
   function sellOne(): void {
-    // A gépek terhelése vásárlási sorrendben töltve (capacity.assignLoad), ahogy a tick is számolja.
-    let left = activeN();
-    const loads = p.servers.map((sv) => {
-      const cap = serverCapacity(sv.type, 0, eff().capacity_pct);
-      const load = Math.min(left, cap);
-      left -= load;
-      return { monthly_cost_cents: sv.monthly, load };
-    });
+    // A gépek terhelése vásárlási sorrendben töltve (capacity.assignFleetLoad), ahogy a tick is számolja.
+    const fl = assignFleetLoad(
+      p.servers.map((sv, id) => ({ id, type: sv.type, capacity: serverCapacity(sv.type, 0, eff().capacity_pct) })),
+      generalN(), dedN(),
+    );
+    const loads = fl.servers.map((x, i) => ({ monthly_cost_cents: p.servers[i].monthly, load: x.load }));
     const i = pickServerToSell(loads);
     if (i < 0) return;
+    if (isDedicatedServer(p.servers[i].type) && loads[i].load > 0) {
+      // A gépével együtt a nagy ügyfél is elmegy.
+      const c = customers.find((x) => x.active && x.tier === 'dedicated');
+      if (c) loseDedicated(c);
+    }
     const sv = p.servers.splice(i, 1)[0];
     p.cash += Math.round((sv.price * rules.auto_sell_refund_pct) / 100);
     soldTotal++;
@@ -393,12 +472,24 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
         if (rules.close_tickets_on_churn && !c.active) continue;
         for (const ts of c.tickets) queue.push({ c, ts });
       }
-      queue.sort((a, b) => a.ts - b.ts);
+      // A dedikált ügyfél ticketjei előre kerülnek (api/shift/start.ts is így válogat).
+      queue.sort((a, b) => ((b.c.tier === 'dedicated' ? 1 : 0) - (a.c.tier === 'dedicated' ? 1 : 0)) || a.ts - b.ts);
       const limit = rules.shift_ticket_limit + (rules.upgrade_effects ? p.eff.shift_slots : 0);
       const batch = queue.slice(0, limit);
       if (batch.length > 0) {
         p.shiftsToday++;
         for (const { c, ts } of batch) {
+          if (c.tier === 'dedicated' && ded) {
+            if (profile !== 'dedicated_neglect') {
+              c.sat = clampSat(c.sat + dedicatedReplyDelta(ded, 8)); // ugyanaz a jó válasz, kevesebbet ér
+              // Ha nagyon morcos: eszkaláció a senior mérnökhöz ($50, +15), nem a havidíja visszatérítése.
+              if (c.sat < 30) { c.sat = clampSat(c.sat + 15); p.cash = applyCashDelta(rules, p.cash, -5000); }
+            }
+            c.sat = clampSat(c.sat + dedicatedCloseDelta(ded, c.sat));
+            const di = c.tickets.indexOf(ts);
+            if (di >= 0) c.tickets.splice(di, 1);
+            continue;
+          }
           if (activeLike) {
             c.sat = clampSat(c.sat + 8); // egy-két értelmes válasz a chatben (AI-értékelés átlaga)
             if (c.sat < 30) { c.sat = clampSat(c.sat + 20); p.cash = applyCashDelta(rules, p.cash, -250); } // 50% visszatérítés
@@ -430,7 +521,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       } else {
         const score = (o: typeof pick) => o.res.reputation_delta * 3 + o.res.satisfaction_delta_global + o.res.cash_delta_cents / 5000;
         // v3: ha a flotta szorít, a következő gép árát is tartalékolja (nem költi el egy eseményre).
-        const keep = 20000 + (v3 && profile !== 'never_buy' && fleetUtilPct(activeN(), capacity()) >= 70 ? SERVER_SPECS.lamp_box.purchase_cost_cents : 0);
+        const keep = 20000 + (v3 && profile !== 'never_buy' && fleetUtilPct(generalN(), capacity()) >= 70 ? SERVER_SPECS.lamp_box.purchase_cost_cents : 0);
         const affordable = opts.filter((o) => p.cash + o.res.cash_delta_cents >= keep);
         const pool = affordable.length > 0 ? affordable : opts;
         pick = (affordable.length > 0 ? pool.reduce((b, o) => (score(o) > score(b) ? o : b)) :
@@ -464,12 +555,22 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       return;
     }
 
-    const util = fleetUtilPct(activeN(), capacity());
+    const util = fleetUtilPct(generalN(), capacity());
+    // Dedikált: a 2. korszakban (és elég hírnévvel) megveszi a dedikált gépet, ha marad $100 tartalék.
+    const dedPrice = SERVER_SPECS.dedicated_box.purchase_cost_cents;
+    const hasBox = p.servers.some((sv) => isDedicatedServer(sv.type));
+    // Már az 1. korszakban spórol rá (addig nem vesz fejlesztést), hogy a 2. korszak
+    // elején meg tudja venni — a sima gépeket közben ugyanúgy veszi (azok nélkül elmaradnak az ügyfelek).
+    const savingForBox = buysDedicated && ded !== null && !hasBox;
+    if (savingForBox && p.era >= 2 && p.rep >= ded!.min_reputation && p.cash >= dedPrice + 10000) {
+      buyServer('dedicated_box');
+      if (dedBoughtDay === null) dedBoughtDay = day;
+    }
     if (profile === 'casual') {
       // A vezérlő 85%-nál szól; az alkalmi játékos akkor vesz, ha marad $200 tartalék.
       if (util >= 85 && p.cash >= lamp + 20000) buyServer('lamp_box');
-    } else if (profile === 'active' || profile === 'overbuy') {
-      if (profile === 'active') {
+    } else if (profile === 'active' || profile === 'overbuy' || buysDedicated) {
+      if (profile === 'active' || buysDedicated) {
         // Nem hirdet, amíg nincs hova tenni az ügyfelet (teli flottánál a PPC kidobott pénz).
         if (util >= 90) { p.seo = 50; p.ppc = 0; p.ref = 50; } else { p.seo = 25; p.ppc = 50; p.ref = 25; }
         // Időben (80%-nál) vesz gépet, $200 tartalékkal — a kapacitás előbb van, mint a fejlesztés.
@@ -480,12 +581,15 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       }
       // Fejlesztés (mindkettőnél ugyanaz, hogy a különbség a szerver-döntés legyen): a haszon sorrendjében,
       // naponta legfeljebb egy, $300 tartalékkal, és csak ha a flotta nem szorít.
-      if (opts.buy_upgrades !== false && fleetUtilPct(activeN(), capacity()) < 80) {
+      // Aki dedikált gépre spórol, az addig nem vesz fejlesztést.
+      const stillSaving = savingForBox && !p.servers.some((sv) => isDedicatedServer(sv.type));
+      if (opts.buy_upgrades !== false && !stillSaving && fleetUtilPct(generalN(), capacity()) < 80) {
+        const reserve = 30000;
         for (const id of ACTIVE_UPGRADE_ORDER) {
           const u = UPGRADE_SPECS.find((x) => x.id === id)!;
           if (p.upgrades.has(id) || u.era > p.era || (u.prereq && !p.upgrades.has(u.prereq))) continue;
           if (id === 'ram_bump' && p.servers.length < 2) continue; // a kapacitás-fejlesztés több gépen ér többet
-          if (p.cash - u.cost_usd_cents >= 30000) buyUpgrade(id);
+          if (p.cash - u.cost_usd_cents >= reserve) buyUpgrade(id);
           break;
         }
       }
