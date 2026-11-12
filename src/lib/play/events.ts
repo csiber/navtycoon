@@ -40,6 +40,14 @@ const RANDOM_TITLES: Record<string, Record<PlayLocale, string>> = {
   staff_drama: { en: 'Staff drama', hu: 'Csapatdráma', de: 'Team-Drama' },
 };
 
+// A gépnevek itt rövid formában (a catalog.ts-t nem húzzuk be: az a teljes katalógust hozná a kliens-kötegbe).
+const SERVER_NAMES: Record<string, Record<PlayLocale, string>> = {
+  lamp_box: { en: 'Beige Tower (LAMP)', hu: 'Bézs torony (LAMP)', de: 'Beiger Tower (LAMP)' },
+  rack_unit: { en: '1U Rack Server', hu: '1U rack-szerver', de: '1U-Rackserver' },
+  vps_node: { en: 'VPS Node', hu: 'VPS-csomópont', de: 'VPS-Knoten' },
+  dedicated_box: { en: 'Dedicated Box', hu: 'Dedikált gép', de: 'Dedizierter Server' },
+};
+
 const L = {
   en: {
     someone: 'a customer',
@@ -52,6 +60,9 @@ const L = {
     customer_acquired: 'New customer: {who} ({plan} plan).',
     customer_churned: '{who} left.',
     era_unlock: '🎉 Era {n} unlocked{name}.',
+    server_auto_sold: 'Debt limit reached: your {name} was sold for {v} to cover the server fees.',
+    capacity_lost: '{n} new customer(s) went elsewhere today: no free slot on your servers.',
+    event_avoided: '🛡 Your upgrades prevented it: {title}.',
     bridge_investor: 'A bridge investor believed in you: {v} to get back on your feet (once per company).',
     shift_end: 'Shift ended: {r} of {t} tickets handled.',
     cash_change: 'Cash {v}.',
@@ -73,6 +84,9 @@ const L = {
     customer_acquired: 'Új ügyfél: {who} ({plan} csomag).',
     customer_churned: '{who} elpártolt.',
     era_unlock: '🎉 Megnyílt a(z) {n}. korszak{name}.',
+    server_auto_sold: 'Elérted a tartozás-határt: a(z) {name} gépedet eladtuk {v}-ért, hogy kifizesse a havidíjakat.',
+    capacity_lost: 'Ma {n} új ügyfél ment el máshoz: nem volt szabad hely a szervereiden.',
+    event_avoided: '🛡 A fejlesztéseid kivédték: {title}.',
     bridge_investor: 'Egy áthidaló befektető hitt benned: {v} a talpra álláshoz (cégenként egyszer).',
     shift_end: 'Műszak vége: {t} ticketből {r} elintézve.',
     cash_change: 'Pénz {v}.',
@@ -94,6 +108,9 @@ const L = {
     customer_acquired: 'Neuer Kunde: {who} (Tarif {plan}).',
     customer_churned: '{who} hat gekündigt.',
     era_unlock: '🎉 Ära {n} freigeschaltet{name}.',
+    server_auto_sold: 'Schuldengrenze erreicht: dein {name} wurde für {v} verkauft, um die Servergebühren zu decken.',
+    capacity_lost: 'Heute sind {n} neue Kunden woanders hingegangen: kein freier Platz auf deinen Servern.',
+    event_avoided: '🛡 Deine Upgrades haben es verhindert: {title}.',
     bridge_investor: 'Ein Überbrückungsinvestor glaubt an dich: {v}, um wieder auf die Beine zu kommen (einmal pro Firma).',
     shift_end: 'Schicht beendet: {r} von {t} Tickets erledigt.',
     cash_change: 'Kasse {v}.',
@@ -151,6 +168,18 @@ export function eventLine(locale: PlayLocale, ev: FeedEvent): FeedLine {
     case 'bridge_investor': {
       const c = typeof d.cash_delta_cents === 'number' ? d.cash_delta_cents : 0;
       return { text: fill(t.bridge_investor, { v: money(c) }), tone: 'good', ico: '$', tag: '' };
+    }
+    case 'server_auto_sold': {
+      const c = typeof d.cash_delta_cents === 'number' ? d.cash_delta_cents : 0;
+      const name = (SERVER_NAMES[str(d.server_type)]?.[locale]) ?? str(d.server_type) ?? '—';
+      return { text: fill(t.server_auto_sold, { name, v: money(c).replace('+', '') }), tone: 'alert', ico: '!', tag: '' };
+    }
+    case 'capacity_lost':
+      return { text: fill(t.capacity_lost, { n: Number(d.count) || 1 }), tone: 'warn', ico: '▤', tag: '' };
+    case 'event_avoided': {
+      const at = str(d.avoided_type);
+      const title = RANDOM_TITLES[at]?.[locale] ?? RANDOM_TITLES[at]?.en ?? at.replace(/_/g, ' ');
+      return { text: fill(t.event_avoided, { title }), tone: 'good', ico: '◈', tag: '' };
     }
     case 'shift_end':
       return {

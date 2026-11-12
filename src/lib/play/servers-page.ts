@@ -9,6 +9,11 @@ import { pt } from './strings';
 import { serverName, serverFlavor, upgradeName, upgradeEffect } from './catalog';
 import { rackUnitStates, unit2d } from './rack-model';
 import { daysAlive } from '../game/era-progress';
+import { serverCapacity } from '../game/server-types';
+import { effectiveMonthlyFees } from '../game/economy';
+import { NO_EFFECTS } from '../game/upgrade-effects';
+// 2026-11-12 (játékmag): a kapacitás a fejlesztésekkel együtt (a hívó már a tényleges kapacitást adja át),
+// a havidíj valóban levonódik (a fejlesztésekkel csökkentve), a katalógusban: hány ügyféltől termeli ki a díját.
 
 export interface OwnedServer { id: number; type: string; capacity: number; monthly_cost_cents: number; purchased_at: number }
 export interface BuyableServer { type: string; capacity: number; monthly_cost_cents: number; purchase_cost_cents: number }
@@ -23,11 +28,15 @@ export interface ServersPageData {
   servers: OwnedServer[];
   buyable: BuyableServer[];
   upgrades: BuyableUpgrade[];
+  /** A játékos hobby-ára (cent) — a „hány ügyféltől termeli ki a havidíját" számításhoz. */
+  hobbyPriceCents?: number;
 }
 
 export function renderServersContent(d: ServersPageData): string {
   const s = d.shell;
   const L = s.locale;
+  const effs = s.effects ?? NO_EFFECTS;
+  const lost24h = s.fleet?.lost24h ?? 0;
   // Állapot a 3D rackkel közös függvényből (rack-model): ≥ 70% borostyán, piros csak túlcsordulás / incidens.
   const { loaded, units: rackStates } = rackUnitStates(d.servers, d.activeCustomers, d.openIncidents ?? []);
   const used = loaded.servers.length;
@@ -59,8 +68,9 @@ export function renderServersContent(d: ServersPageData): string {
             </div>
             <div class="detail-grid">
               <div class="dgrid"><div class="k">${esc(pt(L, 'srv.k.load'))}</div><div class="v ${statusCls}">${sv.util}%</div><div class="meta">${esc(pt(L, 'srv.load_meta', { n: sv.load, c: sv.capacity }))}</div></div>
-              <div class="dgrid"><div class="k">${esc(pt(L, 'srv.k.capacity'))}</div><div class="v">${sv.capacity}</div><div class="meta">${esc(pt(L, 'srv.capacity_meta'))}</div></div>
-              <div class="dgrid"><div class="k">${esc(pt(L, 'srv.k.monthly'))}</div><div class="v">${esc(usd(sv.monthly_cost_cents))}</div><div class="meta">${esc(pt(L, sv.monthly_cost_cents === 0 ? 'srv.monthly_free' : 'srv.monthly_meta'))}</div></div>
+              <div class="dgrid"><div class="k">${esc(pt(L, 'srv.k.capacity'))}</div><div class="v">${sv.capacity}</div><div class="meta">${esc(effs.capacity_pct > 0 ? pt(L, 'srv.capacity_bonus', { p: effs.capacity_pct }) : pt(L, 'srv.capacity_meta'))}</div></div>
+              <div class="dgrid"><div class="k">${esc(pt(L, 'srv.k.monthly'))}</div><div class="v">${esc(usd(sv.monthly_cost_cents))}</div><div class="meta">${esc(sv.monthly_cost_cents === 0 ? pt(L, 'srv.monthly_free')
+                : effs.fee_pct < 0 ? pt(L, 'srv.monthly_disc', { v: usd(effectiveMonthlyFees(sv.monthly_cost_cents, effs.fee_pct)) }) : pt(L, 'srv.monthly_meta'))}</div></div>
               <div class="dgrid"><div class="k">${esc(pt(L, 'srv.k.age'))}</div><div class="v">${esc(pt(L, 'runway.days', { n: Math.max(0, s.day - boughtDay) }))}</div><div class="meta">${esc(pt(L, 'srv.bought_day', { n: boughtDay }))}</div></div>
             </div>
             <div class="detail-section">
@@ -74,10 +84,13 @@ export function renderServersContent(d: ServersPageData): string {
     ? `<div class="cat-empty">${esc(pt(L, 'srv.cat_empty'))}</div>`
     : d.buyable.map((b) => {
       const ok = s.cashCents >= b.purchase_cost_cents;
+      const slots = serverCapacity(b.type, b.capacity, effs.capacity_pct);
+      const fee = effectiveMonthlyFees(b.monthly_cost_cents, effs.fee_pct);
+      const k = Math.max(1, Math.ceil(fee / Math.max(1, d.hobbyPriceCents ?? 500)));
       return `
           <div class="cat-item${ok ? ' affordable' : ''}">
             <div class="row1"><span class="name">${esc(serverName(L, b.type))}</span><span class="tag${ok ? '' : ' lock'}">${esc(pt(L, ok ? 'srv.tag_ok' : 'srv.tag_cash'))}</span></div>
-            <div class="specs-mini"><span>${esc(pt(L, 'dash.quick.slots', { n: b.capacity }))}</span><span>${esc(pt(L, 'srv.per_month', { v: usd(b.monthly_cost_cents) }))}</span><span>${esc(serverFlavor(L, b.type))}</span></div>
+            <div class="specs-mini"><span>${esc(pt(L, 'dash.quick.slots', { n: slots }))}</span><span>${esc(pt(L, 'srv.per_month', { v: usd(fee) }))}</span><span>${esc(pt(L, 'srv.breakeven', { k }))}</span><span>${esc(serverFlavor(L, b.type))}</span></div>
             <div class="row2"><span class="price${ok ? '' : ' lock'}">${esc(usd(b.purchase_cost_cents))}</span><button class="buy" type="button"${ok ? ` data-buy-server="${esc(b.type)}" data-name="${esc(serverName(L, b.type))}" data-cost="${b.purchase_cost_cents}"` : ' disabled'}>${esc(pt(L, ok ? 'srv.buy' : 'srv.tag_cash'))}</button></div>
           </div>`;
     }).join('');
@@ -96,7 +109,7 @@ export function renderServersContent(d: ServersPageData): string {
       <div class="pagehead">
         <div class="h-left">
           <h1>${esc(pt(L, 'nav.servers'))} <span class="count">${esc(pt(L, 'srv.count', { n: used, c: loaded.totalCapacity }))}</span></h1>
-          <div class="sub">${esc(pt(L, 'srv.sub', { n: d.activeCustomers }))}${loaded.overflow > 0 ? ' · <b class="srv-over">' + esc(pt(L, 'srv.overflow', { n: loaded.overflow })) + '</b>' : ''}</div>
+          <div class="sub">${esc(pt(L, 'srv.sub', { n: d.activeCustomers }))}${loaded.overflow > 0 ? ' · <b class="srv-over">' + esc(pt(L, 'srv.overflow', { n: loaded.overflow })) + '</b>' : ''}${lost24h > 0 ? '<br><b class="srv-lost">' + esc(pt(L, 'srv.lost', { n: lost24h })) + '</b>' : ''}</div>
         </div>
       </div>
       <div class="layout">

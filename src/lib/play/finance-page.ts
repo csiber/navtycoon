@@ -8,6 +8,7 @@ import { esc, usd, usd2, type ShellData } from './shell';
 import { pt } from './strings';
 import { tip } from './dashboard';
 import { ago, eventLine, type FeedEvent } from './events';
+import { ECONOMY } from '../game/economy';
 
 export interface FinanceData {
   shell: ShellData;
@@ -16,6 +17,8 @@ export interface FinanceData {
   avgLtvCents: number;
   ppcPct: number;
   serverFeesListedCents: number;
+  /** Fizetős (nem ingyenes) gépek száma. */
+  paidServers?: number;
   /** Pénzzel járó események (legújabb elöl). */
   moneyEvents: Array<FeedEvent & { cash_delta_cents: number }>;
 }
@@ -48,12 +51,18 @@ export function renderFinanceContent(d: FinanceData): string {
           <thead><tr><th>${esc(pt(L, 'fin.item'))}</th><th>${esc(pt(L, 'fin.per_day'))}</th></tr></thead>
           <tbody>
             ${row(pt(L, 'fin.row.subs'), pt(L, 'fin.row.subs_sub', { n: d.activeCustomers }), '+' + usd2(f.income_per_day_cents), 'pos')}
-            ${row(pt(L, 'fin.row.ppc'), pt(L, 'fin.row.ppc_sub', { p: d.ppcPct }), (f.cost_per_day_cents > 0 ? '−' : '') + usd2(f.cost_per_day_cents), f.cost_per_day_cents > 0 ? 'neg' : 'dim')}
-            ${row(pt(L, 'fin.row.servers'), pt(L, 'fin.row.servers_sub', { v: usd(d.serverFeesListedCents) }), '$0.00', 'dim')}
+            ${row(pt(L, 'fin.row.ppc'), pt(L, 'fin.row.ppc_sub', { p: d.ppcPct }), (f.ppc_per_day_cents > 0 ? '−' : '') + usd2(f.ppc_per_day_cents), f.ppc_per_day_cents > 0 ? 'neg' : 'dim')}
+            ${row(pt(L, 'fin.row.servers'),
+              d.serverFeesListedCents > 0
+                ? pt(L, 'fin.row.servers_sub', { n: d.paidServers ?? 0, v: usd(d.serverFeesListedCents) })
+                  + (s.effects.fee_pct < 0 ? pt(L, 'fin.row.servers_disc', { p: Math.abs(s.effects.fee_pct) }) : '')
+                : pt(L, 'fin.row.servers_free'),
+              (f.servers_per_day_cents > 0 ? '−' : '') + usd2(f.servers_per_day_cents), f.servers_per_day_cents > 0 ? 'neg' : 'dim')}
             <tr class="total grand"><td class="lbl">${esc(pt(L, 'fin.row.net'))}</td><td class="${f.net_per_day_cents >= 0 ? 'pos' : 'neg'}">${esc((f.net_per_day_cents >= 0 ? '+' : '') + usd2(f.net_per_day_cents))}</td></tr>
           </tbody>
         </table></div>
         <div class="fin-hint">${esc(pt(L, f.net_per_day_cents < 0 ? 'fin.hint_burn' : 'fin.hint_ok'))} <a href="/play/marketing">${esc(pt(L, 'nav.marketing'))} →</a></div>
+        ${d.serverFeesListedCents > 0 ? `<div class="fin-debt">${esc(pt(L, 'fin.debt_note', { limit: usd(ECONOMY.debt_limit_cents), pct: ECONOMY.auto_sell_refund_pct }))}</div>` : ''}
       </section>`;
 
   const moves = d.moneyEvents.length === 0

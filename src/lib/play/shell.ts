@@ -12,11 +12,28 @@ import { UPGRADE_SPECS } from '../game/upgrade-tree';
 import { renderSoundControl } from './sound-ui';
 import { eraProgress, daysAlive, type EraProgress } from '../game/era-progress';
 import { dailyCashFlow, type CashFlow } from '../game/runway';
-import { LOW_CASH_WARN_CENTS } from '../game/economy';
+import { LOW_CASH_WARN_CENTS, ECONOMY, FLEET_WARN_PCT, fleetUtilPct } from '../game/economy';
+import { effectsOf, type UpgradeEffects } from '../game/upgrade-effects';
+import { serverCapacity } from '../game/server-types';
 import { pt, clientStrings, type PlayLocale, type PlayKey } from './strings';
 
 export interface ShellDbLike {
-  prepare(sql: string): { bind(...args: unknown[]): { first<T = unknown>(): Promise<T | null> } };
+  prepare(sql: string): { bind(...args: unknown[]): {
+    first<T = unknown>(): Promise<T | null>;
+    all<T = unknown>(): Promise<{ results?: T[] }>;
+  } };
+}
+
+/** A flotta kapacitása és költsége (2026-11-12, játékmag) — a vezérlő, a Szerverek és a Pénzügy lap is ezt mutatja. */
+export interface FleetInfo {
+  /** Összes ügyfélhely (a fejlesztésekkel). */
+  capacity: number;
+  /** Kihasználtság %-ban (ügyfelek / hely). */
+  utilPct: number;
+  /** Ennyi új ügyfél ment el az utóbbi 24 órában helyhiány miatt. */
+  lost24h: number;
+  /** A gépek listázott havidíja összesen (cent / hó, fejlesztés nélkül). */
+  monthlyListedCents: number;
 }
 
 export interface ShellData {
@@ -43,6 +60,9 @@ export interface ShellData {
     upgradesTotal: number;
   };
   era2: EraProgress | null;
+  fleet: FleetInfo;
+  /** A birtokolt fejlesztések összesített hatása. */
+  effects: UpgradeEffects;
 }
 
 export function initialsOf(name: string): string {
@@ -66,6 +86,17 @@ export async function loadShell(
     one("SELECT COUNT(*) AS n FROM tickets WHERE player_id = ? AND status IN ('open', 'in_progress')", uid),
     one('SELECT COUNT(*) AS n FROM upgrades WHERE player_id = ?', uid),
   ]);
+  const [srvRows, upRows, feeSum, lost24h] = await Promise.all([
+    db.prepare('SELECT type, capacity FROM servers WHERE player_id = ?').bind(uid).all<{ type: string; capacity: number }>(),
+    db.prepare('SELECT upgrade_id FROM upgrades WHERE player_id = ?').bind(uid).all<{ upgrade_id: string }>(),
+    one('SELECT COALESCE(SUM(monthly_cost_cents), 0) AS n FROM servers WHERE player_id = ?', uid),
+    // capacity_lost: napi egy sor, a data_json.count gyűlik (tick.ts)
+    one("SELECT COALESCE(SUM(CAST(json_extract(data_json, '$.count') AS INTEGER)), 0) AS n FROM events " +
+      "WHERE player_id = ? AND event_type = 'capacity_lost' AND spawned_at >= ?", uid, now - 86400),
+  ]);
+  const effects = effectsOf((upRows.results ?? []).map((r) => r.upgrade_id));
+  const capPct = ECONOMY.upgrade_effects ? effects.capacity_pct : 0;
+  const capacity = (srvRows.results ?? []).reduce((a, r) => a + serverCapacity(r.type, r.capacity, capPct), 0);
   const alive = daysAlive(player.founded_at, now);
   return {
     locale,
@@ -79,7 +110,9 @@ export async function loadShell(
     cashCents: player.cash_usd_cents,
     mrrCents: player.mrr_usd_cents,
     rep: player.reputation,
-    flow: dailyCashFlow(player),
+    flow: dailyCashFlow({ ...player, server_monthly_cents: feeSum, fee_pct: effects.fee_pct }),
+    fleet: { capacity, utilPct: fleetUtilPct(customers, capacity), lost24h, monthlyListedCents: feeSum },
+    effects,
     counts: {
       servers, customers, newCustomers24h, openTickets, upgradesOwned,
       upgradesTotal: UPGRADE_SPECS.length,
@@ -155,7 +188,13 @@ function badgeFor(s: ShellData, id: NavId): string {
     const n = s.counts.newCustomers24h;
     return `<span class="badge new" title="${esc(pt(L, 'nav.badge.new_customers', { n }))}">+${n}</span>`;
   }
-  if (id === 'servers') return `<span class="badge muted">${s.counts.servers}</span>`;
+  if (id === 'servers') {
+    // Szűkülő flottánál a jelvény a kihasználtságot mutatja (borostyán ≥ 80%, piros ha tele).
+    if (ECONOMY.capacity_limit && s.fleet.capacity > 0 && s.fleet.utilPct >= FLEET_WARN_PCT) {
+      return `<span class="badge${s.fleet.utilPct >= 100 ? '' : ' warn'}" title="${esc(pt(L, 'fleet.badge', { p: s.fleet.utilPct, n: s.counts.customers, c: s.fleet.capacity }))}">${s.fleet.utilPct}%</span>`;
+    }
+    return `<span class="badge muted">${s.counts.servers}</span>`;
+  }
   if (id === 'research') {
     const t = pt(L, 'nav.badge.research', { owned: s.counts.upgradesOwned, total: s.counts.upgradesTotal });
     return `<span class="badge muted" title="${esc(t)}">${s.counts.upgradesOwned}/${s.counts.upgradesTotal}</span>`;
@@ -209,6 +248,20 @@ export function cashWarning(s: ShellData): string {
   return '';
 }
 
+/** Tartozásnál és szűkülő flottánál rövid, érthető jelzés az oldalsávban (2026-11-12, játékmag). */
+export function fleetWarning(s: ShellData): string {
+  const L = s.locale;
+  const out: string[] = [];
+  if (s.cashCents < 0) {
+    out.push(`<div class="runway danger cash-warn" role="status"><span>⚠ ${esc(pt(L, 'debt.warn', { v: usd(-s.cashCents), limit: usd(ECONOMY.debt_limit_cents) }))}</span></div>`);
+  }
+  if (ECONOMY.capacity_limit && s.fleet.capacity > 0 && s.fleet.utilPct >= FLEET_WARN_PCT) {
+    const key = s.fleet.utilPct >= 100 ? 'fleet.full_short' : 'fleet.warn_short';
+    out.push(`<a class="runway${s.fleet.utilPct >= 100 ? ' danger' : ''} fleet-warn" href="/play/servers"><span>▤ ${esc(pt(L, key, { p: s.fleet.utilPct }))}</span></a>`);
+  }
+  return out.join('');
+}
+
 export function renderSidebar(s: ShellData, active: NavId): string {
   const L = s.locale;
   const runwayTxt = s.flow.runway_days === null ? pt(L, 'runway.safe') : pt(L, 'runway.days', { n: s.flow.runway_days });
@@ -243,6 +296,7 @@ export function renderSidebar(s: ShellData, active: NavId): string {
       </div>
       <div class="bar"><i style="width:${runwayPct}%"></i></div>
       ${cashWarning(s)}
+      ${fleetWarning(s)}
     </div>
     ${sections}
     ${renderEraBox(s)}

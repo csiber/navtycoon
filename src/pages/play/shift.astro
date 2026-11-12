@@ -14,6 +14,8 @@ import { jsonForScript } from '../../lib/safe-json';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { getPlayer } from '../../lib/game/db';
 import { getLlmUsageToday, getDailyCap } from '../../lib/game/llm-cap';
+import { ECONOMY } from '../../lib/game/economy';
+import { loadUpgradeEffects } from '../../lib/game/upgrade-effects';
 import { resolveLocale } from '../../lib/i18n/server';
 import { t } from '../../lib/i18n';
 import { secondsUntilShiftReset, shiftsUsedToday } from '../../lib/game/shift-score';
@@ -41,7 +43,10 @@ const waiting = (await db.prepare(`
 `).bind(user.id).all<{ id: number; summary: string; name: string; archetype: string; satisfaction: number }>()).results ?? [];
 const openCount = waiting.length;
 const used = await getLlmUsageToday(db, user.id);
-const cap = getDailyCap(player.is_pro === 1);
+// A fejlesztések (Nagios, CI/CD) több ticketet / MI-választ engednek (2026-11-12, játékmag).
+const shiftEff = await loadUpgradeEffects(db as never, user.id);
+const shiftLimit = ECONOMY.shift_ticket_limit + (ECONOMY.upgrade_effects ? shiftEff.shift_slots : 0);
+const cap = getDailyCap(player.is_pro === 1, ECONOMY.upgrade_effects ? shiftEff.ai_calls : 0);
 const capRemaining = Math.max(0, cap - used);
 const shiftCap = player.is_pro === 1 ? 5 : 1;
 const nowSec = Math.floor(Date.now() / 1000);
@@ -73,7 +78,7 @@ const boot = { capRemaining, cap, shiftsLeft: Math.max(0, shiftsLeft - 1), reset
         <div class="sub">{pt(locale, 'sx.pre.rules', { left: shiftsLeft })}</div>
       </div>
       <div class="sx-stats">
-        <div class="sx-stat" data-stat="resolved"><div class="k">{pt(locale, 'sx.hud.resolved')}</div><div class="v">0/{Math.min(10, openCount)}</div></div>
+        <div class="sx-stat" data-stat="resolved"><div class="k">{pt(locale, 'sx.hud.resolved')}</div><div class="v">0/{Math.min(shiftLimit, openCount)}</div></div>
         <div class="sx-stat" data-stat="cash"><div class="k">{pt(locale, 'sx.hud.cash')}</div><div class="v">$0</div></div>
         <div class="sx-stat" data-stat="mood"><div class="k">{pt(locale, 'sx.hud.mood')}</div><div class="v">+0</div></div>
         <div class="sx-stat" data-stat="ai"><div class="k">{pt(locale, 'sx.hud.ai_left')}</div><div class="v">{capRemaining}/{cap}</div></div>
@@ -93,7 +98,7 @@ const boot = { capRemaining, cap, shiftsLeft: Math.max(0, shiftsLeft - 1), reset
         <div class="l">
           <div class="ico">🎧</div>
           <h2>{pt(locale, 'sx.pre.title')}</h2>
-          <div class="wait" set:html={pt(locale, 'sx.pre.waiting', { n: `<b>${Math.min(10, openCount)}</b>` })}></div>
+          <div class="wait" set:html={pt(locale, 'sx.pre.waiting', { n: `<b>${Math.min(shiftLimit, openCount)}</b>` })}></div>
           <p class="how">{pt(locale, 'sx.pre.how')}</p>
           <button type="button" class="sx-start" id="sx-start">▶ {pt(locale, 'dash.shift.start')}</button>
         </div>
@@ -106,7 +111,7 @@ const boot = { capRemaining, cap, shiftsLeft: Math.max(0, shiftsLeft - 1), reset
               <span class={`sx-chip ${w.archetype}`}>{ARCH(w.archetype)}</span>
             </div>
           ))}
-          {Math.min(10, openCount) > peek.length && <div class="more">{pt(locale, 'sx.pre.more', { n: Math.min(10, openCount) - peek.length })}</div>}
+          {Math.min(shiftLimit, openCount) > peek.length && <div class="more">{pt(locale, 'sx.pre.more', { n: Math.min(shiftLimit, openCount) - peek.length })}</div>}
         </div>
       </section>
     )}

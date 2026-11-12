@@ -40,6 +40,8 @@ const avgLtvCents = finCustomers.length === 0 ? 0 : Math.round(
   finCustomers.reduce((a, c) => a + estimateLtvCents(planPrice(c.plan_tier, prices), c.joined_at, nowSec), 0) / finCustomers.length);
 const serverFees = (await db.prepare('SELECT COALESCE(SUM(monthly_cost_cents), 0) AS n FROM servers WHERE player_id = ?')
   .bind(user.id).first<{ n: number }>())?.n ?? 0;
+const paidServers = (await db.prepare('SELECT COUNT(*) AS n FROM servers WHERE player_id = ? AND monthly_cost_cents > 0')
+  .bind(user.id).first<{ n: number }>())?.n ?? 0;
 const moneyRows = (await db.prepare(
   `SELECT id, event_type, data_json, spawned_at, resolved_at, outcome FROM events
    WHERE player_id = ? AND event_type NOT IN ('era_unlock', 'shift_end') ORDER BY spawned_at DESC LIMIT 60`,
@@ -53,7 +55,7 @@ const moneyEvents = moneyRows.map((e) => {
 }).filter((e) => e.cash_delta_cents !== 0).slice(0, 15);
 const finContent = renderFinanceContent({
   shell, now: nowSec, activeCustomers: finCustomers.length, avgLtvCents,
-  ppcPct: player.marketing_ppc_pct, serverFeesListedCents: serverFees, moneyEvents,
+  ppcPct: player.marketing_ppc_pct, serverFeesListedCents: serverFees, paidServers, moneyEvents,
 });
 const shellHtml = applyContent(applyShell(pageHtml, shell, 'finance', [pt(locale, 'nav.finance')]), finContent);
 ---

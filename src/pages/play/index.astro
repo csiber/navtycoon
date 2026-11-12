@@ -93,7 +93,7 @@ const recentEvents = (await db.prepare(
    ORDER BY spawned_at DESC LIMIT 12`,
 ).bind(user.id).all<{ id: number; event_type: string; data_json: string | null; spawned_at: number; resolved_at: number | null; outcome: string | null }>()).results ?? [];
 
-import { SERVER_SPECS as SERVER_SPECS_DASH } from '../../lib/game/server-types';
+import { SERVER_SPECS as SERVER_SPECS_DASH, serverCapacity as serverCapacityDash } from '../../lib/game/server-types';
 const rackData = rackServers.map((s) => {
   const spec = SERVER_SPECS_DASH[s.type];
   const utilPct = s.capacity > 0 ? Math.round((s.current_load / s.capacity) * 100) : 0;
@@ -269,7 +269,8 @@ const dashContent = renderDashboardContent({
   customersAll: allActiveCustomers,
   customersEver,
   tickets: recentTickets.map((t) => ({ id: t.id, summary: t.summary, created_at: t.created_at, cust_name: t.cust_name, persona: t.persona_archetype })),
-  servers: rackServers,
+  // Tényleges kapacitás (típus × fejlesztések) — ugyanaz, amit a tick számol (2026-11-12, játékmag).
+  servers: rackServers.map((s) => ({ ...s, capacity: serverCapacityDash(s.type, s.capacity, shell.effects.capacity_pct) })),
   events: recentEvents.map((e) => {
     let d: Record<string, unknown> = {};
     try { d = e.data_json ? JSON.parse(e.data_json) : {}; } catch { /* hibás JSON: üres adat */ }
@@ -287,7 +288,7 @@ const dashContent = renderDashboardContent({
   cheapestUpgrade: cheapestUpg ? { id: cheapestUpg.id, cost_cents: cheapestUpg.cost_usd_cents } : null,
 });
 // 3D rack a Flotta-panelen (src/scripts/rack3d): minden gép (max. 24 látszik), valós terheléssel és incidenssel.
-const rack3dServers = rackServers.map((s) => ({ id: s.id, type: s.type, capacity: s.capacity }));
+const rack3dServers = rackServers.map((s) => ({ id: s.id, type: s.type, capacity: serverCapacityDash(s.type, s.capacity, shell.effects.capacity_pct) }));
 const rack3d = {
   page: 'dashboard',
   model: buildRackModel({ servers: rack3dServers, activeCustomers: allActiveCustomers.length, openIncidents: openIncidents3d, nameOf: (t) => serverName3d(locale, t), minSlots: 8 }),

@@ -14,6 +14,7 @@ import { SERVER_SPECS, affordableServerTypes } from '../game/server-types';
 import type { EraId } from '../game/types';
 import { rackUnitStates, unit2d } from './rack-model';
 import { localizePlaceholderTicket } from '../game/customer-spawn';
+import { ECONOMY, FLEET_WARN_PCT, fleetUtilPct } from '../game/economy';
 
 export interface DashCustomer {
   id: number; name: string; satisfaction: number; churn_risk: number; plan_tier: string;
@@ -208,7 +209,9 @@ export function renderDashboardContent(d: DashboardData): string {
       rows.push(`<div class="u empty"><span class="lbl">${lbl}</span><span class="name">${esc(pt(L, 'dash.fleet.empty'))}</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>`);
     }
   }
-  const perServer = d.servers.length > 0 ? (active.length / d.servers.length).toFixed(1) : '0';
+  // 2026-11-12 (játékmag): a harmadik mini-stat a flotta terhelése (vagy az elmaradt ügyfelek, ha voltak).
+  const utilPct = fleetUtilPct(active.length, totalCap);
+  const utilCls = utilPct >= 100 ? ' bad' : utilPct >= FLEET_WARN_PCT ? ' warn' : '';
   const fleet = `
         <section class="panel">
           <div class="ph">
@@ -221,7 +224,9 @@ export function renderDashboardContent(d: DashboardData): string {
           <div class="rack-foot">
             <div class="mini-stat"><div class="k">${esc(pt(L, 'dash.fleet.slots'))}</div><div class="v">${totalCap}</div></div>
             <div class="mini-stat"><div class="k">${esc(pt(L, 'dash.fleet.customers'))}</div><div class="v">${active.length}</div></div>
-            <div class="mini-stat"><div class="k">${esc(pt(L, 'dash.fleet.per_server'))}</div><div class="v">${perServer}</div></div>
+            ${(s.fleet?.lost24h ?? 0) > 0
+              ? `<div class="mini-stat"><div class="k">${esc(pt(L, 'fleet.lost'))}</div><div class="v bad">${(s.fleet?.lost24h ?? 0)}</div></div>`
+              : `<div class="mini-stat"><div class="k">${esc(pt(L, 'fleet.util'))}</div><div class="v${utilCls}">${utilPct}%</div></div>`}
           </div>
         </section>`;
 
@@ -354,8 +359,24 @@ export function renderDashboardContent(d: DashboardData): string {
         <button class="start" type="button" data-open-shift="1"${d.shiftsLeftToday <= 0 ? ' disabled' : ''}>▶ ${esc(pt(L, 'dash.shift.start'))}</button>
       </section>`;
 
+  // ─── Flotta-jelzés: 80%-tól „vegyél szervert", tele flottánál az elmaradt ügyfelek, túlterhelésnél a következmény ───
+  let fleetBanner = '';
+  if (ECONOMY.capacity_limit && totalCap > 0 && utilPct >= FLEET_WARN_PCT) {
+    const over = active.length > totalCap;
+    const full = utilPct >= 100;
+    const key = over ? 'fleet.banner_over' : full ? 'fleet.banner_full' : 'fleet.banner_warn';
+    fleetBanner = `
+      <section class="fleet-banner${full ? ' full' : ''}" role="status">
+        <span class="fb-ico">▤</span>
+        <span class="fb-txt">${esc(pt(L, key, { p: utilPct, n: active.length, c: totalCap, lost: (s.fleet?.lost24h ?? 0) }))}</span>
+        <span class="fb-meter" aria-hidden="true"><i style="width:${Math.min(100, utilPct)}%"></i></span>
+        <a class="btn primary" href="/play/servers">${esc(pt(L, 'fleet.banner_cta'))}</a>
+      </section>`;
+  }
+
   return `<div class="content">
       ${renderPendingEvents(L, d.pendingEvents ?? [])}
+      ${fleetBanner}
       ${renderGettingStarted(L, d.gettingStarted)}
       ${kpis}
       ${feed}

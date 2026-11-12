@@ -13,6 +13,7 @@ import { getCurrentUser, getDB } from '../../lib/auth';
 import { jsonForScript } from '../../lib/safe-json';
 import { getPlayer, listUpgrades } from '../../lib/game/db';
 import { UPGRADE_SPECS } from '../../lib/game/upgrade-tree';
+import { upgradeValueNow } from '../../lib/play/upgrade-value';
 import I18nDashboard from '../../components/I18nDashboard.astro';
 import DashboardAnims from '../../components/DashboardAnims.astro';
 
@@ -76,10 +77,21 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
+// „Most ennyit ér" (2026-11-12, játékmag): a játékos mostani ügyfelei, gépei és havidíjai alapján.
+const satRows = (await db.prepare('SELECT satisfaction FROM customers WHERE player_id = ? AND is_active = 1')
+  .bind(user.id).all<{ satisfaction: number }>()).results ?? [];
+const srvRows = (await db.prepare('SELECT type, capacity FROM servers WHERE player_id = ?')
+  .bind(user.id).all<{ type: string; capacity: number }>()).results ?? [];
+const valueCtx = {
+  player, satisfactions: satRows.map((r) => r.satisfaction), servers: srvRows,
+  monthlyFeesCents: shell.fleet.monthlyListedCents, effects: shell.effects, owned: ownedIds,
+  now: Math.floor(Date.now() / 1000),
+};
+const valueNow = Object.fromEntries(UPGRADE_SPECS.map((u) => [u.id, upgradeValueNow(locale, u.id, valueCtx)]));
 const researchContent = renderResearchContent(shell, UPGRADE_SPECS.map((u) => ({
   id: u.id, era: u.era, cost_usd_cents: u.cost_usd_cents, prereq: u.prereq ?? null,
   status: treeNodes.find((n) => n.id === u.id)?.status ?? 'locked',
-})));
+})), valueNow);
 const shellHtml = applyContent(applyShell(pageHtml, shell, 'research', [pt(locale, 'nav.research')]), researchContent);
 ---
 <!doctype html>

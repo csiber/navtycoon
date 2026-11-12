@@ -5,12 +5,14 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { renderSettingsContent, SETTINGS_ACTIONS } from '../settings-page';
 import { dailyCashFlow } from '../../game/runway';
+import { NO_EFFECTS } from '../../game/upgrade-effects';
 import type { ShellData } from '../shell';
 
 const shell = (locale: 'en' | 'hu' | 'de'): ShellData => ({
   locale, company: 'Teszt Kft', initials: 'TK', displayName: 'Teszt', founded: 2026, era: 1, day: 1, nextDayAt: 0,
   cashCents: 100000, mrrCents: 1500, rep: 50, flow: dailyCashFlow({ cash_usd_cents: 0, mrr_usd_cents: 0, marketing_ppc_pct: 0 }),
   counts: { servers: 1, customers: 3, newCustomers24h: 0, openTickets: 0, upgradesOwned: 0, upgradesTotal: 20 }, era2: null,
+  fleet: { capacity: 15, utilPct: 20, lost24h: 0, monthlyListedCents: 0 }, effects: { ...NO_EFFECTS },
 });
 
 describe('settings actions', () => {
