@@ -14,6 +14,9 @@
 // 2026-11-12 (játékmag): a havidíj a tartalék alatt is fogy, egészen a tartozás-határig (−debt_limit). Ha a
 // nettó negatív, a kifutás a tartalékig (vagy, ha a havidíj magában is több a bevételnél, a tartozás-határig)
 // hátralévő napok száma.
+//
+// 2026-11-12 (csapat- és hálózat-kör): a bérek és a hálózat havidíja ugyanúgy fix költség, mint a szerver-havidíj
+// (a tick együtt vonja le őket), ezért a kiadásban és a kifutásban is benne vannak.
 
 import { ECONOMY, TICKS_PER_DAY, ppcSpendPerTick, effectiveMonthlyFees, type EconomyRules } from './economy';
 
@@ -27,6 +30,10 @@ export interface CashFlowInput {
   server_monthly_cents?: number;
   /** A fejlesztések fee_pct-je (negatív = olcsóbb). */
   fee_pct?: number;
+  /** A csapat havi bére összesen (cent). */
+  staff_monthly_cents?: number;
+  /** A hálózat havidíja (cent). */
+  network_monthly_cents?: number;
 }
 
 export interface CashFlow {
@@ -38,6 +45,9 @@ export interface CashFlow {
   ppc_per_day_cents: number;
   /** Ebből a szerver-havidíj (centben / nap, a fejlesztésekkel csökkentve). */
   servers_per_day_cents: number;
+  /** Ebből a bérek és a hálózat (centben / nap). */
+  staff_per_day_cents: number;
+  network_per_day_cents: number;
   /** income − cost (centben); negatív = fogy a pénz. */
   net_per_day_cents: number;
   /** Ennyi nap múlva éri el a pénz a tartalékot; null, ha nem fogy (nettó ≥ 0). */
@@ -55,20 +65,23 @@ export function dailyCashFlow(p: CashFlowInput, rules: EconomyRules = ECONOMY): 
   const servers = rules.server_fees
     ? Math.round(effectiveMonthlyFees(p.server_monthly_cents ?? 0, rules.upgrade_effects ? p.fee_pct ?? 0 : 0) / 30)
     : 0;
-  const cost = ppc + servers;
+  const staff = rules.server_fees ? Math.round(Math.max(0, p.staff_monthly_cents ?? 0) / 30) : 0;
+  const network = rules.server_fees ? Math.round(Math.max(0, p.network_monthly_cents ?? 0) / 30) : 0;
+  const fixed = servers + staff + network;
+  const cost = ppc + fixed;
   const net = income - cost;
   let runway: number | null = null;
   if (net < 0) {
     // A tartalék alatt a hirdetés leáll, csak a havidíj fogy tovább: ha a bevétel fedezi, a tartalékig számolunk,
     // különben a tartozás-határig.
     const reserve = rules.ppc_budget?.reserve_cents ?? 0;
-    const feesOutrunIncome = income - servers < 0;
+    const feesOutrunIncome = income - fixed < 0;
     const floor = feesOutrunIncome ? -rules.debt_limit_cents : reserve;
     runway = Math.max(0, Math.floor(Math.max(0, p.cash_usd_cents - floor) / -net));
   }
   return {
     income_per_day_cents: income, cost_per_day_cents: cost, net_per_day_cents: net,
-    ppc_per_day_cents: ppc, servers_per_day_cents: servers,
+    ppc_per_day_cents: ppc, servers_per_day_cents: servers, staff_per_day_cents: staff, network_per_day_cents: network,
     runway_days: runway, ppc_throttled: spend.throttled,
   };
 }

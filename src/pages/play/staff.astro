@@ -6,6 +6,10 @@ import playShellCssUrl from '../../styles/play-shell.css?url'; // tartalom-hash-
 // /play/staff -- backend wiring complete (placeholder; hire feature ships post Plan 3).
 import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
 import { renderLockedFeature } from '../../lib/play/locked-page';
+import { renderStaffContent } from '../../lib/play/staff-page';
+import { TEAM_CLIENT_JS } from '../../lib/play/team-client';
+import { ECONOMY } from '../../lib/game/economy';
+import { generateCandidates } from '../../lib/game/staff';
 import { pt } from '../../lib/play/strings';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
@@ -54,7 +58,14 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
-const shellHtml = applyContent(applyShell(pageHtml, shell, 'staff', [pt(locale, 'nav.staff')]), renderLockedFeature(shell, 'staff'));
+// 2026-11-12 (csapat-kör): a 2. korszaktól valódi Csapat lap; az 1.-ben a zárolt lap a korszak-feltételekkel.
+const nowSec = Math.floor(Date.now() / 1000);
+const unlocked = !!ECONOMY.staff && shell.era >= ECONOMY.staff.min_era;
+const content = unlocked
+  ? renderStaffContent({ shell, now: nowSec, candidates: generateCandidates(ECONOMY.staff!, user.id, Math.floor(nowSec / 86400)) })
+  : renderLockedFeature(shell, 'staff');
+const ECONOMY_FIRE_HIT = ECONOMY.staff?.morale.fire_hit ?? 0;
+const shellHtml = applyContent(applyShell(pageHtml, shell, 'staff', [pt(locale, 'nav.staff')]), content);
 ---
 <!doctype html>
 <html lang="en">
@@ -79,6 +90,14 @@ const shellHtml = applyContent(applyShell(pageHtml, shell, 'staff', [pt(locale, 
     setTimeout(function () { document.body.classList.remove('preload'); }, 30);
   });
 </script>
+<script type="application/json" id="team-i18n" set:html={jsonForScript({
+  hired: pt(locale, 'toast.hired', { name: '{name}' }),
+  fired: pt(locale, 'toast.fired', { name: '{name}' }),
+  netSaved: pt(locale, 'toast.net_saved'),
+  fireConfirm: pt(locale, 'tm.fire_confirm', { name: '{name}', m: ECONOMY_FIRE_HIT }),
+  error: pt(locale, 'toast.error', { msg: '{msg}' }),
+})}></script>
+<script is:inline set:html={TEAM_CLIENT_JS}></script>
 <I18nDashboard />
 <DashboardAnims />
 <PlayAudio />

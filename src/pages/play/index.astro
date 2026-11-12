@@ -9,6 +9,8 @@ import { pt, type PlayKey } from '../../lib/play/strings';
 import { renderDashboardContent, applyDashboardContent, type PendingEvent } from '../../lib/play/dashboard';
 import { getEventDefinition } from '../../lib/game/event-options';
 import { localizeEvent } from '../../lib/game/event-i18n';
+import { dramaData, dramaView } from '../../lib/game/staff-drama';
+import { ECONOMY as ECON_LIVE } from '../../lib/game/economy';
 import type { EventType } from '../../lib/game/types';
 import { availableUpgrades } from '../../lib/game/upgrade-tree';
 import { achievementMap } from '../../lib/play/achievements-i18n';
@@ -253,9 +255,15 @@ const openIncidents3d = ((await db.prepare('SELECT event_type FROM events WHERE 
   .bind(user.id).all<{ event_type: string }>()).results ?? []).map((r) => r.event_type);
 // Döntésre váró események — szerveroldalon, a játékos nyelvén (a /api/game/events-szel azonos forrásból).
 const pendingRows = (await db.prepare(
-  'SELECT id, event_type FROM events WHERE player_id = ? AND resolved_at IS NULL ORDER BY spawned_at DESC LIMIT 20',
-).bind(user.id).all<{ id: number; event_type: string }>()).results ?? [];
+  'SELECT id, event_type, data_json FROM events WHERE player_id = ? AND resolved_at IS NULL ORDER BY spawned_at DESC LIMIT 20',
+).bind(user.id).all<{ id: number; event_type: string; data_json: string | null }>()).results ?? [];
 const pendingEvents: PendingEvent[] = pendingRows.flatMap((r) => {
+  // 2026-11-12 (csapat-kör): a csapatdráma egy valódi munkatársról (staff-drama.ts).
+  const dd = r.event_type === 'staff_drama' && ECON_LIVE.staff ? dramaData(r.data_json) : null;
+  if (dd && ECON_LIVE.staff) {
+    const v = dramaView(ECON_LIVE.staff, locale, dd, shell.team.staff.find((m) => m.id === dd.staff_id) ?? null, nowSec);
+    return [{ id: r.id, title: v.title, narrative: v.narrative, options: v.options }];
+  }
   const def = getEventDefinition(r.event_type as EventType);
   if (!def) return [];
   const loc = localizeEvent(def, locale);

@@ -17,6 +17,8 @@ import { hubFromLocals } from '../../../../../lib/aikahub-achi';
 import { computeAchievementInput } from '../../../../../lib/game/achievements-helper';
 import type { EventType } from '../../../../../lib/game/types';
 import type { D1Database } from '@cloudflare/workers-types/experimental';
+import { dramaData, dramaMessage, dramaGoneMessage } from '../../../../../lib/game/staff-drama';
+import { loadStaff } from '../../../../../lib/game/staff';
 
 export const prerender = false;
 
@@ -52,6 +54,11 @@ export const POST = async (c: APIContext): Promise<Response> => {
     .first<{ id: number; event_type: string; resolved_at: number | null; data_json: string | null }>();
   if (!event) return jerr(404, 'event not found');
   if (event.resolved_at !== null) return jerr(409, 'already resolved');
+
+  // 2026-11-12 (csapat-kör): a csapatdráma egy valódi munkatársról — saját, valódi hatású döntések (staff-drama.ts).
+  const SR = ECONOMY.staff;
+  const dd = event.event_type === 'staff_drama' && SR ? dramaData(event.data_json) : null;
+  if (dd && SR) return resolveStaffDrama(c, db as unknown as D1Database, user.id, event, dd, optionId);
 
   const def = getEventDefinition(event.event_type as EventType);
   if (!def) return jerr(500, 'unknown event type');
@@ -143,3 +150,49 @@ export const POST = async (c: APIContext): Promise<Response> => {
     { headers: { 'content-type': 'application/json' } },
   );
 };
+
+async function resolveStaffDrama(
+  c: APIContext, db: D1Database, uid: string,
+  event: { id: number; data_json: string | null },
+  dd: NonNullable<ReturnType<typeof dramaData>>, optionId: string,
+): Promise<Response> {
+  const SR = ECONOMY.staff!;
+  const loc = localeFromRequest(c.request);
+  if (!['give_raise', 'fridays_off', 'let_her_walk'].includes(optionId)) return legacyError(c.request, 400, 'unknown option');
+  const now = Math.floor(Date.now() / 1000);
+  const member = (await loadStaff(db, uid)).find((m) => m.id === dd.staff_id) ?? null;
+  let rep = 0;
+  let sat = 0;
+  let outcome: 'positive' | 'neutral' | 'negative' = 'neutral';
+  let message: string;
+  if (!member) {
+    message = dramaGoneMessage(loc, dd.name);
+  } else if (optionId === 'give_raise') {
+    await db.prepare('UPDATE staff SET raise_pct = raise_pct + ?, morale = MAX(morale, ?) WHERE id = ? AND player_id = ?')
+      .bind(SR.drama.raise_pct, SR.drama.raise_morale, member.id, uid).run();
+    outcome = 'positive';
+    message = dramaMessage(loc, optionId, member.name);
+  } else if (optionId === 'fridays_off' && !member.four_day) {
+    await db.prepare('UPDATE staff SET four_day = 1, morale = MIN(100, morale + ?) WHERE id = ? AND player_id = ?')
+      .bind(SR.drama.four_day_morale, member.id, uid).run();
+    outcome = 'positive';
+    message = dramaMessage(loc, optionId, member.name);
+  } else {
+    await db.prepare('DELETE FROM staff WHERE id = ? AND player_id = ?').bind(member.id, uid).run();
+    rep = -SR.drama.leave_rep;
+    sat = -SR.drama.leave_sat;
+    await db.prepare('UPDATE players SET reputation = MAX(-100, MIN(100, reputation + ?)) WHERE user_id = ?').bind(rep, uid).run();
+    await db.prepare('UPDATE customers SET satisfaction = MAX(-100, MIN(100, satisfaction + ?)) WHERE player_id = ? AND is_active = 1')
+      .bind(sat, uid).run();
+    outcome = 'negative';
+    message = dramaMessage(loc, 'let_her_walk', member.name);
+  }
+  let prev: Record<string, unknown> = {};
+  try { prev = event.data_json ? JSON.parse(event.data_json) : {}; } catch { /* hibás JSON */ }
+  await db.prepare('UPDATE events SET resolved_at = ?, outcome = ?, data_json = ? WHERE id = ?')
+    .bind(now, outcome, JSON.stringify({ ...prev, option_id: optionId, cash_delta_cents: 0, reputation_delta: rep }), event.id).run();
+  return new Response(JSON.stringify({
+    ok: true, outcome, message, cash_delta_cents: 0, reputation_delta: rep, satisfaction_delta: sat,
+    newly_unlocked_achievement: null, newly_unlocked: [],
+  }), { headers: { 'content-type': 'application/json' } });
+}

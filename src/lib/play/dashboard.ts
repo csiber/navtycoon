@@ -384,13 +384,51 @@ export function renderDashboardContent(d: DashboardData): string {
       </section>`;
   }
 
+  // ─── Csapat és hálózat (2026-11-12): kis összefoglaló, ha van személyzet; lassulásnál figyelmeztetés ───
+  const team = s.team;
+  let netBanner = '';
+  if (team?.slow) {
+    netBanner = `
+      <section class="fleet-banner full" role="status">
+        <span class="fb-ico">◴</span>
+        <span class="fb-txt">${esc(pt(L, 'dash.net.slow', { t: team.traffic, b: team.bandwidth }))}</span>
+        <span class="fb-meter" aria-hidden="true"><i style="width:100%"></i></span>
+        <a class="fb-cta" href="/play/network">${esc(pt(L, 'dash.net.go'))}</a>
+      </section>`;
+  }
+  let teamPanel = '';
+  if (team && team.staff.length > 0 && ECONOMY.staff) {
+    const R = ECONOMY.staff;
+    const low = team.staff.filter((m) => m.morale < R.morale.drama_below).sort((a, b) => a.morale - b.morale)[0];
+    const tired = team.staff.filter((m) => m.morale < R.morale.slump_below).length;
+    const faces = team.staff.map((m) => {
+      const cls = m.role === 'support' ? 'r-sup' : m.role === 'sales' ? 'r-sal' : 'r-sre';
+      const ini = m.name.split(/\s+/).map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
+      return `<span class="${cls}"><span class="tm-av" title="${esc(m.name)} · ${m.morale}">${esc(ini)}</span></span>`;
+    }).join('');
+    teamPanel = `
+        <section class="panel team-panel">
+          <div class="ph"><h3>${esc(pt(L, 'dash.team.title'))}</h3><div class="ph-right"><a class="more" href="/play/staff">${esc(pt(L, 'dash.team.go'))}</a></div></div>
+          <div class="tm-dash">
+            <div class="tm-faces">${faces}</div>
+            <div class="tm-dash-txt">
+              <div class="tm-dash-l1">${esc(pt(L, 'dash.team.line', { n: team.staff.length, v: usd(team.salaryMonthlyCents) }))}</div>
+              ${team.supportPerDay > 0 ? `<div class="tm-dash-l2">${esc(pt(L, 'dash.team.support', { n: team.supportPerDay }))}</div>` : ''}
+              ${low ? `<div class="tm-dash-bad">${esc(pt(L, 'dash.team.low', { name: low.name }))}</div>`
+                : tired > 0 ? `<div class="tm-dash-warn">${esc(pt(L, 'nav.badge.staff_low', { n: tired }))}</div>` : ''}
+            </div>
+          </div>
+        </section>`;
+  }
+
   return `<div class="content">
       ${renderPendingEvents(L, d.pendingEvents ?? [])}
+      ${netBanner}
       ${fleetBanner}
       ${renderGettingStarted(L, d.gettingStarted)}
       ${kpis}
       ${feed}
-      <div class="side-stack">${fleet}${moodPanel}</div>
+      <div class="side-stack">${fleet}${teamPanel}${moodPanel}</div>
       ${ticketsPanel}
       ${quick}
       ${eraPanel}

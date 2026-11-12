@@ -5,7 +5,7 @@
 // (visszatérítések a műszakokból, döntések pénzhatása az eseményekből).
 
 import { esc, usd, usd2, type ShellData } from './shell';
-import { pt } from './strings';
+import { pt, type PlayKey } from './strings';
 import { tip } from './dashboard';
 import { ago, eventLine, type FeedEvent } from './events';
 import { ECONOMY } from '../game/economy';
@@ -58,11 +58,15 @@ export function renderFinanceContent(d: FinanceData): string {
                   + (s.effects.fee_pct < 0 ? pt(L, 'fin.row.servers_disc', { p: Math.abs(s.effects.fee_pct) }) : '')
                 : pt(L, 'fin.row.servers_free'),
               (f.servers_per_day_cents > 0 ? '−' : '') + usd2(f.servers_per_day_cents), f.servers_per_day_cents > 0 ? 'neg' : 'dim')}
+            ${s.team && (s.team.staff.length > 0 || f.staff_per_day_cents > 0) ? row(pt(L, 'fin.row.staff'), pt(L, 'fin.row.staff_sub', { n: s.team.staff.length }),
+              (f.staff_per_day_cents > 0 ? '−' : '') + usd2(f.staff_per_day_cents), f.staff_per_day_cents > 0 ? 'neg' : 'dim') : ''}
+            ${s.team?.netOn ? row(pt(L, 'fin.row.network'), pt(L, 'fin.row.network_sub', { t: pt(L, (`nw.tier${s.team.network.transit_tier}`) as PlayKey) }),
+              (f.network_per_day_cents > 0 ? '−' : '') + usd2(f.network_per_day_cents), f.network_per_day_cents > 0 ? 'neg' : 'dim') : ''}
             <tr class="total grand"><td class="lbl">${esc(pt(L, 'fin.row.net'))}</td><td class="${f.net_per_day_cents >= 0 ? 'pos' : 'neg'}">${esc((f.net_per_day_cents >= 0 ? '+' : '') + usd2(f.net_per_day_cents))}</td></tr>
           </tbody>
         </table></div>
         <div class="fin-hint">${esc(pt(L, f.net_per_day_cents < 0 ? 'fin.hint_burn' : 'fin.hint_ok'))} <a href="/play/marketing">${esc(pt(L, 'nav.marketing'))} →</a></div>
-        ${d.serverFeesListedCents > 0 ? `<div class="fin-debt">${esc(pt(L, 'fin.debt_note', { limit: usd(ECONOMY.debt_limit_cents), pct: ECONOMY.auto_sell_refund_pct }))}</div>` : ''}
+        ${d.serverFeesListedCents > 0 || (s.team?.staff.length ?? 0) > 0 || (s.team?.networkMonthlyCents ?? 0) > 0 ? `<div class="fin-debt">${esc(pt(L, 'fin.debt_note', { limit: usd(ECONOMY.debt_limit_cents), pct: ECONOMY.auto_sell_refund_pct }))}</div>` : ''}
       </section>`;
 
   const moves = d.moneyEvents.length === 0

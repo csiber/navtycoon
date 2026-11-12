@@ -9,6 +9,8 @@ import { localizeEvent } from '../../../lib/game/event-i18n';
 import { ECONOMY, scaleEventCash, rescaleMoneyLabel } from '../../../lib/game/economy';
 import { localeFromRequest } from '../../../lib/i18n/api-errors';
 import type { EventType } from '../../../lib/game/types';
+import { dramaData, dramaView } from '../../../lib/game/staff-drama';
+import { loadStaff } from '../../../lib/game/staff';
 
 export const prerender = false;
 
@@ -41,7 +43,17 @@ export const GET = async (c: APIContext): Promise<Response> => {
   const mrrRow = await db.prepare('SELECT mrr_usd_cents FROM players WHERE user_id = ?')
     .bind(user.id).first<{ mrr_usd_cents: number }>();
   const mrr = mrrRow?.mrr_usd_cents ?? 0;
+  // 2026-11-12 (csapat-kör): a csapatdráma egy valódi munkatársról szól (staff-drama.ts).
+  const SR = ECONOMY.staff;
+  const needStaff = SR && rows.some((r) => r.event_type === 'staff_drama' && dramaData(r.data_json));
+  const staff = needStaff ? await loadStaff(db, user.id) : [];
+  const nowSec = Math.floor(Date.now() / 1000);
   const events = rows.map((r) => {
+    const dd = r.event_type === 'staff_drama' && SR ? dramaData(r.data_json) : null;
+    if (dd && SR) {
+      const v = dramaView(SR, locale, dd, staff.find((m) => m.id === dd.staff_id) ?? null, nowSec);
+      return { id: r.id, event_type: r.event_type, spawned_at: r.spawned_at, title: v.title, narrative: v.narrative, options: v.options };
+    }
     const def = getEventDefinition(r.event_type as EventType);
     const loc0 = def ? localizeEvent(def, locale) : null;
     const loc = def && loc0 ? {

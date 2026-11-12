@@ -6,6 +6,9 @@ import playShellCssUrl from '../../styles/play-shell.css?url'; // tartalom-hash-
 // /play/network -- backend wiring complete (player-data overview + Era-gated placeholder).
 import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
 import { renderLockedFeature } from '../../lib/play/locked-page';
+import { renderNetworkContent } from '../../lib/play/network-page';
+import { TEAM_CLIENT_JS } from '../../lib/play/team-client';
+import { ECONOMY } from '../../lib/game/economy';
 import { pt } from '../../lib/play/strings';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
@@ -71,7 +74,11 @@ const pageHtml = "\n<div class=\"app\">\n  <aside>\n    <a class=\"brand\" href=
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
-const shellHtml = applyContent(applyShell(pageHtml, shell, 'network', [pt(locale, 'nav.network')]), renderLockedFeature(shell, 'network'));
+// 2026-11-12 (hálózat-kör): a 2. korszaktól valódi Hálózat lap; az 1.-ben a zárolt lap a korszak-feltételekkel.
+const unlocked = shell.team.netOn;
+const content = unlocked ? renderNetworkContent(shell) : renderLockedFeature(shell, 'network');
+const ECONOMY_FIRE_HIT = ECONOMY.staff?.morale.fire_hit ?? 0;
+const shellHtml = applyContent(applyShell(pageHtml, shell, 'network', [pt(locale, 'nav.network')]), content);
 ---
 <!doctype html>
 <html lang="en">
@@ -96,6 +103,14 @@ const shellHtml = applyContent(applyShell(pageHtml, shell, 'network', [pt(locale
     setTimeout(function () { document.body.classList.remove('preload'); }, 30);
   });
 </script>
+<script type="application/json" id="team-i18n" set:html={jsonForScript({
+  hired: pt(locale, 'toast.hired', { name: '{name}' }),
+  fired: pt(locale, 'toast.fired', { name: '{name}' }),
+  netSaved: pt(locale, 'toast.net_saved'),
+  fireConfirm: pt(locale, 'tm.fire_confirm', { name: '{name}', m: ECONOMY_FIRE_HIT }),
+  error: pt(locale, 'toast.error', { msg: '{msg}' }),
+})}></script>
+<script is:inline set:html={TEAM_CLIENT_JS}></script>
 <I18nDashboard />
 <DashboardAnims />
 <PlayAudio />

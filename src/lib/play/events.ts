@@ -66,6 +66,19 @@ const L = {
     ded_why_sla: 'unanswered tickets',
     ded_why_sold: 'the box was sold',
     server_auto_sold: 'Debt limit reached: your {name} was sold for {v} to cover the server fees.',
+    staff_hired: '👤 {name} joined as {role} (hiring fee {v}).',
+    staff_fired: '{name} ({role}) was let go.',
+    staff_quit: '{name} ({role}) quit: {why}.',
+    staff_why_money: 'the company could not pay reliably',
+    staff_why_overwork: 'too much work for too long',
+    staff_why_mood: 'their mood hit rock bottom',
+    staff_cut_debt: 'Debt limit reached: {name} ({role}) had to go — the least useful person right now. Servers are only sold after that.',
+    staff_work: 'Support answered {n} ticket(s) today.',
+    network_changed: 'Network updated.',
+    network_ddos_cancelled: 'Debt limit reached: DDoS protection was cancelled to save money.',
+    role_support: 'support agent',
+    role_sre: 'SRE',
+    role_sales: 'salesperson',
     capacity_lost: '{n} new customer(s) went elsewhere today: no free slot on your servers.',
     event_avoided: '🛡 Your upgrades prevented it: {title}.',
     bridge_investor: 'A bridge investor believed in you: {v} to get back on your feet (once per company).',
@@ -95,6 +108,19 @@ const L = {
     ded_why_sla: 'megválaszolatlan ticketek',
     ded_why_sold: 'eladtuk a gépét',
     server_auto_sold: 'Elérted a tartozás-határt: a(z) {name} gépedet eladtuk {v}-ért, hogy kifizesse a havidíjakat.',
+    staff_hired: '👤 {name} csatlakozott: {role} (felvételi díj {v}).',
+    staff_fired: '{name} ({role}) elbocsátva.',
+    staff_quit: '{name} ({role}) felmondott: {why}.',
+    staff_why_money: 'a cég nem tudott biztosan fizetni',
+    staff_why_overwork: 'túl sok munka, túl sokáig',
+    staff_why_mood: 'a hangulata a mélypontra ért',
+    staff_cut_debt: 'Elérted a tartozás-határt: {name} ({role}) mennie kellett — most őt nélkülözöd a legkönnyebben. Gépet csak utána adunk el.',
+    staff_work: 'Az ügyfélszolgálat ma {n} ticketet válaszolt meg.',
+    network_changed: 'A hálózat frissült.',
+    network_ddos_cancelled: 'Elérted a tartozás-határt: a DDoS-védelmet lemondtuk, hogy spóroljunk.',
+    role_support: 'ügyfélszolgálatos',
+    role_sre: 'SRE',
+    role_sales: 'értékesítő',
     capacity_lost: 'Ma {n} új ügyfél ment el máshoz: nem volt szabad hely a szervereiden.',
     event_avoided: '🛡 A fejlesztéseid kivédték: {title}.',
     bridge_investor: 'Egy áthidaló befektető hitt benned: {v} a talpra álláshoz (cégenként egyszer).',
@@ -124,6 +150,19 @@ const L = {
     ded_why_sla: 'unbeantwortete Tickets',
     ded_why_sold: 'der Server wurde verkauft',
     server_auto_sold: 'Schuldengrenze erreicht: dein {name} wurde für {v} verkauft, um die Servergebühren zu decken.',
+    staff_hired: '👤 {name} ist dabei: {role} (Einstellungsgebühr {v}).',
+    staff_fired: '{name} ({role}) wurde entlassen.',
+    staff_quit: '{name} ({role}) hat gekündigt: {why}.',
+    staff_why_money: 'die Firma konnte nicht zuverlässig zahlen',
+    staff_why_overwork: 'zu viel Arbeit, zu lange',
+    staff_why_mood: 'die Stimmung war am Tiefpunkt',
+    staff_cut_debt: 'Schuldengrenze erreicht: {name} ({role}) musste gehen — gerade am ehesten verzichtbar. Server werden erst danach verkauft.',
+    staff_work: 'Der Support hat heute {n} Ticket(s) beantwortet.',
+    network_changed: 'Netzwerk aktualisiert.',
+    network_ddos_cancelled: 'Schuldengrenze erreicht: Der DDoS-Schutz wurde gekündigt, um Geld zu sparen.',
+    role_support: 'Support-Mitarbeiter',
+    role_sre: 'SRE',
+    role_sales: 'Vertrieb',
     capacity_lost: 'Heute sind {n} neue Kunden woanders hingegangen: kein freier Platz auf deinen Servern.',
     event_avoided: '🛡 Deine Upgrades haben es verhindert: {title}.',
     bridge_investor: 'Ein Überbrückungsinvestor glaubt an dich: {v}, um wieder auf die Beine zu kommen (einmal pro Firma).',
@@ -200,6 +239,30 @@ export function eventLine(locale: PlayLocale, ev: FeedEvent): FeedLine {
         tone: 'alert', ico: '!', tag: '',
       };
     }
+    case 'staff_hired':
+    case 'staff_fired':
+    case 'staff_quit':
+    case 'staff_cut_debt': {
+      const r = str(d.role);
+      const role = r === 'sre' ? t.role_sre : r === 'sales' ? t.role_sales : t.role_support;
+      const name = str(d.name) || '—';
+      if (ev.type === 'staff_hired') {
+        const c = typeof d.cash_delta_cents === 'number' ? d.cash_delta_cents : 0;
+        return { text: fill(t.staff_hired, { name, role, v: money(c).replace(/^[+−]/, '') }), tone: 'good', ico: '👤', tag: '' };
+      }
+      if (ev.type === 'staff_fired') return { text: fill(t.staff_fired, { name, role }), tone: 'info', ico: '👤', tag: '' };
+      if (ev.type === 'staff_quit') {
+        const why = d.why === 'money' ? t.staff_why_money : d.why === 'overwork' ? t.staff_why_overwork : t.staff_why_mood;
+        return { text: fill(t.staff_quit, { name, role, why }), tone: 'alert', ico: '!', tag: '' };
+      }
+      return { text: fill(t.staff_cut_debt, { name, role }), tone: 'alert', ico: '!', tag: '' };
+    }
+    case 'staff_work':
+      return { text: fill(t.staff_work, { n: Number(d.count) || 0 }), tone: 'good', ico: '✓', tag: '' };
+    case 'network_changed':
+      return { text: t.network_changed, tone: 'info', ico: '◴', tag: '' };
+    case 'network_ddos_cancelled':
+      return { text: t.network_ddos_cancelled, tone: 'alert', ico: '!', tag: '' };
     case 'capacity_lost':
       return { text: fill(t.capacity_lost, { n: Number(d.count) || 1 }), tone: 'warn', ico: '▤', tag: '' };
     case 'event_avoided': {

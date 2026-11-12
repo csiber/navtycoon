@@ -1,6 +1,6 @@
 // Hyperscales — a közös /play keret (oldalsáv + felső sáv) valós adatból renderel.
 import { describe, it, expect } from 'vitest';
-import { renderSidebar, renderTopbar, applyShell, type ShellData } from '../shell';
+import { renderSidebar, renderTopbar, applyShell, EMPTY_TEAM, type ShellData } from '../shell';
 import { eventLine } from '../events';
 import { netMood, moodColor } from '../dashboard';
 import { dailyCashFlow } from '../../game/runway';
@@ -14,7 +14,7 @@ function shell(over: Partial<ShellData> = {}): ShellData {
     founded: 2026, era: 1, day: 1, nextDayAt: 1_800_000_000, cashCents: 100000, mrrCents: 1500, rep: 50,
     flow,
     counts: { servers: 1, customers: 3, newCustomers24h: 0, openTickets: 0, upgradesOwned: 0, upgradesTotal: 20 },
-    fleet: { capacity: 15, utilPct: 20, lost24h: 0, monthlyListedCents: 0 }, effects: { ...NO_EFFECTS },
+    fleet: { capacity: 15, utilPct: 20, lost24h: 0, monthlyListedCents: 0 }, effects: { ...NO_EFFECTS }, team: EMPTY_TEAM,
     era2: eraProgress({ current_era: 1, mrr_usd_cents: 1500, server_count: 1, days_alive: 0, reputation: 50 }),
     ...over,
   };

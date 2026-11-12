@@ -45,6 +45,9 @@ const EN = {
   bad_request: 'Invalid request.',
   no_player: 'No company yet — open the dashboard first.',
   invalid_value: 'Invalid value: {field}.',
+  staff_full: 'Your team is full for this era ({max} people).',
+  candidate_gone: 'That candidate is no longer available — the board has changed. Reload the page.',
+  feature_not_ready: 'This part is being switched on right now. Please try again in a few minutes.',
 } as const;
 
 export type ApiMsgKey = keyof typeof EN;
@@ -80,6 +83,9 @@ export const API_MESSAGES: Record<ApiLocale, Record<ApiMsgKey, string>> = {
     bad_request: 'Érvénytelen kérés.',
     no_player: 'Még nincs céged — előbb nyisd meg a vezérlőt.',
     invalid_value: 'Érvénytelen érték: {field}.',
+    staff_full: 'Ebben a korszakban betelt a csapatod ({max} fő).',
+    candidate_gone: 'Ez a jelölt már nem elérhető — frissült a lista. Töltsd újra az oldalt.',
+    feature_not_ready: 'Ezt a részt most kapcsoljuk be. Próbáld újra pár perc múlva.',
   },
   de: {
     db_missing: 'Der Server ist nicht konfiguriert. Bitte versuche es später erneut.',
@@ -110,6 +116,9 @@ export const API_MESSAGES: Record<ApiLocale, Record<ApiMsgKey, string>> = {
     bad_request: 'Ungültige Anfrage.',
     no_player: 'Noch keine Firma — öffne zuerst die Übersicht.',
     invalid_value: 'Ungültiger Wert: {field}.',
+    staff_full: 'Dein Team ist für diese Ära voll ({max} Personen).',
+    candidate_gone: 'Diese Person ist nicht mehr verfügbar — die Liste hat sich geändert. Lade die Seite neu.',
+    feature_not_ready: 'Dieser Bereich wird gerade eingeschaltet. Bitte versuche es in ein paar Minuten erneut.',
   },
 };
 

@@ -16,6 +16,34 @@ import { LOW_CASH_WARN_CENTS, ECONOMY, FLEET_WARN_PCT, fleetUtilPct } from '../g
 import { effectsOf, type UpgradeEffects } from '../game/upgrade-effects';
 import { serverCapacity } from '../game/server-types';
 import { pt, clientStrings, type PlayLocale, type PlayKey } from './strings';
+import { type StaffMember, loadStaff, totalSalaryCents, maxStaff, supportPerDay } from '../game/staff';
+import {
+  type NetworkState, NO_NETWORK, loadNetwork, networkActive, networkMonthlyCents, bandwidthUnits, trafficUnits,
+} from '../game/network';
+
+/** Csapat és hálózat (2026-11-12): a vezérlő, a Csapat, a Hálózat és a Pénzügy lap is ezt mutatja. */
+export interface TeamInfo {
+  staff: StaffMember[];
+  /** Legfeljebb ennyi fő ebben a korszakban (0 = még zárva). */
+  max: number;
+  salaryMonthlyCents: number;
+  /** Az ügyfélszolgálat napi ticket-kerete. */
+  supportPerDay: number;
+  network: NetworkState;
+  /** Él-e a hálózat-szabály (2. korszaktól). */
+  netOn: boolean;
+  traffic: number;
+  bandwidth: number;
+  networkMonthlyCents: number;
+  /** Lassulnak-e az oldalak (több a forgalom, mint a sávszélesség). */
+  slow: boolean;
+}
+
+/** Üres csapat, alap-hálózat (1. korszak, tesztek). */
+export const EMPTY_TEAM: TeamInfo = Object.freeze({
+  staff: [], max: 0, salaryMonthlyCents: 0, supportPerDay: 0, network: NO_NETWORK, netOn: false,
+  traffic: 0, bandwidth: 0, networkMonthlyCents: 0, slow: false,
+}) as TeamInfo;
 
 export interface ShellDbLike {
   prepare(sql: string): { bind(...args: unknown[]): {
@@ -63,6 +91,7 @@ export interface ShellData {
   fleet: FleetInfo;
   /** A birtokolt fejlesztések összesített hatása. */
   effects: UpgradeEffects;
+  team: TeamInfo;
 }
 
 export function initialsOf(name: string): string {
@@ -102,7 +131,31 @@ export async function loadShell(
   const capPct = ECONOMY.upgrade_effects ? effects.capacity_pct : 0;
   const capacity = (srvRows.results ?? []).reduce((a, r) => a + serverCapacity(r.type, r.capacity, capPct), 0);
   const alive = daysAlive(player.founded_at, now);
+  // Csapat és hálózat — a 0013-as migráció előtt üres csapat / alap-hálózat (loadStaff, loadNetwork).
+  const SR = ECONOMY.staff;
+  const NR = ECONOMY.network;
+  const staff = SR && player.current_era >= SR.min_era ? await loadStaff(db, uid) : [];
+  const netOn = networkActive(NR, player.current_era);
+  const network = netOn ? await loadNetwork(db, uid) : { ...NO_NETWORK };
+  let traffic = 0;
+  if (netOn && NR) {
+    const tiers = (await db.prepare("SELECT plan_tier AS t, COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1 GROUP BY plan_tier")
+      .bind(uid).all<{ t: string; n: number }>()).results ?? [];
+    const by = (t: string) => tiers.find((r) => r.t === t)?.n ?? 0;
+    traffic = trafficUnits(NR, { hobby: customers - by('business') - by('dedicated'), business: by('business'), dedicated: by('dedicated') });
+  }
+  const bandwidth = netOn && NR ? bandwidthUnits(NR, network) : 0;
+  const team: TeamInfo = {
+    staff,
+    max: maxStaff(SR, player.current_era),
+    salaryMonthlyCents: totalSalaryCents(SR, staff, now),
+    supportPerDay: supportPerDay(SR, staff, now),
+    network, netOn, traffic, bandwidth,
+    networkMonthlyCents: netOn ? networkMonthlyCents(NR, network) : 0,
+    slow: netOn && traffic > bandwidth,
+  };
   return {
+    team,
     locale,
     company: player.company_name,
     initials: initialsOf(player.company_name),
@@ -114,7 +167,10 @@ export async function loadShell(
     cashCents: player.cash_usd_cents,
     mrrCents: player.mrr_usd_cents,
     rep: player.reputation,
-    flow: dailyCashFlow({ ...player, server_monthly_cents: feeSum, fee_pct: effects.fee_pct }),
+    flow: dailyCashFlow({
+      ...player, server_monthly_cents: feeSum, fee_pct: effects.fee_pct,
+      staff_monthly_cents: team.salaryMonthlyCents, network_monthly_cents: team.networkMonthlyCents,
+    }),
     fleet: { capacity, utilPct: fleetUtilPct(customers - dedCustomers, capacity), lost24h, monthlyListedCents: feeSum },
     effects,
     counts: {
@@ -199,6 +255,17 @@ function badgeFor(s: ShellData, id: NavId): string {
       return `<span class="badge${s.fleet.utilPct >= 100 ? '' : ' warn'}" title="${esc(pt(L, 'fleet.badge', { p: s.fleet.utilPct, n: s.counts.customers, c: s.fleet.capacity }))}">${s.fleet.utilPct}%</span>`;
     }
     return `<span class="badge muted">${s.counts.servers}</span>`;
+  }
+  if (id === 'staff' && s.team.staff.length > 0) {
+    // Ha valaki rosszkedvű (csapatdráma-közeli), borostyán jelvény; különben a létszám.
+    const low = ECONOMY.staff ? s.team.staff.filter((m) => m.morale < ECONOMY.staff!.morale.drama_below).length : 0;
+    const n = s.team.staff.length;
+    return low > 0
+      ? `<span class="badge warn" title="${esc(pt(L, 'nav.badge.staff_low', { n: low }))}">!</span>`
+      : `<span class="badge muted" title="${esc(pt(L, 'nav.badge.staff', { n, max: s.team.max }))}">${n}/${s.team.max}</span>`;
+  }
+  if (id === 'network' && s.team.slow) {
+    return `<span class="badge" title="${esc(pt(L, 'nav.badge.net_slow', { t: s.team.traffic, b: s.team.bandwidth }))}">!</span>`;
   }
   if (id === 'research') {
     const t = pt(L, 'nav.badge.research', { owned: s.counts.upgradesOwned, total: s.counts.upgradesTotal });
