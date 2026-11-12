@@ -7,7 +7,7 @@
 import { esc, usd, type ShellData } from './shell';
 import { pt } from './strings';
 import { serverName, serverFlavor, upgradeName, upgradeEffect } from './catalog';
-import { assignLoad } from '../game/capacity';
+import { rackUnitStates, unit2d } from './rack-model';
 import { daysAlive } from '../game/era-progress';
 
 export interface OwnedServer { id: number; type: string; capacity: number; monthly_cost_cents: number; purchased_at: number }
@@ -18,6 +18,8 @@ export interface ServersPageData {
   shell: ShellData;
   foundedAt: number;
   activeCustomers: number;
+  /** Nyitott incidens-események típusa (a 3D rackkel egyező „leállt" gép a 2D-ben is). */
+  openIncidents?: string[];
   servers: OwnedServer[];
   buyable: BuyableServer[];
   upgrades: BuyableUpgrade[];
@@ -26,7 +28,8 @@ export interface ServersPageData {
 export function renderServersContent(d: ServersPageData): string {
   const s = d.shell;
   const L = s.locale;
-  const loaded = assignLoad(d.servers, d.activeCustomers);
+  // Állapot a 3D rackkel közös függvényből (rack-model): ≥ 70% borostyán, piros csak túlcsordulás / incidens.
+  const { loaded, units: rackStates } = rackUnitStates(d.servers, d.activeCustomers, d.openIncidents ?? []);
   const used = loaded.servers.length;
   const rows: string[] = [];
   const total = Math.max(12, used);
@@ -37,13 +40,14 @@ export function renderServersContent(d: ServersPageData): string {
       rows.push(`<div class="u-row empty"><span class="lbl">${lbl}</span><span class="name">${esc(pt(L, 'dash.fleet.empty'))}</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>`);
       continue;
     }
-    const cls = sv.util >= 90 ? ' hot' : sv.util >= 70 ? ' warn' : '';
-    rows.push(`<div role="button" tabindex="0" class="u-row${cls}${i === 0 ? ' selected' : ''}" data-srv="${sv.id}"><span class="lbl">${lbl}</span><span class="name">${esc(serverName(L, sv.type))}</span><span class="leds"><i class="${sv.util >= 90 ? 'r' : 'g'}"></i><i class="g"></i><i class="${sv.util >= 70 ? 'a' : 'g'}"></i></span><span class="util">${sv.util}%</span></div>`);
+    const { util, state } = rackStates[i];
+    const v = unit2d(state);
+    rows.push(`<div role="button" tabindex="0" class="u-row${v.row}${i === 0 ? ' selected' : ''}" data-srv="${sv.id}" data-state="${state}"><span class="lbl">${lbl}</span><span class="name">${esc(serverName(L, sv.type))}</span><span class="leds"><i class="${v.leds[0]}"></i><i class="${v.leds[1]}"></i><i class="${v.leds[2]}"></i></span><span class="util">${util}%</span></div>`);
   }
 
   const details = loaded.servers.map((sv, i) => {
     const boughtDay = daysAlive(d.foundedAt, sv.purchased_at) + 1;
-    const statusCls = sv.util >= 90 ? 'bad' : sv.util >= 70 ? 'warn' : 'good';
+    const statusCls = unit2d(rackStates[i].state).tone;
     return `
           <div class="srv-detail" data-srv-detail="${sv.id}"${i === 0 ? '' : ' hidden'}>
             <div class="detail-head">

@@ -12,7 +12,7 @@ import { eventLine, ago, type FeedEvent } from './events';
 import { serverName, upgradeName } from './catalog';
 import { SERVER_SPECS, affordableServerTypes } from '../game/server-types';
 import type { EraId } from '../game/types';
-import { assignLoad } from '../game/capacity';
+import { rackUnitStates, unit2d } from './rack-model';
 import { localizePlaceholderTicket } from '../game/customer-spawn';
 
 export interface DashCustomer {
@@ -35,6 +35,8 @@ export interface DashboardData {
   customersEver: number;
   tickets: DashTicket[];
   servers: DashServer[];
+  /** Nyitott incidens-események típusa (a 3D rackkel egyező „leállt" gép a 2D-ben is). */
+  openIncidents?: string[];
   events: FeedEvent[];
   shiftsLeftToday: number;
   gettingStarted: GettingStarted;
@@ -147,16 +149,17 @@ export function renderDashboardContent(d: DashboardData): string {
       </section>`;
 
   // ─── Fleet (real servers) ───
-  const loaded = assignLoad(d.servers, active.length);
+  // Állapot a 3D rackkel közös függvényből (rack-model): ≥ 70% borostyán, piros csak túlcsordulás / incidens.
+  const { loaded, units: rackStates } = rackUnitStates(d.servers, active.length, d.openIncidents ?? []);
   const totalCap = loaded.totalCapacity;
   const rows: string[] = [];
   for (let i = 0; i < Math.max(5, d.servers.length) && i < 8; i++) {
     const sv = loaded.servers[i];
     const lbl = 'U' + (24 - i); // ugyanaz a számozás, mint a Szerverek lapon és a 3D racken
     if (sv) {
-      const util = sv.util;
-      const cls = util >= 80 ? 'u hot' : util >= 60 ? 'u warn' : 'u';
-      rows.push(`<div class="${cls}"><span class="lbl">${lbl}</span><span class="name">${esc(serverName(L, sv.type, SERVER_SPECS[sv.type as keyof typeof SERVER_SPECS]?.display_name ?? sv.type))}</span><span class="leds"><i class="${util >= 80 ? 'r' : 'g'}"></i><i class="g"></i><i class="${util >= 60 ? 'a' : 'g'}"></i></span><span class="util">${util}%</span></div>`);
+      const { util, state } = rackStates[i];
+      const v = unit2d(state);
+      rows.push(`<div class="u${v.row}" data-state="${state}"><span class="lbl">${lbl}</span><span class="name">${esc(serverName(L, sv.type, SERVER_SPECS[sv.type as keyof typeof SERVER_SPECS]?.display_name ?? sv.type))}</span><span class="leds"><i class="${v.leds[0]}"></i><i class="${v.leds[1]}"></i><i class="${v.leds[2]}"></i></span><span class="util">${util}%</span></div>`);
     } else {
       rows.push(`<div class="u empty"><span class="lbl">${lbl}</span><span class="name">${esc(pt(L, 'dash.fleet.empty'))}</span><span class="leds"><i></i><i></i><i></i></span><span class="util">—</span></div>`);
     }

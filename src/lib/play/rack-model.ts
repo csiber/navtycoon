@@ -2,7 +2,7 @@
 // Egy forrás a 3D-nek (src/scripts/rack3d) és a 2D-tartaléknak: a gépek a valódi szerverek, a terhelés az
 // assignLoad szerint, az állapot a terhelésből és a futó incidensekből.
 
-import { assignLoad } from '../game/capacity';
+import { assignLoad, type CapacityServer } from '../game/capacity';
 
 export type UnitState = 'idle' | 'ok' | 'warn' | 'hot' | 'down';
 
@@ -53,6 +53,53 @@ export function ledHz(util: number, state: UnitState): number {
   return 0.6 + Math.min(100, Math.max(0, util)) / 100 * 5.4;
 }
 
+/** A 2D sor megjelenése ugyanabból az állapotból, mint a 3D (közös küszöbök: ≥ 70% borostyán, piros csak túlcsordulás / incidens). */
+export interface Unit2d {
+  /** A sor osztálya ('' | ' warn' | ' hot'). */
+  row: '' | ' warn' | ' hot';
+  /** A három LED osztálya (r = piros, a = borostyán, g = zöld). */
+  leds: [string, string, string];
+  /** Részletnézet színe. */
+  tone: 'good' | 'warn' | 'bad';
+}
+
+export function unit2d(state: UnitState): Unit2d {
+  const red = state === 'hot' || state === 'down';
+  return {
+    row: red ? ' hot' : state === 'warn' ? ' warn' : '',
+    leds: [red ? 'r' : 'g', 'g', red || state === 'warn' ? 'a' : 'g'],
+    tone: red ? 'bad' : state === 'warn' ? 'warn' : 'good',
+  };
+}
+
+/**
+ * A gépek állapota rack-sorrendben (a megadott szerverlista sorrendjében), a 3D és a 2D közös forrása.
+ * Az incidens a legterheltebb gépet „dönti le" (holtversenyben a rack tetején lévőt); ha valaki nem fér el,
+ * az utolsó gép túlterhelt (a túlcsordulás rajta torlódik).
+ */
+export function rackUnitStates<T extends CapacityServer>(
+  servers: T[],
+  activeCustomers: number,
+  openIncidents: string[] = [],
+): {
+  loaded: { servers: Array<T & { load: number; util: number }>; overflow: number; totalCapacity: number };
+  incident: string | null;
+  units: { util: number; state: UnitState }[];
+} {
+  const loaded = assignLoad(servers, activeCustomers);
+  const incident = openIncidents.find((t) => (DOWN_EVENTS as readonly string[]).includes(t)) ?? null;
+  let downIdx = -1;
+  if (incident && loaded.servers.length > 0) {
+    downIdx = loaded.servers.reduce((best, s, i, arr) => (s.util > arr[best].util ? i : best), 0);
+  }
+  const units = loaded.servers.map((s, i) => {
+    const overflowing = loaded.overflow > 0 && i === loaded.servers.length - 1;
+    const util = overflowing ? Math.max(s.util, 100) : s.util;
+    return { util, state: unitState(util, s.load, i === downIdx, overflowing) };
+  });
+  return { loaded, incident, units };
+}
+
 export function buildRackModel(input: {
   servers: { id: number; type: string; capacity: number }[];
   activeCustomers: number;
@@ -61,23 +108,11 @@ export function buildRackModel(input: {
   nameOf: (type: string) => string;
   minSlots?: number;
 }): RackModel {
-  const loaded = assignLoad(input.servers, input.activeCustomers);
-  const incident = (input.openIncidents ?? []).find((t) => (DOWN_EVENTS as readonly string[]).includes(t)) ?? null;
-  // Az incidens a legterheltebb gépet „dönti le" (holtversenyben a rack tetején lévőt).
-  let downIdx = -1;
-  if (incident && loaded.servers.length > 0) {
-    downIdx = loaded.servers.reduce((best, s, i, arr) => (s.util > arr[best].util ? i : best), 0);
-  }
-  const units = loaded.servers.map((s, i) => {
-    // Ha valaki nem fér el, az utolsó gép túlterhelt (a túlcsordulás rajta torlódik).
-    const overflowing = loaded.overflow > 0 && i === loaded.servers.length - 1;
-    const util = overflowing ? Math.max(s.util, 100) : s.util;
-    return {
-      id: s.id, u: 24 - i, type: s.type, name: input.nameOf(s.type),
-      load: s.load, capacity: s.capacity, util,
-      state: unitState(util, s.load, i === downIdx, overflowing),
-    };
-  });
+  const { loaded, incident, units: st } = rackUnitStates(input.servers, input.activeCustomers, input.openIncidents);
+  const units = loaded.servers.map((s, i) => ({
+    id: s.id, u: 24 - i, type: s.type, name: input.nameOf(s.type),
+    load: s.load, capacity: s.capacity, util: st[i].util, state: st[i].state,
+  }));
   return {
     units: units.slice(0, 24),
     hidden: Math.max(0, units.length - 24),

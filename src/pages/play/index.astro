@@ -73,9 +73,11 @@ const moodNet = moodCustomers.length === 0
   ? 0
   : Math.round(moodCustomers.reduce((acc, c) => acc + (c.satisfaction - 50), 0) / moodCustomers.length);
 
+// Minden gép (nem csak az első 10): a terhelés-elosztás és a „ügyfél/szerver" az összes gépből számol,
+// így a 2D sorok állapota megegyezik a 3D rackével (ux-3, 2026-11-12).
 const rackServers = (await db.prepare(
   `SELECT id, type, capacity, current_load FROM servers WHERE player_id = ?
-   ORDER BY purchased_at ASC LIMIT 10`,
+   ORDER BY purchased_at ASC LIMIT 500`,
 ).bind(user.id).all<{ id: number; type: string; capacity: number; current_load: number }>()).results ?? [];
 
 const recentEvents = (await db.prepare(
@@ -240,8 +242,11 @@ const shiftsPlayed = (await db.prepare('SELECT COUNT(*) AS n FROM shift_history 
 const ownedUpgradeIds = new Set(((await db.prepare('SELECT upgrade_id FROM upgrades WHERE player_id = ?')
   .bind(user.id).all<{ upgrade_id: string }>()).results ?? []).map((r) => r.upgrade_id));
 const cheapestUpg = availableUpgrades(player.current_era, ownedUpgradeIds).sort((a, b) => a.cost_usd_cents - b.cost_usd_cents)[0];
+const openIncidents3d = ((await db.prepare('SELECT event_type FROM events WHERE player_id = ? AND resolved_at IS NULL')
+  .bind(user.id).all<{ event_type: string }>()).results ?? []).map((r) => r.event_type);
 const dashContent = renderDashboardContent({
   shell,
+  openIncidents: openIncidents3d,
   now: nowSec,
   customersAll: allActiveCustomers,
   customersEver,
@@ -264,10 +269,7 @@ const dashContent = renderDashboardContent({
   cheapestUpgrade: cheapestUpg ? { id: cheapestUpg.id, cost_cents: cheapestUpg.cost_usd_cents } : null,
 });
 // 3D rack a Flotta-panelen (src/scripts/rack3d): minden gép (max. 24 látszik), valós terheléssel és incidenssel.
-const rack3dServers = (await db.prepare('SELECT id, type, capacity FROM servers WHERE player_id = ? ORDER BY purchased_at ASC LIMIT 30')
-  .bind(user.id).all<{ id: number; type: string; capacity: number }>()).results ?? [];
-const openIncidents3d = ((await db.prepare('SELECT event_type FROM events WHERE player_id = ? AND resolved_at IS NULL')
-  .bind(user.id).all<{ event_type: string }>()).results ?? []).map((r) => r.event_type);
+const rack3dServers = rackServers.map((s) => ({ id: s.id, type: s.type, capacity: s.capacity }));
 const rack3d = {
   page: 'dashboard',
   model: buildRackModel({ servers: rack3dServers, activeCustomers: allActiveCustomers.length, openIncidents: openIncidents3d, nameOf: (t) => serverName3d(locale, t), minSlots: 8 }),
