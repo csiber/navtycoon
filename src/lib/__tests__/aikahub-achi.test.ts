@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   hubAchievementId, hubEntitlementId, basicAuthHeader, sendHubUnlock, syncAchievementsToHub, retryPendingHubSync,
   backfillHubAchievements, recordHubScope, hasAchievementsScope, scopeHasAchievements, fetchHubEntitlements, hasEntitlement,
-  clearEntitlementCache, retryDelaySec, RETRY_WINDOW_SEC, AUDIT_TRY, HUB_TIMEOUT_MS, type HubCtx,
+  clearEntitlementCache, retryDelaySec, RETRY_WINDOW_SEC, AUDIT_TRY, HUB_TIMEOUT_MS, ENTITLEMENTS, type HubCtx,
 } from '../aikahub-achi';
 import { startFlow, handleCallback, AIKAHUB_SCOPE, type FetchFn } from '../aikahub';
 import type { D1Like } from '../auth';
@@ -56,6 +56,33 @@ describe('Hub ids', () => {
     expect(hubEntitlementId('rack_skin_colo')).toBe('hyperscales:rack-skin-colo');
     expect(hubEntitlementId('rack_led_theme')).toBe('hyperscales:rack-led-theme');
     expect(hubEntitlementId('company_banner')).toBe('hyperscales:company-banner');
+  });
+  it('all 18 ids match the live Hub map (aikahub main 836ed57, docs/achievements-integracio.md)', () => {
+    const HUB_MAP: Record<string, string> = {
+      first_shift: 'hyperscales:first-shift',
+      first_blood: 'hyperscales:first-blood',
+      three_star_shift: 'hyperscales:three-star-shift',
+      ten_customers: 'hyperscales:ten-customers',
+      shift_marathon: 'hyperscales:shift-marathon',
+      ticket_whisperer: 'hyperscales:ticket-whisperer',
+      era_colo: 'hyperscales:era-colo',
+      first_k_mrr: 'hyperscales:first-k-mrr',
+      perfect_week: 'hyperscales:perfect-week',
+      high_rep: 'hyperscales:high-rep',
+      era_vps: 'hyperscales:era-vps',
+      hundred_customers: 'hyperscales:hundred-customers',
+      survived_first_ddos: 'hyperscales:survived-first-ddos',
+      first_10k_mrr: 'hyperscales:first-10k-mrr',
+      era_dedicated: 'hyperscales:era-dedicated',
+      one_million_lifetime: 'hyperscales:one-million-lifetime',
+      refund_king: 'hyperscales:refund-king',
+      comeback_kid: 'hyperscales:comeback-kid',
+    };
+    expect(ACHIEVEMENTS.map((a) => a.id).sort()).toEqual(Object.keys(HUB_MAP).sort());
+    for (const [id, hub] of Object.entries(HUB_MAP)) expect(hubAchievementId(id)).toBe(hub);
+    expect(ENTITLEMENTS.map(hubEntitlementId)).toEqual([
+      'hyperscales:rack-skin-colo', 'hyperscales:rack-led-theme', 'hyperscales:company-banner',
+    ]);
   });
   it('every in-game id maps to a valid Hub key (a-z0-9-, 2–40)', () => {
     for (const a of ACHIEVEMENTS) {
