@@ -7,6 +7,7 @@ import { getPlayer } from '../../../lib/game/db';
 import { getUpgradeById, availableUpgrades } from '../../../lib/game/upgrade-tree';
 import { computeAchievementInput } from '../../../lib/game/achievements-helper';
 import { checkAndUnlockAchievements } from '../../../lib/game/achievements';
+import { hubFromLocals } from '../../../lib/aikahub-achi';
 import type { D1Database } from '@cloudflare/workers-types/experimental';
 
 export const prerender = false;
@@ -53,7 +54,7 @@ export const POST = async (c: APIContext): Promise<Response> => {
     const input = await computeAchievementInput(db as unknown as D1Database, user.id);
     if (input) {
       newly_unlocked = await checkAndUnlockAchievements(
-        db as unknown as D1Database, user.id, input,
+        db as unknown as D1Database, user.id, input, { hub: hubFromLocals(c.locals) },
       );
     }
   } catch { /* non-fatal */ }

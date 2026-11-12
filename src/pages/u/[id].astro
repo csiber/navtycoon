@@ -6,6 +6,7 @@ import '../../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a V
 // OG-image fetch (twitter:image, og:image) generated server-side via /api/og/u/[id].
 import { getDB } from '../../lib/auth';
 import { ACHIEVEMENTS } from '../../lib/game/achievements';
+import { HIDDEN_TITLE, HIDDEN_EMOJI } from '../../lib/play/achievements-i18n';
 
 type AnyCtx = Parameters<typeof getDB>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -49,11 +50,12 @@ const unlockedRows = (await db.prepare(
   'SELECT achievement_id FROM achievements WHERE player_id = ?',
 ).bind(id).all<UnlockedRow>()).results ?? [];
 const unlockedIds = new Set(unlockedRows.map((r) => r.achievement_id));
-const achievementCells = ACHIEVEMENTS.map((a) => ({
-  emoji: a.emoji,
-  title: a.title,
-  unlocked: unlockedIds.has(a.id),
-}));
+// Rejtett achievement, amíg nincs meg: „???” (név és ikon nélkül).
+const achievementCells = ACHIEVEMENTS.map((a) => {
+  const have = unlockedIds.has(a.id);
+  const masked = !!a.hidden && !have;
+  return { emoji: masked ? HIDDEN_EMOJI : a.emoji, title: masked ? HIDDEN_TITLE : a.title, unlocked: have };
+});
 const unlockedCount = unlockedRows.length;
 const totalAchievements = ACHIEVEMENTS.length;
 

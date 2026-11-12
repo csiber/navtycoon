@@ -9,6 +9,7 @@
 // Konkurrenciára atomikus: az UPDATE-claim akkor sikeres, ha last_ticked_at
 // még a régi értéken áll. Két párhuzamos /play-load esetén csak egy nyer.
 
+import type { HubCtx } from '../aikahub-achi';
 import type { D1Database } from '@cloudflare/workers-types/experimental';
 import type { Player } from './types';
 import { tickPlayer } from './tick';
@@ -20,6 +21,8 @@ export const LAZY_TICK_MIN_INTERVAL_SEC = 5 * 60;
 export interface LazyTickEnv {
   ai?: WorkersAIBinding;
   vectorize?: VectorizeBinding;
+  /** AikaHub-továbbítás a tick végi achievementekhez (lásd tick.ts 9. lépés). */
+  hub?: HubCtx;
 }
 
 /**

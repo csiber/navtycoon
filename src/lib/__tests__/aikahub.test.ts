@@ -65,7 +65,7 @@ describe('PKCE + authorize URL', () => {
     expect(url.origin + url.pathname).toBe('https://aikahub.com/oauth/authorize');
     expect(Object.fromEntries(url.searchParams)).toMatchObject({
       response_type: 'code', client_id: 'hyperscales', redirect_uri: REDIRECT,
-      code_challenge_method: 'S256', scope: 'profile', state,
+      code_challenge_method: 'S256', scope: 'profile achievements', state,
     });
     expect(url.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/);
     const row = await d.prepare('SELECT verifier FROM oauth_pending WHERE state = ?').bind(state).first<{ verifier: string }>();

@@ -18,11 +18,14 @@
 // pedig '!' — ez sosem egyezik egy PBKDF2-hash-sel, és a login-végpont külön is elutasítja.
 
 import { randomToken, type D1Like } from './auth';
+import { recordHubScope, scopeHasAchievements } from './aikahub-achi';
 
 export const AIKAHUB_ISSUER = 'https://aikahub.com';
 export const AIKAHUB_CLIENT_ID = 'hyperscales';
 export const AIKAHUB_PROVIDER = 'aikahub';
 export const PENDING_TTL_SEC = 600;
+/** A kért hatókör (2026-11-12): profil + achievementek. A meglévő tagok a következő belépéskor egyszer újra jóváhagyják. */
+export const AIKAHUB_SCOPE = 'profile achievements';
 export const STATE_COOKIE = 'hs_aikahub_state';
 /** HTTPS-en (éles) __Secure- előtagú, Secure süti; a http://127.0.0.1 helyi teszten (nem biztonságos séma) a sima név. */
 export function stateCookieFor(requestUrl: string): { name: string; secure: boolean } {
@@ -109,7 +112,7 @@ export async function startFlow(
     redirect_uri: opts.redirectUri,
     code_challenge: await s256Challenge(verifier),
     code_challenge_method: 'S256',
-    scope: 'profile',
+    scope: AIKAHUB_SCOPE,
     state,
   });
   return { state, authorizeUrl: `${AIKAHUB_ISSUER}/oauth/authorize?${q}` };
@@ -129,7 +132,11 @@ export type CallbackError =
   | 'network';          // nem értük el az AikaHubot
 
 export type CallbackResult =
-  | { ok: true; userId: string; created: boolean; linked: boolean; nextPath: string | null }
+  | {
+    ok: true; userId: string; created: boolean; linked: boolean; nextPath: string | null;
+    /** A tag megadta-e az `achievements` hatókört (a userinfo `scope` mezője). Ha nem, nem küldünk achievementet. */
+    achievementsScope?: boolean;
+  }
   | { ok: false; error: CallbackError };
 
 export interface AikahubProfile {
@@ -195,12 +202,14 @@ export async function handleCallback(
   }
 
   let profile: AikahubProfile | null = null;
+  let grantedScope: unknown = null;
   try {
     const r = await fetchFn(`${AIKAHUB_ISSUER}/oauth/userinfo`, {
       headers: { authorization: `Bearer ${tok.access_token}`, accept: 'application/json' },
     });
     const u = await r.json() as Record<string, unknown>;
     profile = r.ok ? parseProfile(u) : null;
+    grantedScope = u.scope;
   } catch {
     profile = null;
   } finally {
@@ -217,12 +226,22 @@ export async function handleCallback(
   }
   if (!profile) return { ok: false, error: 'bad_profile' };
 
-  return linkOrLogin(db, profile, {
+  const res = await linkOrLogin(db, profile, {
     linkUserId: pending.link_user_id,
     sessionUserId: opts.sessionUserId ?? null,
     nextPath: pending.next_path,
     now,
   });
+  if (res.ok) {
+    // Hatókör feljegyzése (audit_log): a Hub-továbbítás csak `achievements` engedéllyel küld. Best-effort.
+    res.achievementsScope = scopeHasAchievements(grantedScope);
+    try {
+      await recordHubScope(db, res.userId, res.achievementsScope, now);
+    } catch (e) {
+      console.warn('aikahub callback: hatókör-feljegyzés sikertelen', (e as Error)?.message);
+    }
+  }
+  return res;
 }
 
 /** userinfo → profil; csak ha nekünk szól (aud === client_id) és van stabil sub. */

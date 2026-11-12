@@ -14,8 +14,8 @@ import type { D1Database } from '@cloudflare/workers-types/experimental';
 import type { D1Like } from '../db';
 
 describe('ACHIEVEMENTS catalog', () => {
-  it('has 12 entries with unique ids', () => {
-    expect(ACHIEVEMENTS.length).toBe(12);
+  it('has 18 entries with unique ids', () => {
+    expect(ACHIEVEMENTS.length).toBe(18);
     const ids = ACHIEVEMENTS.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);
   });

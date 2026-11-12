@@ -3,7 +3,8 @@
 //   1. ownership-check (player_id + resolved_at IS NULL)
 //   2. apply EventOptionResult (cash, reputation, all-customer satisfaction)
 //   3. mark event resolved (resolved_at + outcome)
-//   4. (best-effort) unlock narrative achievement on first ddos resolve
+//   4. DDoS: az akkori ügyfélszám az eseménybe (customers_at_resolve); a survived_first_ddos-t a következő tick
+//      ítéli meg (achievement-tick.ts: az ügyfélszám legfeljebb 10%-ot eshet), nem a lezárás azonnal
 
 import { legacyError, localeFromRequest } from '../../../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
@@ -11,10 +12,8 @@ import { getCurrentUser, getDB } from '../../../../../lib/auth';
 import { localizeEventMessage } from '../../../../../lib/game/event-i18n';
 import { getEventDefinition } from '../../../../../lib/game/event-options';
 import { ECONOMY, scaleEventCash } from '../../../../../lib/game/economy';
-import {
-  unlockAchievement,
-  checkAndUnlockAchievements,
-} from '../../../../../lib/game/achievements';
+import { checkAndUnlockAchievements } from '../../../../../lib/game/achievements';
+import { hubFromLocals } from '../../../../../lib/aikahub-achi';
 import { computeAchievementInput } from '../../../../../lib/game/achievements-helper';
 import type { EventType } from '../../../../../lib/game/types';
 import type { D1Database } from '@cloudflare/workers-types/experimental';
@@ -102,23 +101,18 @@ export const POST = async (c: APIContext): Promise<Response> => {
   // A döntés pénzhatása az eseménysorba kerül, hogy a Pénzügy lap „Pénzmozgások" listája valós legyen (2026-11-11).
   let prevData: Record<string, unknown> = {};
   try { prevData = event.data_json ? JSON.parse(event.data_json) : {}; } catch { /* hibás JSON */ }
-  const newData = JSON.stringify({ ...prevData, option_id: optionId, cash_delta_cents: cashDelta, reputation_delta: result.reputation_delta });
+  // DDoS-túlélés (survived_first_ddos): a lezáráskori ügyfélszám — a következő tick ehhez méri az esést.
+  let ddosExtra: Record<string, unknown> = {};
+  if (event.event_type === 'ddos_attempt') {
+    const n = (await db.prepare('SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1')
+      .bind(user.id).first<{ n: number }>())?.n ?? 0;
+    ddosExtra = { customers_at_resolve: n };
+  }
+  const newData = JSON.stringify({ ...prevData, ...ddosExtra, option_id: optionId, cash_delta_cents: cashDelta, reputation_delta: result.reputation_delta });
   await db
     .prepare('UPDATE events SET resolved_at = ?, outcome = ?, data_json = ? WHERE id = ?')
     .bind(now, result.outcome, newData, eventId)
     .run();
-
-  // Narrative-driven achievement (best-effort, idempotent) — counts-driven
-  // check can't see event-history, so we keep the special-case unlock here.
-  let narrativeUnlocked: string | null = null;
-  if (event.event_type === 'ddos_attempt') {
-    const wasUnlocked = await unlockAchievement(
-      db as unknown as D1Database,
-      user.id,
-      'survived_first_ddos',
-    );
-    if (wasUnlocked) narrativeUnlocked = 'survived_first_ddos';
-  }
 
   // Counts-driven achievements: cash/rep/customer-satisfaction deltas above
   // may have crossed unlock thresholds (e.g. high_rep, first_k_mrr).
@@ -127,14 +121,12 @@ export const POST = async (c: APIContext): Promise<Response> => {
     const input = await computeAchievementInput(db as unknown as D1Database, user.id);
     if (input) {
       newly_unlocked = await checkAndUnlockAchievements(
-        db as unknown as D1Database, user.id, input,
+        db as unknown as D1Database, user.id, input, { hub: hubFromLocals(c.locals) },
       );
     }
   } catch { /* non-fatal */ }
-  // Merge narrative + counts-driven unlocks; keep newly_unlocked unique.
-  if (narrativeUnlocked && !newly_unlocked.includes(narrativeUnlocked)) {
-    newly_unlocked = [narrativeUnlocked, ...newly_unlocked];
-  }
+  // A survived_first_ddos már nem itt jön (a következő tick dönt), a régi mező a régi kliens miatt marad.
+  const narrativeUnlocked: string | null = newly_unlocked.includes('survived_first_ddos') ? 'survived_first_ddos' : null;
 
   return new Response(
     JSON.stringify({

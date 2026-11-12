@@ -11,6 +11,7 @@ import { localizeEvent } from '../../lib/game/event-i18n';
 import type { EventType } from '../../lib/game/types';
 import { availableUpgrades } from '../../lib/game/upgrade-tree';
 import { achievementMap } from '../../lib/play/achievements-i18n';
+import { hubFromLocals } from '../../lib/aikahub-achi';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
 import { jsonForScript } from '../../lib/safe-json';
@@ -43,7 +44,7 @@ try {
 // /play-load tickteli a játékost, ha 5+ perc telt el az utolsó tick óta.
 // Hibatűrő: a maybeLazyTick belül kapja el a hibákat, return false-szal.
 const runtimeEnv = (Astro.locals as unknown as { runtime?: { env?: { AI?: WorkersAIBinding; VECTORIZE?: VectorizeBinding } } }).runtime?.env ?? {};
-await maybeLazyTick(db, initialPlayer, { ai: runtimeEnv.AI, vectorize: runtimeEnv.VECTORIZE });
+await maybeLazyTick(db, initialPlayer, { ai: runtimeEnv.AI, vectorize: runtimeEnv.VECTORIZE, hub: hubFromLocals(Astro.locals) });
 
 // A Pro-státusz 2026-10-05-ig a PromNET-előfizetésből jött (syncProStatus); a játék azóta független a PromNET-től,
 // saját Pro-forrás még nincs — a players.is_pro mező marad.

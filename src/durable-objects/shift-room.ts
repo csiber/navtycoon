@@ -14,6 +14,8 @@ import { checkAndUnlockAchievements } from '../lib/game/achievements';
 interface DurableEnv {
   AI?: WorkersAIBinding;
   DB: D1Database;
+  /** AikaHub szerverkulcs (navtycoon-do worker-titok). Üres → nincs Hub-továbbítás. */
+  AIKAHUB_CLIENT_KEY?: string;
 }
 
 interface InitMessage {
@@ -408,6 +410,12 @@ export class ShiftRoomDO {
           this.env.DB,
           this.shift.player_id,
           input,
+          {
+            hub: {
+              key: this.env.AIKAHUB_CLIENT_KEY ?? null,
+              waitUntil: typeof this.state.waitUntil === 'function' ? (p) => this.state.waitUntil(p) : undefined,
+            },
+          },
         );
         if (newlyUnlocked.length > 0) {
           this.pendingAchievementUnlocks = newlyUnlocked;

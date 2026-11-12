@@ -29,6 +29,8 @@ import {
   ECONOMY, TICK_MINUTES, ppcSpendPerTick, acquisitionProb, ticketSpawnProb, churnProb, bridgeDue, isEngaged,
 } from './economy';
 import { eventPoolForEra } from './event-pool';
+import { tickAchievements } from './achievement-tick';
+import type { HubCtx } from '../aikahub-achi';
 
 // A gazdaság számai (ticket-, lemorzsolódás-, beszerzés-, PPC-szabályok) 2026-11-12 óta az economy.ts-ben
 // élnek: a tick, a pénzáramlás-kijelzés és a szimulátor (economy-sim.ts) ugyanazt használja.
@@ -50,11 +52,15 @@ export interface TickResult {
   /** Az egyszeri áthidaló befektető összege, ha most jött (különben 0). */
   bridge_granted_cents: number;
   era_advanced_to: EraId | null;
+  /** A tick végén feloldott achievementek (lásd achievement-tick.ts). */
+  achievements_unlocked?: string[];
 }
 
 export interface TickEnv {
   ai?: WorkersAIBinding;
   vectorize?: VectorizeBinding;
+  /** AikaHub-továbbítás az itt feloldott achievementekhez (kulcs nélkül kihagyva; a cron úgyis újrapróbálja). */
+  hub?: HubCtx;
 }
 
 export async function tickPlayer(
@@ -389,6 +395,15 @@ export async function tickPlayer(
     console.error('maybeAdvanceEra failed', e);
   }
 
+  // 9. Achievementek a tick után (korszak, MRR, ügyfélszám, DDoS-túlélés, mélypont). Best-effort.
+  let achievementsUnlocked: string[] = [];
+  try {
+    achievementsUnlocked = await tickAchievements(db, player.user_id, now, env.hub);
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('tickAchievements failed', (e as Error)?.message);
+  }
+
   // Mark this tick — both cron and lazy-tick paths converge here, so the
   // dashboard's "last tick X min ago" and the lazy-tick 5-min throttle stay
   // consistent regardless of which path fired.
@@ -409,6 +424,7 @@ export async function tickPlayer(
     marketing_throttled: marketingThrottled,
     bridge_granted_cents: bridgeGranted,
     era_advanced_to: eraAdvancedTo,
+    achievements_unlocked: achievementsUnlocked,
   };
 }
 

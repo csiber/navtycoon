@@ -9,6 +9,7 @@ import {
 } from '../../lib/auth';
 import { handleCallback, stateCookieFor } from '../../lib/aikahub';
 import { ensurePlayer } from '../../lib/game/bootstrap';
+import { backfillHubAchievements, hubFromLocals } from '../../lib/aikahub-achi';
 import { localeFromRequest } from '../../lib/i18n/api-errors';
 
 export const prerender = false;
@@ -48,6 +49,13 @@ export async function GET(context: APIContext): Promise<Response> {
     if (u) await ensurePlayer(db, u, localeFromRequest(context.request));
   } catch (e) {
     console.warn('aikahub callback: ensurePlayer (a /play pótolja):', (e as Error).message);
+  }
+  // Visszamenőleges AikaHub-szinkron: a már megszerzett achievementek (idempotens a Hubon). A válasz után fut
+  // (waitUntil); kulcs, kötés vagy `achievements` hatókör nélkül csendben semmit sem csinál.
+  if (result.achievementsScope) {
+    const hub = hubFromLocals(context.locals);
+    const p = backfillHubAchievements(db, hub, result.userId).catch(() => undefined);
+    if (hub.waitUntil) hub.waitUntil(p); else await p;
   }
   return redirect(result.nextPath ?? '/play');
 }

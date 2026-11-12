@@ -12,12 +12,15 @@ import { tickAllActivePlayers } from './lib/game/tick';
 import { tickAllNpcs } from './lib/game/npc-tick';
 import type { WorkersAIBinding } from './lib/ai/workers-ai';
 import type { VectorizeBinding } from './lib/ai/vectorize';
+import { retryPendingHubSync } from './lib/aikahub-achi';
 
 interface DoWorkerEnv {
   DB: D1Database;
   AI?: WorkersAIBinding;
   VECTORIZE?: VectorizeBinding;
   SHIFT_ROOM?: DurableObjectNamespace;
+  /** AikaHub szerverkulcs (worker-titok: `wrangler secret put AIKAHUB_CLIENT_KEY -c wrangler.do.toml`). Üres → nincs továbbítás. */
+  AIKAHUB_CLIENT_KEY?: string;
 }
 
 export default {
@@ -39,10 +42,12 @@ export default {
     ctx: ExecutionContext,
   ): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
+    const hub = { key: env.AIKAHUB_CLIENT_KEY ?? null, waitUntil: (p: Promise<unknown>) => ctx.waitUntil(p) };
     ctx.waitUntil(
       tickAllActivePlayers(env.DB, now, {
         ai: env.AI,
         vectorize: env.VECTORIZE,
+        hub,
       })
         .then((results) => {
           const totals = results.reduce(
@@ -73,6 +78,14 @@ export default {
           console.error('cron-tick error', e);
         }),
     );
+    // AikaHub achievement-továbbítás retry-sora (ritkuló, max. 30 nap; lásd src/lib/aikahub-achi.ts). Kulcs nélkül no-op.
+    if (env.AIKAHUB_CLIENT_KEY) {
+      ctx.waitUntil(
+        retryPendingHubSync(env.DB, { key: env.AIKAHUB_CLIENT_KEY })
+          .then((r) => { if (r.sent > 0) console.log('aikahub-achi retry', { sent: r.sent, ok: r.ok, dropped: r.dropped, retry: r.retry }); })
+          .catch((e) => { console.error('aikahub-achi retry error', (e as Error)?.message); }),
+      );
+    }
     // NPC competitors (leaderboard rivals). Until 2026-11-11 only /api/cron/tick ran them, and nothing calls
     // that endpoint — so the NPCs had been frozen since 2026-05-15. Archetype-driven, no AI call; at most one
     // decision per NPC per NPC_DECISION_INTERVAL_SEC, no catch-up burst after the long pause.

@@ -7,7 +7,7 @@
 
 import { esc, usd, type ShellData } from './shell';
 import { pt } from './strings';
-import { achievementTitle, achievementDesc, achievementEmoji } from './achievements-i18n';
+import { achievementCell } from './achievements-i18n';
 import { ACHIEVEMENTS } from '../game/achievements';
 import type { RankedPlayer } from '../game/leaderboard';
 
@@ -59,11 +59,14 @@ export function renderLeaderboardContent(
           ${top.map(row).join('')}
           ${meOutside ? `<div class="lbx-gap">${esc(pt(L, 'lb.gap', { n: me!.rank - 21 }))}</div>${row(me!)}` : ''}`;
 
-  const badges = ACHIEVEMENTS.map((a) => `
-            <div class="b-cell ${unlocked.has(a.id) ? 'have' : 'locked'}" title="${esc(achievementDesc(L, a.id))}">
-              <div class="ico">${esc(achievementEmoji(a.id))}</div>
-              <div class="lbl">${esc(achievementTitle(L, a.id))}</div>
-            </div>`).join('');
+  const badges = ACHIEVEMENTS.map((a) => {
+    const cell = achievementCell(L, a.id, unlocked.has(a.id));
+    return `
+            <div class="b-cell ${unlocked.has(a.id) ? 'have' : 'locked'}" title="${esc(cell.desc)}">
+              <div class="ico">${esc(cell.emoji)}</div>
+              <div class="lbl">${esc(cell.title)}</div>
+            </div>`;
+  }).join('');
 
   return `<div class="content">
       <div class="pagehead"><div class="h-left">
