@@ -18,7 +18,8 @@ Astro 5 · Cloudflare Pages + Workers + D1 + Cron · Workers AI (Llama-3.3-70b �
 
 ## Belépés AikaHub-fiókkal (ág: aikahub-auth)
 
-OAuth 2.0 engedélykód + PKCE (S256), `client_id=hyperscales`, csak `profile` scope. Kód: `src/lib/aikahub.ts`,
+OAuth 2.0 engedélykód + PKCE (S256), `client_id=hyperscales`, scope: `profile achievements` (2026-11-12 óta; a meglévő tagok
+a következő belépéskor egyszer újra jóváhagyják). Kód: `src/lib/aikahub.ts`,
 `src/pages/auth/aikahub/start.ts`, `src/pages/auth/callback.ts` (törzs nélküli 302, `Referrer-Policy: no-referrer`),
 migráció `migrations/0012_aikahub_auth.sql` (`account_links`, `oauth_pending`). Tokent nem tárolunk: a profilt csak
 belépéskor olvassuk, a frissítő tokent azonnal visszavonjuk. Az e-mail+jelszavas belépés változatlan.
@@ -27,6 +28,29 @@ belépéskor olvassuk, a frissítő tokent azonnal visszavonjuk. Az e-mail+jelsz
 Helyi teszt: `wrangler pages dev dist --port 8788` → http://127.0.0.1:8788 (az AikaHubon regisztrált loopback;
 mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d1 execute … --file`, mert a
 `wrangler d1 migrations apply` a `0010b_…`-t a `0010_…` elé sorolja és elhasal.
+
+## AikaHub-achievementek (ág: achi-hub, 2026-11-12)
+
+18 achievement (`src/lib/game/achievements.ts`, HU/DE: `src/lib/play/achievements-i18n.ts`); a rejtettek (`refund_king`,
+`comeback_kid`) „???”-ként látszanak, amíg nincsenek meg. A Hub-definíció: `/mnt/ssd/claude-tmp/achievements/hyperscales.js`
+(claude-3 viszi be). Hub-továbbítás: `src/lib/aikahub-achi.ts` — szerver→szerver, `Authorization: Basic
+base64("hyperscales:<AIKAHUB_CLIENT_KEY>")`, a pairwise `sub`-ra; Hub-id = `hyperscales:` + id aláhúzás→kötőjel.
+- Feloldás: Pages-végpontok (achievements, server, upgrade, events resolve) + `ShiftRoomDO` (műszak vége) + a tick vége
+  (`src/lib/game/achievement-tick.ts`, cron és lazy-tick). Új feloldás → azonnali küldés (waitUntil); belépéskor a meglévők
+  visszamenőleg (idempotens).
+- Retry-sor séma-módosítás nélkül, az `audit_log`-ban (`aikahub_achi_sync` kész / `aikahub_achi_try` próbálkozás /
+  `aikahub_scope` hatókör). A navtycoon-do 5 perces cronja (`retryPendingHubSync`) ritkulva próbálja újra (5 perc → max. 1 nap,
+  legfeljebb 30 napig). Végleg eldobva csak 409 not_linked és 403 insufficient_scope; a 404 (definíció még nincs fent), 401, 5xx,
+  időtúllépés (5 mp) újrapróbálandó.
+- Csak `achievements` hatókörrel küld (a userinfo `scope` mezője a belépéskor). Kulcs nélkül csendben kihagy.
+- Titok mindkét helyen kell (Csaba szkriptje): Pages-titok `AIKAHUB_CLIENT_KEY`, és a worker-titok
+  `npx wrangler secret put AIKAHUB_CLIENT_KEY -c wrangler.do.toml` (navtycoon-do). A worker kódja is változott → újratelepítés.
+- `survived_first_ddos`: a lezáráskori ügyfélszámot az esemény menti, a következő tick dönt (≤10% esés). `comeback_kid`:
+  mélypont (pénz < max($100, 7 napi kiadás)) naponta egyszer az `audit_log`-ba (`cash_low_point`), 30 napon belül 2× MRR.
+- Jogosultságok: `fetchHubEntitlements` / `hasEntitlement` (GET /oauth/entitlements, 10 perc gyorsítótár).
+- TODO: a kozmetikai jogosultságok hatása még nincs bekötve: `rack_skin_colo` (3D rack colo-ketrec kinézet), `rack_led_theme`
+  (választható LED-színséma), `company_banner` (egyedi cégszín a ranglistán).
+- TODO: a /play `achievementMap` (toastokhoz) a rejtett achievementek nevét is a kliensnek adja (enyhe spoiler a forrásban).
 
 ## UX 2. fázis (ág: ux-2, 2026-11-11)
 
