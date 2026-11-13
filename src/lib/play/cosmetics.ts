@@ -10,7 +10,7 @@
 // semmit nem kérhet magának, a lapba csak a kész osztálynevek kerülnek. Tisztán vizuális: a gazdaságra (pénz, ügyfél,
 // ticket, kapacitás) nincs hatása. Kötés / kulcs / hatókör nélkül, vagy Hub-hibánál: nincs kozmetika (csendben).
 
-import { fetchHubEntitlements, hubEntitlementId, type HubCtx } from '../aikahub-achi';
+import { fetchHubEntitlements, hubEntitlementId, ENTITLEMENT_FAST_TIMEOUT_MS, type HubCtx } from '../aikahub-achi';
 
 export interface Cosmetics {
   /** Rack-bőr (null = alap indigó). */
@@ -39,7 +39,8 @@ type DbArg = Parameters<typeof fetchHubEntitlements>[0];
 export async function loadCosmetics(db: DbArg, hub: HubCtx | null | undefined, userId: string): Promise<Cosmetics> {
   if (!hub || !(hub.key ?? '').trim()) return NO_COSMETICS;
   try {
-    return cosmeticsFromEntitlements(await fetchHubEntitlements(db, hub, userId));
+    // Rövid időtúllépés: egy lassú Hub legfeljebb 1,5 mp-et késleltet, és a hibát 90 mp-ig megjegyezzük.
+    return cosmeticsFromEntitlements(await fetchHubEntitlements(db, hub, userId, { timeoutMs: ENTITLEMENT_FAST_TIMEOUT_MS }));
   } catch {
     return NO_COSMETICS;
   }

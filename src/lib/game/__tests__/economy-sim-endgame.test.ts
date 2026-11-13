@@ -4,7 +4,7 @@
 // (napi egy műszak, fejlesztés nélkül) is célba ér, de jóval később (~250–365. nap); a tétlen és a „soha nem vesz” soha.
 import { describe, it, expect } from 'vitest';
 import { simulate, type ProfileId, type SimResult } from '../economy-sim';
-import { ECONOMY, eraTicketFactor } from '../economy';
+import { ECONOMY, eraTicketFactor, regularTicketFactor, TICKS_PER_DAY } from '../economy';
 import { SPEEDRUN_DAYS } from '../achievements';
 import { GOAL } from '../endgame';
 
@@ -58,11 +58,36 @@ describe('endgame pacing (365 days)', () => {
     for (const r of runs) expect(r.broke_day).toBeNull();
   });
 
+  it('the era factor has a daily floor (~6 tickets/day) and never dampens overload / slowdown penalty tickets', () => {
+    const perDay = (n: number) => n / TICKS_PER_DAY; // várható ticket tickenként, ha naponta n jönne szorzó nélkül
+    // 1–2. korszak: a büntetés-szorzó változatlanul
+    expect(regularTicketFactor(ECONOMY, 2, perDay(100), 1)).toBe(1);
+    expect(regularTicketFactor(ECONOMY, 2, perDay(100), 2.5)).toBe(2.5);
+    // sok ügyfél: a sima korszak-szorzó; kevés: az alsó határ (napi 6), de soha nem több, mint szorzó nélkül
+    expect(regularTicketFactor(ECONOMY, 3, perDay(1000), 1)).toBeCloseTo(0.08, 6);
+    expect(regularTicketFactor(ECONOMY, 4, perDay(60), 1) * 60).toBeCloseTo(6, 6);
+    expect(regularTicketFactor(ECONOMY, 4, perDay(3), 1)).toBe(1);
+    // túlterhelés: a többlet (×2 → +1) teljes egészében megmarad
+    expect(regularTicketFactor(ECONOMY, 4, perDay(1000), 2)).toBeCloseTo(0.04 + 1, 6);
+  });
+
   it('Era 3 tickets are much lighter (era_ticket_factor), Era 1–2 unchanged', () => {
     expect(eraTicketFactor(ECONOMY, 1)).toBe(1);
     expect(eraTicketFactor(ECONOMY, 2)).toBe(1);
     expect(eraTicketFactor(ECONOMY, 3)).toBeLessThan(0.2);
     expect(eraTicketFactor(ECONOMY, 4)).toBeLessThan(eraTicketFactor(ECONOMY, 3));
+  });
+
+  it('late-game shifts are not empty: the active player still gets ~3+ tickets per shift in Era 3–4, nearly every day', T, () => {
+    for (const s of ACTIVE_SEEDS) {
+      const r = sim('active', s);
+      for (const era of [3, 4]) {
+        const ds = r.days.filter((d) => d.era === era && d.day <= (r.finished_day ?? 365) + 60);
+        const avg = ds.reduce((a, d) => a + d.shift_tickets, 0) / ds.length;
+        expect(avg).toBeGreaterThanOrEqual(3);
+        expect(ds.filter((d) => d.shift_tickets === 0).length / ds.length).toBeLessThanOrEqual(0.06);
+      }
+    }
   });
 
   it('the never-buy player never finishes', T, () => {

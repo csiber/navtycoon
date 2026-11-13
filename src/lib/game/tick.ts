@@ -41,7 +41,7 @@ import { maybeAdvanceEra, eraMrrCents, dedicatedMrrCents } from './era-progress'
 import { GOAL, maybeCompleteGame, recordMrrPeak } from './endgame';
 import {
   ECONOMY, TICK_MINUTES, ppcSpendPerTick, acquisitionProb, ticketSpawnProb, churnProb, bridgeDue, isEngaged,
-  serverFeeForTick, effectiveMonthlyFees, applyServerFee, pickServerToSell, overloadTicketFactor, overloadRatio, eraTicketFactor,
+  serverFeeForTick, effectiveMonthlyFees, applyServerFee, pickServerToSell, overloadTicketFactor, overloadRatio, eraTicketFactor, regularTicketFactor,
   fleetUtilPct,
 } from './economy';
 import { loadUpgradeEffects, eventAvoidProb, NO_EFFECTS, combineEffects } from './upgrade-effects';
@@ -462,9 +462,17 @@ export async function tickPlayer(
 
   // 3. Ticket spawn — per-active-customer roll; AI first, placeholder fallback.
   //    A fejlesztések ticket_pct-je kevesebb ticketet hoz; túlterhelésnél (több ügyfél, mint hely) több jön.
-  // 2026-11-13: a 3–4. korszak sima ügyfelei kevesebb ticketet nyitnak (era_ticket_factor, önkiszolgáló felület).
-  const ovlFactor = overloadTicketFactor(ECONOMY, generalNow, capacityNow) * (NR && slowRatio > 0 ? slowdownTicketFactor(NR, slowRatio) : 1)
-    * eraTicketFactor(ECONOMY, player.current_era);
+  // 2026-11-13: a 3–4. korszak sima ügyfelei kevesebb ticketet nyitnak (era_ticket_factor, önkiszolgáló felület), de
+  // napi alsó határral; a túlterhelés / lassulás büntetés-ticketjeit a korszak-szorzó nem csökkenti (regularTicketFactor).
+  const penaltyFactor = overloadTicketFactor(ECONOMY, generalNow, capacityNow) * (NR && slowRatio > 0 ? slowdownTicketFactor(NR, slowRatio) : 1);
+  let ovlFactor = penaltyFactor;
+  if (eraTicketFactor(ECONOMY, player.current_era) < 1) {
+    let expected = 0;
+    for (const c of customers.results ?? []) {
+      if (!isDedicatedCustomer(c.plan_tier)) expected += ticketSpawnProb(ECONOMY, c.satisfaction, eff.ticket_pct, 1);
+    }
+    ovlFactor = regularTicketFactor(ECONOMY, player.current_era, expected, penaltyFactor);
+  }
   if (ECONOMY.capacity_limit && ECONOMY.overload && overloadRatio(generalNow, capacityNow) > 0 && halfDayTurn) {
     // Túlterhelés: 12 óránként −sat_step elégedettség minden aktív sima ügyfélnek (lassú oldalak, kiesések).
     await db.prepare(

@@ -49,20 +49,28 @@ a 15 árva `players`-sor (a PromNET-korszak törölt fiókjai) törölve.
   PRO/FREE jelvény és „Pro most nem elérhető” → „Napi keret” tényként; az újraindítás súgója; „upgrade to Pro” a
   műszaknál; a PromNET-előfizetéses Pro-szövegek; a „Pro 2×” címke; a nyilvános profil PRO-jelvénye) EN/HU/DE-ben.
   Az `is_pro` / `pro_until` oszlop marad (nincs migráció), a „pro” ügyfél-persona is.
-- **Alkalmi játékos célba ér** (`economy.ts` `era_ticket_factor`, a tick, a szimulátor és a fejlesztés-becslő is használja):
-  a 3–4. korszak sima ügyfelei kevesebb ticketet nyitnak (VPS/felhő: önkiszolgáló vezérlőpult; 4.: edge + menedzselt
-  szolgáltatások) — 3. korszak ×0,12, 4. ×0,04; az 1–2. korszak és a dedikált / nagyvállalati ügyfél változatlan. Csak a
-  ticket-szorzó változott (a szimulátorral keresve; enyhébb értéknél az alkalmi játékos a 3. korszakban a ticketeken
-  ragadt). Szimulátor, 6 seed, 365 nap:
-  - alkalmi: előtte soha (a 3. korszakban ~100–150 ügyfélnél megállt) → most 4/6 célba ér: 252., 253., 307., 316. nap
-    (medián ~316); 2 seed a 365. napig nem (az egyik csak a 196. napon ér a 3. korszakba);
-  - aktív: előtte 137–233 (medián 151) → most 125–247 (medián 158), a 3. korszak elérése változatlan (medián ~75. nap);
-  - villámskálázás (≤ 140 nap): 6-ból 2 seed (125, 136) — továbbra is a gyorsak jutalma;
+- **Alkalmi játékos célba ér** (`economy.ts` `era_ticket_factor` + `era_ticket_min_daily`, `regularTicketFactor`; a
+  tick — így a lazy-tick is —, a szimulátor és a fejlesztés-becslő ugyanazt használja): a 3–4. korszak sima ügyfelei
+  kevesebb ticketet nyitnak (VPS/felhő: önkiszolgáló vezérlőpult; 4.: edge + menedzselt szolgáltatások) — 3. korszak
+  ×0,08, 4. ×0,04, **de napi legalább ~6 ticket** (ha szorzó nélkül is annyi jönne: f = max(szorzó, 6 / várható napi
+  ticket)), és a túlterhelés / lassulás **büntetés-ticketjeit a szorzó nem csökkenti** (a túladott kapacitásnak és
+  sávszélességnek marad következménye). Az 1–2. korszak és a dedikált / nagyvállalati ügyfél változatlan. Szimulátor,
+  6 seed, 365 nap:
+  - alkalmi: előtte soha (a 3. korszakban ~100–150 ügyfélnél megállt) → most 4/6 célba ér: 257., 259., 294., 356. nap
+    (medián ~356); 2 seed a 365. napig nem (az egyik csak a 196. napon ér a 3. korszakba);
+  - aktív: előtte 137–233 (medián 151) → most 123–260 (medián 158), a 3. korszak elérése változatlan (medián ~75. nap);
+  - műszak a késői játékban (aktív): a 3. korszakban átlagosan 4,5–6,3, a 4.-ben 3,4–6,4 ticket műszakonként, műszak
+    nélküli nap 0–4% (az alsó határ nélkül 2–3 ticket és 7–17% üres nap volt);
+  - villámskálázás (≤ 140 nap): 6-ból 1 seed (123) — továbbra is a gyorsak jutalma;
   - tétlen és „soha nem vesz”: soha (változatlan).
-  Ára: a késői játékban kevés a ticket (az aktív játékos ~2 ügyfélszolgálatossal is elboldogul, a 90 napos csapat-teszt
-  ezért a ticket-szorzó nélküli szabállyal méri a csapat hasznát); a célba érés után az MRR nem áll be $21k-nál, a
-  sávszélesség lesz a plafon (sandbox: a szimulátor-profil nem bővít tovább, ezért a hírneve ott leesik).
+  Ára: a késői játékban kevesebb a ticket (az aktív játékos ~2 ügyfélszolgálatossal is elboldogul, a 90 napos
+  csapat-teszt ezért a ticket-szorzó nélküli szabállyal méri a csapat hasznát); a célba érés után az MRR nem áll be
+  $21k-nál, a sávszélesség lesz a plafon (sandbox: a szimulátor-profil nem bővít tovább, ezért a hírneve ott leesik).
   Csak a navtycoon-do worker újratelepítése kell (a tick a `src/lib/game/`-ben), migráció nincs.
+- **Hub-jogosultság gyors út**: a kozmetikák 1,5 mp-es időtúllépéssel kérdeznek; a sikertelen lekérés 90 mp-ig,
+  a kötés / hatókör 1 percig gyorsítótárazva (izolátumonként) — egy álló Hub nem lassít minden /play oldalt 5 mp-cel,
+  és a kötés nélküli tag oldalai nem olvasnak minden betöltéskor D1-et. A `play-shell.js` sosem ágyazódik be data:
+  URL-ként (`astro.config.mjs` `assetsInlineLimit`).
 
 ## Belépés AikaHub-fiókkal (ág: aikahub-auth)
 
@@ -102,7 +110,7 @@ mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d
   profil: célba 126–178 (medián ~165); alkalmi (napi egy műszak, fejlesztés nélkül): a 3. korszakban ~100–130 ügyfélnél
   megáll → soha; csapat nélkül: ~$5,5k MRR-nél megáll → soha; tétlen és „soha nem vesz”: soha. A célba érés után az
   MRR ~$21k körül beáll (a ticket-kapacitás a plafon) — onnan sandbox. **2026-11-13 (lezárás) óta** a 3–4. korszak
-  ticket-szorzójával (lásd fent, „Lezárási kör”) az alkalmi is célba ér (medián ~316. nap), az aktív medián ~158 nap. A szimulátor a hosszú futásokhoz
+  ticket-szorzójával (lásd fent, „Lezárási kör”) az alkalmi is célba ér (4/6 seed, medián ~356. nap), az aktív medián ~158 nap. A szimulátor a hosszú futásokhoz
   gyorsítótárazott darabszámokkal fut (bitre azonos eredmény).
 - **Achievementek** (+5, összesen 23): `first_cloud_region`, `first_edge_pop`, `enterprise_contract`, `hyperscaled`,
   rejtett `speedrun_hyperscaler` (≤ 140 nap; 2026-11-13-ig 120 volt, de a szimulátorban egy seed
@@ -153,7 +161,8 @@ base64("hyperscales:<AIKAHUB_CLIENT_KEY>")`, a pairwise `sub`-ra; Hub-id = `hype
   `npx wrangler secret put AIKAHUB_CLIENT_KEY -c wrangler.do.toml` (navtycoon-do). A worker kódja is változott → újratelepítés.
 - `survived_first_ddos`: a lezáráskori ügyfélszámot az esemény menti, a következő tick dönt (≤10% esés). `comeback_kid`:
   mélypont (pénz < max($100, 7 napi kiadás)) naponta egyszer az `audit_log`-ba (`cash_low_point`), 30 napon belül 2× MRR.
-- Jogosultságok: `fetchHubEntitlements` / `hasEntitlement` (GET /oauth/entitlements, 10 perc gyorsítótár).
+- Jogosultságok: `fetchHubEntitlements` / `hasEntitlement` (GET /oauth/entitlements, 10 perc gyorsítótár; hiba 90 mp,
+  kötés/hatókör 1 perc).
 
 ## UX 2. fázis (ág: ux-2, 2026-11-11)
 

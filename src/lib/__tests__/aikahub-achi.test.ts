@@ -401,17 +401,45 @@ describe('entitlements', () => {
     expect(hub.calls).toHaveLength(2);
   });
 
-  it('errors are not cached; no key / no scope → [] without a request', async () => {
+  it('errors are cached only briefly (90 s, empty list); no key / no scope → [] without a request', async () => {
     const db = await setup();
     let status = 500;
     const hub = fakeHub(() => status, () => ({ entitlements: [{ value: 'hyperscales:company-banner' }] }));
     expect(await fetchHubEntitlements(db, { key: KEY, fetchFn: hub.fetchFn, now: 1 }, 'u1')).toEqual([]);
     status = 200;
-    expect(await fetchHubEntitlements(db, { key: KEY, fetchFn: hub.fetchFn, now: 2 }, 'u1')).toEqual(['hyperscales:company-banner']);
+    // 90 mp-en belül a hiba gyorsítótárból jön: nincs újabb (lassú) kérés
+    expect(await fetchHubEntitlements(db, { key: KEY, fetchFn: hub.fetchFn, now: 60 }, 'u1')).toEqual([]);
+    expect(hub.calls).toHaveLength(1);
+    expect(await fetchHubEntitlements(db, { key: KEY, fetchFn: hub.fetchFn, now: 92 }, 'u1')).toEqual(['hyperscales:company-banner']);
+    expect(hub.calls).toHaveLength(2);
     clearEntitlementCache();
     const n = hub.calls.length;
     expect(await fetchHubEntitlements(db, { key: '', fetchFn: hub.fetchFn }, 'u1')).toEqual([]);
     expect(await fetchHubEntitlements(await setup({ scope: false }), { key: KEY, fetchFn: hub.fetchFn }, 'u1')).toEqual([]);
     expect(hub.calls.length).toBe(n);
+  });
+  it('a hanging Hub is cut at the given timeout, then cached as a failure', async () => {
+    const db = await setup();
+    const hub = fakeHub(() => 'hang');
+    const t0 = Date.now();
+    expect(await fetchHubEntitlements(db, { key: KEY, fetchFn: hub.fetchFn, now: 1000 }, 'u1', { timeoutMs: 50 })).toEqual([]);
+    expect(Date.now() - t0).toBeLessThan(HUB_TIMEOUT_MS);
+    expect(await fetchHubEntitlements(db, { key: KEY, fetchFn: hub.fetchFn, now: 1010 }, 'u1', { timeoutMs: 50 })).toEqual([]);
+    expect(hub.calls).toHaveLength(1);
+  });
+
+  it('the link / scope lookup is cached for a minute (no D1 reads per page for unlinked members)', async () => {
+    const real = await setup({ link: false });
+    const hub = fakeHub(() => 200, () => ({ entitlements: [] }));
+    let reads = 0;
+    const db = { prepare: (sql: string) => { reads++; return real.prepare(sql); } } as unknown as typeof real;
+    await fetchHubEntitlements(db, { key: KEY, fetchFn: hub.fetchFn, now: 5000 }, 'u1');
+    const n = reads;
+    expect(n).toBeGreaterThan(0);
+    await fetchHubEntitlements(db, { key: KEY, fetchFn: hub.fetchFn, now: 5030 }, 'u1');
+    expect(reads).toBe(n);
+    await fetchHubEntitlements(db, { key: KEY, fetchFn: hub.fetchFn, now: 5061 }, 'u1');
+    expect(reads).toBeGreaterThan(n);
+    expect(hub.calls).toHaveLength(0);
   });
 });

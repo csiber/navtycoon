@@ -74,6 +74,9 @@ export interface EconomyRules {
   shift_ticket_limit: number;
   /** 2026-11-13: korszakonkénti ticket-szorzó a sima (nem dedikált) ügyfelekre; hiányzó korszak = 1. */
   era_ticket_factor?: Record<number, number>;
+  /** 2026-11-13: az era_ticket_factor alsó határa — a sima ügyfelek várható napi ticketje ennél nem lesz kevesebb
+   *  (ha szorzó nélkül is több jönne), hogy a késői műszakokban is legyen mit csinálni. */
+  era_ticket_min_daily?: number;
   /** true = a lemorzsolódott ügyfél nyitott ticketjei lezárulnak (nem foglalnak helyet a következő műszakban). */
   close_tickets_on_churn: boolean;
   /** Véletlen esemény esélye tickenként. */
@@ -416,12 +419,15 @@ export const ECONOMY: EconomyRules = {
   // 120+ nap telt el, az aktív játékos 300 nap alatt sem ért célba (szimulátor, 365 napos futások).
   era_factor: { 1: 1, 2: 1.5, 3: 4, 4: 5 },
   // 2026-11-13 (lezárás): a 3–4. korszak sima ügyfelei sokkal kevesebb ticketet nyitnak (VPS/felhő: önkiszolgáló
-  // vezérlőpult, dokumentáció; 4.: edge + menedzselt szolgáltatások) — 3.: ×0,12, 4.: ×0,04. Enélkül az alkalmi játékos
-  // (napi egy műszak, egy ügyfélszolgálatos, fejlesztés nélkül) a 3. korszakban ~100–150 ügyfélnél a ticketeken elakadt
-  // (soha nem ért célba). Így 6 seedből 4 célba ér a 252–316. napon (medián ~316); az aktív játékos tempója marad
-  // (medián ~158 nap, ő a beszerzésen és a flottán áll, nem a ticketeken). A dedikált / nagyvállalati ügyfélre nem
-  // vonatkozik. Szimulátor: __tests__/economy-sim-endgame.test.ts.
-  era_ticket_factor: { 3: 0.12, 4: 0.04 },
+  // vezérlőpult, dokumentáció; 4.: edge + menedzselt szolgáltatások) — 3.: ×0,08, 4.: ×0,04, de napi legalább ~6 ticket
+  // (era_ticket_min_daily), és a túlterhelés / lassulás büntetés-ticketjeit nem csökkenti (regularTicketFactor). Enélkül
+  // az alkalmi játékos (napi egy műszak, egy ügyfélszolgálatos, fejlesztés nélkül) a 3. korszakban ~100–150 ügyfélnél a
+  // ticketeken elakadt (soha nem ért célba). Így 6 seedből 4 célba ér a 257–356. napon; az aktív játékos tempója marad
+  // (medián ~158 nap, ő a beszerzésen és a flottán áll), és a műszakjában a 3–4. korszakban is ~3,5–6,5 ticket jut.
+  // A dedikált / nagyvállalati ügyfélre nem vonatkozik. Szimulátor: __tests__/economy-sim-endgame.test.ts.
+  era_ticket_factor: { 3: 0.08, 4: 0.04 },
+  // …de a sima ügyfelek napi ticketje legalább ~6 marad (ha szorzó nélkül is annyi jönne): a műszak nem ürül ki.
+  era_ticket_min_daily: 6,
 };
 
 // ─── v3: szerver-havidíj, kapacitás, tartozás ───
@@ -478,6 +484,22 @@ export function overloadRatio(customers: number, capacity: number): number {
 /** A korszak ticket-szorzója a sima ügyfelekre (era_ticket_factor; 1 = nincs). */
 export function eraTicketFactor(rules: EconomyRules, era: number): number {
   return rules.era_ticket_factor?.[era] ?? 1;
+}
+
+/**
+ * A sima ügyfelek ticket-szorzója egy tickben (2026-11-13): a korszak-szorzó (era_ticket_factor) alsó határral —
+ * a várható napi ticket legalább era_ticket_min_daily (ha szorzó nélkül is annyi jönne) —, plusz a túlterhelés /
+ * lassulás büntetése (penaltyFactor − 1) változatlanul, a korszak-szorzó NEM csökkenti (a túladott kapacitásnak és
+ * sávszélességnek maradjon valódi következménye). `expectedPerTick` = Σ ticketSpawnProb(…, 1) a sima ügyfelekre.
+ * Az 1–2. korszakban (szorzó = 1) az eredmény = penaltyFactor, mint korábban.
+ */
+export function regularTicketFactor(rules: EconomyRules, era: number, expectedPerTick: number, penaltyFactor = 1): number {
+  let f = eraTicketFactor(rules, era);
+  const floor = rules.era_ticket_min_daily ?? 0;
+  if (f < 1 && floor > 0 && expectedPerTick > 0) {
+    f = Math.min(1, Math.max(f, floor / (expectedPerTick * TICKS_PER_DAY)));
+  }
+  return f + Math.max(0, penaltyFactor - 1);
 }
 
 /** A ticket-esély szorzója a túlterhelésből (1 = nincs). */

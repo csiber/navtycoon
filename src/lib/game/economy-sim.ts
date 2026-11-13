@@ -44,7 +44,7 @@
 import {
   type EconomyRules, TICKS_PER_DAY, TICK_MINUTES, ppcSpendPerTick, acquisitionProb, ticketSpawnProb, churnProb,
   bridgeDue, applyCashDelta, scaleEventCash, isEngaged, serverFeeForTick, effectiveMonthlyFees, applyServerFee,
-  pickServerToSell, overloadTicketFactor, overloadRatio, fleetUtilPct, eraTicketFactor,
+  pickServerToSell, overloadTicketFactor, overloadRatio, fleetUtilPct, eraTicketFactor, regularTicketFactor,
 } from './economy';
 import {
   isDedicatedServer, dedicatedArrivalProb, dedicatedBoxes, dedicatedCloseDelta, dedicatedReplyDelta, feeSteps,
@@ -113,6 +113,8 @@ export interface SimDay {
   net_tier: number;
   traffic: number;
   bandwidth: number;
+  /** 2026-11-13: a napi műszakban kezelt ticketek (0 = aznap nem volt műszak, mert nem volt ticket). */
+  shift_tickets: number;
 }
 
 export interface SimResult {
@@ -263,6 +265,8 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
   let feesTotal = 0;
   let bridgeDay: number | null = null;
   let ppcToday = 0;
+  /** A legutóbbi napi műszak ticketjei (0 = nem volt műszak). */
+  let shiftTicketsToday = 0;
   let feesToday = 0;
   let lastActive = 0;
   let dedSigned = 0;
@@ -425,8 +429,14 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
 
     // 3. ticketek
     {
-      const ovl = overloadTicketFactor(rules, generalN(), capacity()) * (NR && slowRatio() > 0 ? slowdownTicketFactor(NR, slowRatio()) : 1)
-        * eraTicketFactor(rules, p.era);
+      const penalty = overloadTicketFactor(rules, generalN(), capacity()) * (NR && slowRatio() > 0 ? slowdownTicketFactor(NR, slowRatio()) : 1);
+      // 2026-11-13: korszak-szorzó napi alsó határral, a büntetés-ticketek nélküle (economy.regularTicketFactor).
+      let ovl = penalty;
+      if (eraTicketFactor(rules, p.era) < 1) {
+        let expected = 0;
+        for (const c of customers) if (c.active && c.tier !== 'dedicated') expected += ticketSpawnProb(rules, c.sat, eff().ticket_pct, 1);
+        ovl = regularTicketFactor(rules, p.era, expected, penalty);
+      }
       for (const c of customers) {
         if (!c.active) continue;
         // A dedikált ügyfél saját gépen ül (nincs túlterhelés), de ticket_factor-szor annyi ticketet hoz.
@@ -589,8 +599,10 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
         net_tier: net.transit_tier,
         traffic: traffic(),
         bandwidth: netOn() ? bandwidth() : 0,
+        shift_tickets: shiftTicketsToday,
       });
       ppcToday = 0;
+      shiftTicketsToday = 0;
       feesToday = 0;
     }
   }
@@ -813,6 +825,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       leftoverAfterShift = Math.max(0, queue.length - batch.length);
       if (batch.length > 0) {
         p.shiftsToday++;
+        shiftTicketsToday = batch.length;
         for (const { c, ts } of batch) {
           if (c.tier === 'dedicated' && ded) {
             if (profile !== 'dedicated_neglect') {

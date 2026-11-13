@@ -84,6 +84,7 @@ describe('loadCosmetics (server-side gating)', () => {
     expect(await loadCosmetics(db, { key: '', fetchFn: hub.fetchFn }, 'u1')).toEqual(NO_COSMETICS);
     expect(await loadCosmetics(db, { key: KEY, fetchFn: hub.fetchFn }, 'u1')).toEqual(NO_COSMETICS);
     expect(hub.calls).toHaveLength(0);
+    clearEntitlementCache();
     const linked = await setup();
     const failing: FetchFn = async () => new Response('down', { status: 503 });
     expect(await loadCosmetics(linked, { key: KEY, fetchFn: failing }, 'u1')).toEqual(NO_COSMETICS);

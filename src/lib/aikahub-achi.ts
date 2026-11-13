@@ -86,11 +86,11 @@ export function hubFromLocals(locals: unknown): HubCtx {
 
 export type SendOutcome = 'ok' | 'drop' | 'retry' | 'skip';
 
-async function withTimeout(fetchFn: FetchFn, url: string, init: RequestInit): Promise<Response> {
+async function withTimeout(fetchFn: FetchFn, url: string, init: RequestInit, ms: number = HUB_TIMEOUT_MS): Promise<Response> {
   const ctl = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, rej) => {
-    timer = setTimeout(() => { ctl.abort(); rej(new Error('timeout')); }, HUB_TIMEOUT_MS);
+    timer = setTimeout(() => { ctl.abort(); rej(new Error('timeout')); }, ms);
   });
   try {
     return await Promise.race([fetchFn(url, { ...init, signal: ctl.signal }), timeout]);
@@ -260,33 +260,52 @@ export async function retryPendingHubSync(db: DbLike, hub: HubCtx): Promise<Sync
 export const ENTITLEMENTS = ['rack_skin_colo', 'rack_led_theme', 'company_banner'] as const;
 export type Entitlement = (typeof ENTITLEMENTS)[number];
 
-const entCache = new Map<string, { at: number; values: string[] }>();
+const entCache = new Map<string, { at: number; values: string[]; failed?: boolean }>();
+/** A Hub-célpont (kötés + hatókör) tagonként, rövid ideig: a kötés nélküli tag /play-oldalai így nem olvasnak minden
+ *  betöltéskor két D1-sort (izolátumonként; egy új kötés legfeljebb ennyi idő múlva látszik). */
+const targetCache = new Map<string, { at: number; target: { sub: string } | null }>();
+export const HUB_TARGET_TTL_MS = 60 * 1000;
+/** A sikertelen (időtúllépés, nem-2xx, hálózati hiba) lekérést is megjegyezzük ennyi ideig (üres listával): különben
+ *  egy lassú vagy álló Hub minden /play oldalt az időtúllépésig váratna. */
+export const ENTITLEMENT_FAIL_TTL_MS = 90 * 1000;
+/** A kozmetikák (minden /play oldal) rövid időtúllépéssel kérdeznek (cosmetics.ts). */
+export const ENTITLEMENT_FAST_TIMEOUT_MS = 1500;
 
 /** Teszthez. */
-export function clearEntitlementCache(): void { entCache.clear(); }
+export function clearEntitlementCache(): void { entCache.clear(); targetCache.clear(); }
+
+async function cachedHubTarget(db: DbLike, userId: string, nowMs: number): Promise<{ sub: string } | null> {
+  const hit = targetCache.get(userId);
+  if (hit && nowMs - hit.at < HUB_TARGET_TTL_MS) return hit.target;
+  const target = await hubTarget(db, userId);
+  targetCache.set(userId, { at: nowMs, target });
+  return target;
+}
 
 /**
  * GET /oauth/entitlements?sub=… — a tag Hub-oldali jogosultságai ebben a játékban ('hyperscales:rack-skin-colo' …).
- * 10 percre gyorsítótárazva (izolátumonként, sub szerint). Kulcs / kötés / hatókör nélkül, vagy hibánál: üres lista
- * (a hibát nem gyorsítótárazzuk). Hibát nem dob.
+ * 10 percre gyorsítótárazva (izolátumonként, sub szerint); a hibát is, de csak 90 mp-re, üres listával. A kötés /
+ * hatókör 1 percre gyorsítótárazva. Kulcs / kötés / hatókör nélkül, vagy hibánál: üres lista. Hibát nem dob.
+ * `opts.timeoutMs`: a Hub-kérés időtúllépése (alap: HUB_TIMEOUT_MS).
  */
-export async function fetchHubEntitlements(db: DbLike, hub: HubCtx, userId: string): Promise<string[]> {
+export async function fetchHubEntitlements(db: DbLike, hub: HubCtx, userId: string, opts: { timeoutMs?: number } = {}): Promise<string[]> {
   const key = (hub.key ?? '').trim();
   if (!key) return [];
-  let target: { sub: string } | null = null;
-  try { target = await hubTarget(db, userId); } catch { return []; }
-  if (!target) return [];
   const nowMs = (hub.now ?? Date.now() / 1000) * 1000;
+  let target: { sub: string } | null = null;
+  try { target = await cachedHubTarget(db, userId, nowMs); } catch { return []; }
+  if (!target) return [];
   const hit = entCache.get(target.sub);
-  if (hit && nowMs - hit.at < ENTITLEMENT_TTL_MS) return hit.values;
+  if (hit && nowMs - hit.at < (hit.failed ? ENTITLEMENT_FAIL_TTL_MS : ENTITLEMENT_TTL_MS)) return hit.values;
   const fetchFn = hub.fetchFn ?? ((i, init) => fetch(i, init));
+  const fail = (): string[] => { entCache.set(target!.sub, { at: nowMs, values: [], failed: true }); return []; };
   try {
     const r = await withTimeout(fetchFn, `${AIKAHUB_ISSUER}/oauth/entitlements?sub=${encodeURIComponent(target.sub)}`, {
       headers: { authorization: basicAuthHeader(key), accept: 'application/json' },
-    });
+    }, opts.timeoutMs ?? HUB_TIMEOUT_MS);
     if (!r.ok) {
       console.warn('aikahub-achi: entitlements sikertelen', { status: r.status });
-      return [];
+      return fail();
     }
     const j = await r.json() as { entitlements?: Array<{ value?: unknown } | string> };
     const prefix = `${AIKAHUB_CLIENT_ID}:`;
@@ -297,7 +316,7 @@ export async function fetchHubEntitlements(db: DbLike, hub: HubCtx, userId: stri
     return values;
   } catch {
     console.warn('aikahub-achi: entitlements nem elérhető');
-    return [];
+    return fail();
   }
 }
 
