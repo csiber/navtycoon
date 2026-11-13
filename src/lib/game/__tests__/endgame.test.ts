@@ -6,7 +6,7 @@ import { bigClientFeeCents, enterpriseEligible, isDedicatedCustomer, ENTERPRISE_
 import { ECONOMY } from '../economy';
 import { meetsServerRequirements, edgeUnits, EDGE_POP_BANDWIDTH_UNITS, SERVER_SPECS } from '../server-types';
 import { bandwidthUnits } from '../network';
-import { ACHIEVEMENTS, checkAndUnlockAchievements } from '../achievements';
+import { ACHIEVEMENTS, SPEEDRUN_DAYS, checkAndUnlockAchievements } from '../achievements';
 import { computeAchievementInput } from '../achievements-helper';
 import { fastestFinishers, LEADERBOARD_SQL } from '../leaderboard';
 import { restartCompany } from '../restart';
@@ -125,6 +125,9 @@ describe('completion in the DB', () => {
     expect(got).not.toContain('speedrun_hyperscaler');
     const fast = ACHIEVEMENTS.find((a) => a.id === 'speedrun_hyperscaler')!;
     expect(fast.check({ ...i, finished_days: 100 })).toBe(true);
+    expect(SPEEDRUN_DAYS).toBe(140);
+    expect(fast.check({ ...i, finished_days: 140 })).toBe(true);
+    expect(fast.check({ ...i, finished_days: 141 })).toBe(false);
   });
 
   it('the peak MRR only goes up; restart clears it and the completion', async () => {

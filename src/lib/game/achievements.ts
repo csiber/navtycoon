@@ -31,8 +31,9 @@ export interface AchievementCheckInput {
 }
 
 /** Rejtett „gyors befejezés" achievement határa (napban, az alapítástól). A szimulátorban az aktív játékos
- *  mediánja ~150 nap; ennyi alatt csak a nagyon jól játszó cég ér célba. */
-export const SPEEDRUN_DAYS = 120;
+ *  mediánja ~150 nap, a leggyorsabb seed 126 nap alatt ért célba (120 alatt egy sem) — 2026-11-13: 120 → 140,
+ *  hogy a nagyon jól játszó cég tényleg megszerezhesse. */
+export const SPEEDRUN_DAYS = 140;
 
 export interface AchievementDef {
   id: string;
