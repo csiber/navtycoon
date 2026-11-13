@@ -16,6 +16,26 @@ Astro 5 · Cloudflare Pages + Workers + D1 + Cron · Workers AI (Llama-3.3-70b �
 - **Admin** (force-tick, seed-végpontok): Pages környezeti változó `ADMIN_USER_IDS` (vesszővel elválasztott
   `users.id`-k). Nincs beállítva → senki sem admin.
 
+## Állapot (2026-11-13) — lezárva
+
+A projekt 2026-11-13-án lezárva: a játék végigjátszható — 4 korszak (1. LAMP/garázs, 2. Colo, 3. VPS/felhő,
+4. Dedikált/edge + nagyvállalat) és a végcél (`/play/finale`), 23 achievement. A kezdőlap (`/`) ugyanezt mutatja
+(4 korszak + végcél, a Csapat él; GPU-t, áramszámlát és hasonló, a játékban nem létező dolgot nem ígér).
+Tesztek: CT120, `npx vitest run`.
+A `@hyperscales.app` címekre (hello/privacy/legal/abuse) érkező levelek továbbítva (Cloudflare Email Routing),
+a 15 árva `players`-sor (a PromNET-korszak törölt fiókjai) törölve.
+
+### Nyitott pontok
+
+- TODO: a végjáték-achievementek (+5) Hub-definíciója és ikonjai (Csaba / claude-3); addig a retry-sor tartja őket.
+- TODO: az alkalmi játékos (napi egy műszak, fejlesztés nélkül) a 3. korszakban elakad — ha ő is célba érjen,
+  a ticket-kapacitáson kell lazítani.
+- TODO: a kozmetikai Hub-jogosultságok (`rack_skin_colo`, `rack_led_theme`, `company_banner`) hatása nincs bekötve.
+- TODO: a /play `achievementMap` (toastokhoz) a rejtett achievementek nevét is a kliensnek adja (enyhe spoiler).
+- TODO: a `public/js/play-shell.js` a CF alapérték szerinti 4 órás cache-sel megy ki (nem verziózott).
+- TODO: a landing a gsap / lenis / canvas-confetti könyvtárat a jsdelivr CDN-ről tölti (harmadik fél, GDPR).
+- TODO: saját Pro-forrás (most nincs Pro).
+
 ## Belépés AikaHub-fiókkal (ág: aikahub-auth)
 
 OAuth 2.0 engedélykód + PKCE (S256), `client_id=hyperscales`, scope: `profile achievements` (2026-11-12 óta; a meglévő tagok
@@ -56,11 +76,9 @@ mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d
   MRR ~$21k körül beáll (a ticket-kapacitás a plafon) — onnan sandbox. A szimulátor a hosszú futásokhoz
   gyorsítótárazott darabszámokkal fut (bitre azonos eredmény).
 - **Achievementek** (+5, összesen 23): `first_cloud_region`, `first_edge_pop`, `enterprise_contract`, `hyperscaled`,
-  rejtett `speedrun_hyperscaler` (≤ 120 nap). A Hub-definíciót claude-3 tölti be; addig a retry-sor tartja őket.
+  rejtett `speedrun_hyperscaler` (≤ 140 nap; 2026-11-13-ig 120 volt, de a szimulátorban egy seed
+  sem ért be 120 alatt, a leggyorsabb 126 nap). A Hub-definíciót claude-3 tölti be; addig a retry-sor tartja őket.
 - A tick, a műszak és a DO is változott → **a `navtycoon-do` workert újra kell telepíteni.**
-- TODO: a végjáték-achievementek Hub-definíciója és ikonjai (Csaba / claude-3).
-- TODO: az alkalmi játékos (fejlesztés nélkül) a 3. korszakban elakad — ha Csaba szeretné, hogy ő is célba érjen,
-  a ticket-kapacitáson kell lazítani (nem ebben a körben).
 
 ## Csapat és Hálózat (ág: csapat-halozat, 2026-11-12)
 
@@ -107,9 +125,6 @@ base64("hyperscales:<AIKAHUB_CLIENT_KEY>")`, a pairwise `sub`-ra; Hub-id = `hype
 - `survived_first_ddos`: a lezáráskori ügyfélszámot az esemény menti, a következő tick dönt (≤10% esés). `comeback_kid`:
   mélypont (pénz < max($100, 7 napi kiadás)) naponta egyszer az `audit_log`-ba (`cash_low_point`), 30 napon belül 2× MRR.
 - Jogosultságok: `fetchHubEntitlements` / `hasEntitlement` (GET /oauth/entitlements, 10 perc gyorsítótár).
-- TODO: a kozmetikai jogosultságok hatása még nincs bekötve: `rack_skin_colo` (3D rack colo-ketrec kinézet), `rack_led_theme`
-  (választható LED-színséma), `company_banner` (egyedi cégszín a ranglistán).
-- TODO: a /play `achievementMap` (toastokhoz) a rejtett achievementek nevét is a kliensnek adja (enyhe spoiler a forrásban).
 
 ## UX 2. fázis (ág: ux-2, 2026-11-11)
 
@@ -129,9 +144,6 @@ base64("hyperscales:<AIKAHUB_CLIENT_KEY>")`, a pairwise `sub`-ra; Hub-id = `hype
   „immutable"-ként gyorsítótárazza.
 - Webfontok saját kiszolgálásban (ux-3, GDPR): `src/styles/fonts.css` + `src/assets/fonts/` (Inter, Space Grotesk,
   JetBrains Mono, @fontsource 5.3.0, latin + latin-ext, csak a használt súlyok; licenc: SIL OFL 1.1). Google Fonts-kérés nincs.
-- TODO: a `public/js/play-shell.js` még a CF alapérték szerinti 4 órás cache-sel megy ki (a CSS-hez hasonlóan verziózható).
-- TODO: a landing (`/`) a gsap / lenis / canvas-confetti könyvtárat a jsdelivr CDN-ről tölti (harmadik fél, GDPR) —
-  a `canvas-confetti` már npm-függőség, a többi is helyben kiszolgálható.
 
 ## Állapot (2026-11-11)
 
@@ -142,9 +154,6 @@ base64("hyperscales:<AIKAHUB_CLIENT_KEY>")`, a pairwise `sub`-ra; Hub-id = `hype
   a kivezetés alatt álló `llama-3.1-8b-instruct-fast` tartalékmodell cseréje, NPC-k a cron-tickben,
   napi AI-keret 5 → 30 (az első műszakra sem volt elég), mobil landing (vízszintes görgetés, egymásra csúszó gombok),
   valótlan landing-szövegek („no signup", „saves locally", „bring your own LLM key").
-- TODO: a `@hyperscales.app` címeknek (hello/privacy/legal/abuse) nincs MX-rekordja — a jogi oldalak kapcsolati címei
-  nem kézbesíthetők; CF Email Routing kell.
-- TODO: 15 árva `players`-sor (a PromNET-korszak törölt fiókjai) még a ranglistán; törlésük prod-írás, Csaba döntése.
 
 ## Állapot (2026-10-06)
 
@@ -160,7 +169,6 @@ base64("hyperscales:<AIKAHUB_CLIENT_KEY>")`, a pairwise `sub`-ra; Hub-id = `hype
   2026-11-11 óta NEM kötjük vissza automatikusan (e-mail-ellenőrzés nélkül fiókátvétel lett volna); csak kézzel.
 - A fióktörlés most a `users`/`sessions`/`legacy_accounts` sort is törli.
 - A tesztek (`npm test`) a Pi-n nem futnak (a workerd/Miniflare jemalloc-gond miatt lefagy) — amd64-en (CT120) mind zöld.
-- TODO: saját Pro-forrás (most nincs Pro).
 
 ## Hangok (ág: hangok, 2026-11-12)
 
