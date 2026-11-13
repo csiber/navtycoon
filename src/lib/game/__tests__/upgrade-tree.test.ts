@@ -3,10 +3,21 @@ import { availableUpgrades, getUpgradeById, UPGRADE_SPECS } from '../upgrade-tre
 import { SERVER_SPECS, affordableServerTypes } from '../server-types';
 
 describe('upgrade-tree', () => {
-  it('20 specs total (Era 1: 8, Era 2: 12)', () => {
-    expect(UPGRADE_SPECS.length).toBe(20);
+  it('26 specs total (Era 1: 8, Era 2: 12, Era 3: 3, Era 4: 3)', () => {
+    expect(UPGRADE_SPECS.length).toBe(26);
     expect(UPGRADE_SPECS.filter(u => u.era === 1).length).toBe(8);
     expect(UPGRADE_SPECS.filter(u => u.era === 2).length).toBe(12);
+    expect(UPGRADE_SPECS.filter(u => u.era === 3).length).toBe(3);
+    expect(UPGRADE_SPECS.filter(u => u.era === 4).length).toBe(3);
+  });
+
+  it('every prereq exists and is from the same or an earlier era', () => {
+    for (const u of UPGRADE_SPECS) {
+      if (!u.prereq) continue;
+      const p = getUpgradeById(u.prereq);
+      expect(p, u.id).toBeDefined();
+      expect(p!.era).toBeLessThanOrEqual(u.era);
+    }
   });
 
   it('Era 1 player sees only Era 1 unowned upgrades (cdn_bind gated by mod_pagespeed)', () => {
@@ -58,7 +69,15 @@ describe('server-types', () => {
     expect(types).toEqual(['dedicated_box', 'lamp_box', 'rack_unit', 'vps_node']);
   });
 
-  it('SERVER_SPECS has all 6 entries (incl. placeholders for Era 3-4)', () => {
+  it('SERVER_SPECS has all 6 entries, and the Era 3-4 machines are real now (2026-11-13)', () => {
     expect(Object.keys(SERVER_SPECS).length).toBe(6);
+    expect(affordableServerTypes(3).map(s => s.type)).toContain('cloud_region');
+    expect(affordableServerTypes(3).map(s => s.type)).not.toContain('edge_pop');
+    expect(affordableServerTypes(4).map(s => s.type)).toContain('edge_pop');
+    for (const t of ['cloud_region', 'edge_pop'] as const) {
+      expect(SERVER_SPECS[t].capacity).toBeGreaterThan(0);
+      expect(SERVER_SPECS[t].monthly_cost_cents).toBeGreaterThan(0);
+      expect(SERVER_SPECS[t].purchase_cost_cents).toBeGreaterThan(0);
+    }
   });
 });

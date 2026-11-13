@@ -3,8 +3,8 @@
 // Korábban mindkettő saját, egymásnak és a vezérlőnek is ellentmondó „Era 2" feltétellistát mutatott
 // (pl. „Reach $100 MRR ✓" miközben $15 volt, „Lease a colo cabinet", „Survive 30 days", „Rep ≥ 65"),
 // alatta kitalált jelöltekkel, BGP-peerekkel és késleltetés-térképpel. Most: a korszak-feltételek
-// ugyanabból a forrásból (eraProgress), mint a vezérlő és az oldalsáv, és őszinte „tervezett" lista.
-// A funkció maga még nincs kész — ezt ki is mondjuk, nem kamu-adattal töltjük ki.
+// ugyanabból a forrásból (eraProgress), mint a vezérlő és az oldalsáv, és egy rövid lista arról, mi vár ott.
+// 2026-11-13: mindkét funkció kész (a 2. korszaktól), így a lista már nem „tervezett", hanem „mi vár itt".
 
 import { esc, renderEraReqs, type ShellData } from './shell';
 import { pt, type PlayKey } from './strings';

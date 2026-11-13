@@ -29,6 +29,37 @@ Helyi teszt: `wrangler pages dev dist --port 8788` → http://127.0.0.1:8788 (az
 mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d1 execute … --file`, mert a
 `wrangler d1 migrations apply` a `0010b_…`-t a `0010_…` elé sorolja és elhasal.
 
+## Végjáték (ág: vegjatek, 2026-11-13) — a játék végigjátszható
+
+- **Végcél** (`src/lib/game/endgame.ts`, `GOAL`): 4. korszak · $15 000 MRR (a nagy ügyfelek díja nélkül, mint a
+  korszakoknál) · 90 hírnév · 2 felhőrégió · 3 edge POP · 1 élő nagyvállalati szerződés. Végig látszik: oldalsáv
+  (végcél-doboz minden oldalon) és a vezérlő korszak-paneljén (mobilon is). Részletek és záróképernyő: `/play/finale`.
+- **Befejezés**: a tick (8.5. lépés) egyszer feljegyzi egy lezárt `game_completed` eseménysorban (`data_json.days`), a
+  csúcs-MRR félnaponta az `audit_log`-ba (`mrr_peak`). **Migráció nincs.** Utána a játék megy tovább (sandbox); a
+  „Vállalat újraindítása” (Beállítások, `#restart`) az eseményekkel a befejezést és a csúcs-MRR-t is törli.
+- **Záróképernyő** (`src/lib/play/finale-page.ts`, `src/pages/play/finale.astro`): gratuláció, a cég számokban
+  (alapítás, célba érés napja, csúcs-MRR, ügyfelek, műszakok, ticketek, csapat, gépek, achievementek), stáblista,
+  megosztható szöveg (vágólap / natív megosztás) és 1200×630-as PNG (canvas, külső könyvtár nélkül), a nyilvános
+  profilra (`/u/<id>`) mutató linkkel. Ranglista és nyilvános profil: „X nap alatt befejezte” + a leggyorsabb befejezők.
+- **3. korszak**: felhőrégió (`cloud_region`: 400 hely, $450/hó, $3000, legalább 1 Gbites tranzit — az API is
+  ellenőrzi), 10 Gbites tranzit ($400/hó, 2000 egység), 3 fejlesztés (`autoscaling`, `object_storage`, `ai_triage`).
+- **4. korszak**: edge POP (`edge_pop`: 120 hely, $250/hó, $2500, +250 sávszélesség — `network.ts edge_units`),
+  3 fejlesztés (`anycast_dns`, `green_ppa`, `premium_support`), csapat 6 → 8 fő, **nagyvállalati szerződés**:
+  `plan_tier = 'enterprise'` egy szabad dedikált gépen, ugyanazokkal a gondozási szabályokkal, mint a dedikált ügyfél
+  (SLA, ticketek, távozás), de $1200–$2000/hó; csak 75+ hírnévvel, 1 felhőrégióval és 2 edge POP-pal jön
+  (`dedicated.ts enterpriseEligible`). Az események a `dedicated_signed/lost` sorokat használják (`enterprise: true`).
+- **Tempó** (szimulátor, `__tests__/economy-sim-endgame.test.ts`, 365 nap): beszerzési szorzó 3. korszak ×2 → ×4,
+  4. ×3 → ×5; a 4. korszak MRR-feltétele $10 000 → $8000. Az 1–2. korszak és így a 3. korszak elérése változatlan.
+  Aktív játékos: célba ér ~150–220 nap alatt (medián ~170); alkalmi: a 3. korszakban ~110 ügyfélnél megáll (napi egy
+  műszak, fejlesztés nélkül) → soha; tétlen: soha. A szimulátor a hosszú futásokhoz gyorsítótárazott darabszámokkal
+  fut (bitre azonos eredmény).
+- **Achievementek** (+5, összesen 23): `first_cloud_region`, `first_edge_pop`, `enterprise_contract`, `hyperscaled`,
+  rejtett `speedrun_hyperscaler` (≤ 120 nap). A Hub-definíciót claude-3 tölti be; addig a retry-sor tartja őket.
+- A tick, a műszak és a DO is változott → **a `navtycoon-do` workert újra kell telepíteni.**
+- TODO: a végjáték-achievementek Hub-definíciója és ikonjai (Csaba / claude-3).
+- TODO: az alkalmi játékos (fejlesztés nélkül) a 3. korszakban elakad — ha Csaba szeretné, hogy ő is célba érjen,
+  a ticket-kapacitáson kell lazítani (nem ebben a körben).
+
 ## Csapat és Hálózat (ág: csapat-halozat, 2026-11-12)
 
 Mindkettő a 2. korszaktól. A szabályok egy helyen: `src/lib/game/staff.ts`, `src/lib/game/network.ts`, a számok az
