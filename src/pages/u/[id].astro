@@ -7,6 +7,9 @@ import '../../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a V
 import { getDB } from '../../lib/auth';
 import { ACHIEVEMENTS } from '../../lib/game/achievements';
 import { HIDDEN_TITLE, HIDDEN_EMOJI } from '../../lib/play/achievements-i18n';
+import { loadCompletion } from '../../lib/game/endgame';
+import { pt } from '../../lib/play/strings';
+import { resolveLocale } from '../../lib/i18n/server';
 
 type AnyCtx = Parameters<typeof getDB>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -57,6 +60,10 @@ const achievementCells = ACHIEVEMENTS.map((a) => {
   return { emoji: masked ? HIDDEN_EMOJI : a.emoji, title: masked ? HIDDEN_TITLE : a.title, unlocked: have };
 });
 const unlockedCount = unlockedRows.length;
+// 2026-11-13 (végjáték): „Befejezte X nap alatt" a nyilvános profilon is (events.game_completed).
+const completion = await loadCompletion(db as never, id).catch(() => null);
+const finLocale = await resolveLocale({ request: Astro.request });
+const finText = completion ? pt(finLocale, 'lb.finished', { n: completion.days }) : '';
 const totalAchievements = ACHIEVEMENTS.length;
 
 const companyName = player.company_name;
@@ -194,6 +201,7 @@ const pageUrl = `https://hyperscales.app/u/${id}`;
           <span class="pill">EST {founded}</span>
           <span class="pill">Era {player.current_era} · {eraLabel}</span>
           {player.is_pro === 1 && <span class="pill pro">PRO</span>}
+          {completion && <span class="pill">🏆 {finText}</span>}
         </div>
       </div>
     </div>

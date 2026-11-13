@@ -6,7 +6,8 @@
 // ami kimaradt, hamis maradt. Most minden érték az adatbázisból jön; ahol nincs adat, őszinte üres állapot.
 // A CSS-osztályok a régi sablonéi (index.astro pageCss), így a kinézet változatlan.
 
-import { esc, usd, usd2, type ShellData, renderEraReqs } from './shell';
+import { esc, usd, usd2, type ShellData, renderEraReqs, renderGoalReqs } from './shell';
+import { GOAL } from '../game/endgame';
 import { pt, type PlayLocale, type PlayKey } from './strings';
 import { isDedicatedCustomer } from '../game/dedicated';
 import { eventLine, ago, type FeedEvent } from './events';
@@ -356,8 +357,17 @@ export function renderDashboardContent(d: DashboardData): string {
             <div class="sub">${esc(pt(L, ERA_DESC_KEYS[ep.target_era] ?? 'dash.era.desc2'))}</div>
             <div class="progress"><i style="width:${Math.round((ep.met_count / Math.max(1, ep.total)) * 100)}%"></i></div>
             <div class="pct">${esc(pt(L, 'dash.era.pct', { met: ep.met_count, total: ep.total }))}</div>
-          </div>` : `<div class="next-era"><div class="name">🏁 ${esc(pt(L, 'era.max'))}</div></div>`}
+          </div>` : s.completed ? `<div class="next-era goal-final"><div class="name">🏆 ${esc(pt(L, 'goal.done_short', { days: s.completed.days }))}</div>
+            <div class="sub">${esc(pt(L, 'goal.sandbox'))}</div><a class="btn sm primary" href="/play/finale">${esc(pt(L, 'goal.open_finale'))}</a></div>`
+          : s.goal ? `<div class="era-reqs era-reqs-card" style="margin:0;max-width:none">
+            <div class="era-req-title">🏆 ${esc(pt(L, 'goal.title'))} · ${esc(pt(L, 'era.requirements', { met: s.goal.met_count, total: s.goal.total }))}</div>
+            ${renderGoalReqs(L, s.goal)}
+          </div>
+          <div class="next-era"><div class="name">🏆 ${esc(pt(L, 'goal.title'))}</div><div class="sub">${esc(pt(L, 'goal.desc'))}</div>
+            <div class="progress"><i style="width:${Math.round((s.goal.met_count / Math.max(1, s.goal.total)) * 100)}%"></i></div></div>`
+          : `<div class="next-era"><div class="name">🏁 ${esc(pt(L, 'era.max'))}</div></div>`}
         </div>
+        ${ep && s.goal && !s.completed ? `<a class="goal-strip" href="/play/finale"><span>🏆 ${esc(pt(L, 'goal.k'))}: <b>${esc(pt(L, 'goal.title'))}</b> — ${esc(pt(L, 'goal.strip', { era: GOAL.era, mrr: '$' + (GOAL.min_mrr_cents / 100).toLocaleString('en-US'), rep: GOAL.min_reputation, r: GOAL.min_cloud_regions, p: GOAL.min_edge_pops }))}</span><span class="goal-strip-n">${s.goal.met_count}/${s.goal.total}</span></a>` : ''}
       </section>`;
 
   // ─── Shift CTA (real numbers, no fake "3:42 AM") ───

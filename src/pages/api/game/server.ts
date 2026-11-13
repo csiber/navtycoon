@@ -4,7 +4,8 @@ import { legacyError } from '../../../lib/i18n/api-errors';
 import type { APIContext } from 'astro';
 import { getCurrentUser, getDB } from '../../../lib/auth';
 import { getPlayer } from '../../../lib/game/db';
-import { SERVER_SPECS } from '../../../lib/game/server-types';
+import { SERVER_SPECS, meetsServerRequirements } from '../../../lib/game/server-types';
+import { loadNetwork } from '../../../lib/game/network';
 import type { ServerType } from '../../../lib/game/types';
 import { computeAchievementInput } from '../../../lib/game/achievements-helper';
 import { checkAndUnlockAchievements } from '../../../lib/game/achievements';
@@ -34,6 +35,8 @@ export const POST = async (c: APIContext): Promise<Response> => {
   const spec = SERVER_SPECS[type];
   if (!spec || spec.capacity === 0) return jerr(400, 'invalid server type');
   if (spec.era > player.current_era) return jerr(403, 'era locked');
+  // 2026-11-13 (végjáték): a felhőrégióhoz legalább 1 Gbites tranzit kell (server-types.SERVER_REQUIREMENTS).
+  if (!meetsServerRequirements(spec.type, (await loadNetwork(db as never, user.id)).transit_tier)) return jerr(403, 'network too small');
   if (player.cash_usd_cents < spec.purchase_cost_cents) return jerr(402, 'insufficient cash');
 
   const now = Math.floor(Date.now() / 1000);

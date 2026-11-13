@@ -9,7 +9,7 @@ import { esc, usd, type ShellData } from './shell';
 import { pt } from './strings';
 import { achievementCell } from './achievements-i18n';
 import { ACHIEVEMENTS } from '../game/achievements';
-import type { RankedPlayer } from '../game/leaderboard';
+import { fastestFinishers, type RankedPlayer } from '../game/leaderboard';
 
 const GRADS = ['#f59e0b,#b45309', '#22d3ee,#0e7490', '#a78bfa,#6d28d9', '#34d399,#047857', '#f43f5e,#be123c', '#6366f1,#4338ca'];
 
@@ -26,12 +26,16 @@ export function renderLeaderboardContent(
   const day = (r: RankedPlayer) => Math.max(1, Math.floor((now - r.founded_at) / 86400) + 1);
   const npcTag = (r: RankedPlayer) => (r.is_npc ? `<span class="lbx-npc" title="${esc(pt(L, 'lb.npc_tip'))}">${esc(pt(L, 'lb.npc'))}</span>` : '');
   const meTag = (r: RankedPlayer) => (r.is_me ? `<span class="lbx-you">${esc(pt(L, 'lb.you'))}</span>` : '');
+  // 2026-11-13 (végjáték): „Befejezte X nap alatt" jelzés a befejezett cégeknél.
+  const finTag = (r: RankedPlayer) => (r.finished_days != null
+    ? `<span class="lbx-fin" title="${esc(pt(L, 'lb.finished_tip', { n: r.finished_days }))}">🏆 ${esc(pt(L, 'lb.finished', { n: r.finished_days }))}</span>` : '');
+  const fastest = fastestFinishers(ranked);
 
   const podium = ranked.slice(0, 3).map((r, i) => `
             <div class="pod r${i + 1}">
               <div class="rank">${i + 1}</div>
               ${avatar(r.company_name, i)}
-              <div class="name">${esc(r.company_name)} ${npcTag(r)}${meTag(r)}</div>
+              <div class="name">${esc(r.company_name)} ${npcTag(r)}${meTag(r)}${finTag(r)}</div>
               <div class="score">${esc(usd(r.mrr_usd_cents))}<small>/${esc(pt(L, 'lb.mo'))}</small></div>
               <div class="stats"><span>${esc(pt(L, 'top.cash'))} <b>${esc(usd(r.cash_usd_cents))}</b></span><span>${esc(pt(L, 'top.day', { n: day(r) }))}</span></div>
             </div>`);
@@ -42,7 +46,7 @@ export function renderLeaderboardContent(
           <div class="lbx-row${r.is_me ? ' me' : ''}${r.is_npc ? ' npc' : ''}" data-npc="${r.is_npc ? 1 : 0}">
             <div class="rk">${r.rank}</div>
             ${avatar(r.company_name, r.rank)}
-            <div class="who"><div class="name">${esc(r.company_name)} ${npcTag(r)}${meTag(r)}</div></div>
+            <div class="who"><div class="name">${esc(r.company_name)} ${npcTag(r)}${meTag(r)}${finTag(r)}</div></div>
             <div class="v">${esc(usd(r.mrr_usd_cents))}</div>
             <div class="v">${esc(usd(r.cash_usd_cents))}</div>
             <div class="v">${r.reputation}</div>
@@ -87,6 +91,11 @@ export function renderLeaderboardContent(
             <div class="lbl">${esc(pt(L, 'lb.your_rank'))}</div>
             <h3>${me ? `#${me.rank}` : '—'} <small>/ ${ranked.length}</small></h3>
             <div class="sub">${esc(pt(L, 'lb.how'))}</div>
+          </section>
+          <section class="panel lb-fin">
+            <div class="ph"><h3>🏆 ${esc(pt(L, 'lb.fin_title'))}</h3></div>
+            ${fastest.length === 0 ? `<div class="lb-fin-empty">${esc(pt(L, 'lb.fin_empty'))}</div>`
+              : `<ol class="lb-fin-list">${fastest.map((r) => `<li><span>${esc(r.company_name)}${r.is_me ? ` <span class="lbx-you">${esc(pt(L, 'lb.you'))}</span>` : ''}</span><b>${esc(pt(L, 'lb.finished', { n: r.finished_days! }))}</b></li>`).join('')}</ol>`}
           </section>
           <section class="panel">
             <div class="ph"><h3>${esc(pt(L, 'lb.badges'))}</h3><span class="ph-sub">// ${unlocked.size}/${ACHIEVEMENTS.length}</span></div>

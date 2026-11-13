@@ -11,11 +11,12 @@ import type { Player } from '../game/types';
 import { UPGRADE_SPECS } from '../game/upgrade-tree';
 import { renderSoundControl } from './sound-ui';
 import { eraProgress, daysAlive, eraMrrCents, dedicatedMrrCents, type EraProgress } from '../game/era-progress';
-import { BIG_TIERS_SQL } from '../game/dedicated';
+import { BIG_TIERS_SQL, ENTERPRISE_TIER } from '../game/dedicated';
+import { goalProgress, loadCompletion, GOAL, type GoalProgress, type CompletionRecord } from '../game/endgame';
 import { dailyCashFlow, type CashFlow } from '../game/runway';
 import { LOW_CASH_WARN_CENTS, ECONOMY, FLEET_WARN_PCT, fleetUtilPct } from '../game/economy';
 import { effectsOf, type UpgradeEffects } from '../game/upgrade-effects';
-import { serverCapacity } from '../game/server-types';
+import { serverCapacity, edgeUnits } from '../game/server-types';
 import { pt, clientStrings, type PlayLocale, type PlayKey } from './strings';
 import { type StaffMember, loadStaff, totalSalaryCents, maxStaff, supportPerDay } from '../game/staff';
 import {
@@ -89,6 +90,9 @@ export interface ShellData {
     upgradesTotal: number;
   };
   era2: EraProgress | null;
+  /** 2026-11-13 (végjáték): a végcél állása (mindig), és a befejezés, ha már megvolt. */
+  goal?: GoalProgress;
+  completed?: CompletionRecord | null;
   fleet: FleetInfo;
   /** A birtokolt fejlesztések összesített hatása. */
   effects: UpgradeEffects;
@@ -146,7 +150,19 @@ export async function loadShell(
     const big = by('dedicated') + by('enterprise');
     traffic = trafficUnits(NR, { hobby: customers - by('business') - big, business: by('business'), dedicated: big });
   }
+  // Az edge POP-ok a forgalom egy részét helyben szolgálják ki (a Hálózat lap is ezt a sávszélességet mutatja).
+  network.edge_units = edgeUnits(srvRows.results ?? []);
   const bandwidth = netOn && NR ? bandwidthUnits(NR, network) : 0;
+  // Végcél: felhőrégiók, edge POP-ok, élő nagyvállalati szerződés; a befejezés az events táblából (endgame.ts).
+  const typeN = (t: string) => (srvRows.results ?? []).filter((r) => r.type === t).length;
+  const [enterpriseN, completed] = await Promise.all([
+    dedCustomers > 0 ? one('SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier = ?', uid, ENTERPRISE_TIER) : Promise.resolve(0),
+    loadCompletion(db as never, uid).catch(() => null),
+  ]);
+  const goal = goalProgress({
+    era: player.current_era, goal_mrr_cents: eraMrrCents(player.mrr_usd_cents, dedFees), reputation: player.reputation,
+    cloud_regions: typeN('cloud_region'), edge_pops: typeN('edge_pop'), enterprise_clients: enterpriseN,
+  });
   const team: TeamInfo = {
     staff,
     max: maxStaff(SR, player.current_era),
@@ -158,6 +174,8 @@ export async function loadShell(
   };
   return {
     team,
+    goal,
+    completed,
     locale,
     company: player.company_name,
     initials: initialsOf(player.company_name),
@@ -295,10 +313,43 @@ export function renderEraReqs(locale: PlayLocale, ep: EraProgress): string {
       </div>`).join('');
 }
 
+/** A végcél feltételei (oldalsáv, vezérlő, záróképernyő közösen). */
+export function renderGoalReqs(locale: PlayLocale, g: GoalProgress): string {
+  return g.reqs.map((r) => {
+    const v = (n: number) => (r.key === 'mrr' ? '$' + n.toLocaleString('en-US') : String(n));
+    return `
+      <div class="era-req${r.done ? ' done' : ''}">
+        <div class="era-req-row"><span>${r.done ? '✓' : '·'} ${esc(pt(locale, (`goal.req.${r.key}`) as PlayKey, { n: GOAL.era }))}</span><span class="era-req-v">${esc(v(r.current))} / ${esc(v(r.needed))}</span></div>
+        <div class="era-req-bar"><i style="width:${r.pct}%"></i></div>
+      </div>`;
+  }).join('');
+}
+
+/** 2026-11-13 (végjáték): a végcél-doboz az oldalsávban — minden oldalon látszik. Befejezés után a záróképernyőre visz. */
+export function renderGoalBox(s: ShellData): string {
+  const L = s.locale;
+  if (s.completed) {
+    return `<a class="era-box goal-done" href="/play/finale"><span class="era-ico">🏆</span><span class="era-head"><span class="era-k">${esc(pt(L, 'goal.k'))}</span><b>${esc(pt(L, 'goal.done_short', { days: s.completed.days }))}</b></span><span class="era-count">→</span></a>`;
+  }
+  const g = s.goal;
+  if (!g) return '';
+  return `
+    <details class="era-box goal-box" id="goal-box"${s.era >= GOAL.era ? ' open' : ''}>
+      <summary title="${esc(pt(L, 'goal.toggle'))}">
+        <span class="era-ico">🏆</span>
+        <span class="era-head"><span class="era-k">${esc(pt(L, 'goal.k'))}</span><b>${esc(pt(L, 'goal.title'))}</b></span>
+        <span class="era-count">${g.met_count}/${g.total}</span>
+      </summary>
+      <div class="era-reqs">${renderGoalReqs(L, g)}</div>
+      <a class="goal-more" href="/play/finale">${esc(pt(L, 'goal.more'))}</a>
+    </details>`;
+}
+
 function renderEraBox(s: ShellData): string {
   const L = s.locale;
   const ep = s.era2;
-  if (!ep) return `<div class="era-box era-max">🏁 ${esc(pt(L, 'era.max'))}</div>`;
+  // Az utolsó korszakban a korszak-doboz helyett a végcél-doboz beszél (renderGoalBox).
+  if (!ep) return '';
   return `
     <details class="era-box" id="era-box">
       <summary title="${esc(pt(L, 'era.toggle'))}">
@@ -375,6 +426,7 @@ export function renderSidebar(s: ShellData, active: NavId): string {
     </div>
     ${sections}
     ${renderEraBox(s)}
+    ${renderGoalBox(s)}
     <div class="side-foot">
       <div>Hyperscales · ${esc(pt(L, 'foot.beta'))}</div>
       <a href="#">⌨ ${esc(pt(L, 'foot.shortcuts'))} ⌘K</a>

@@ -9,7 +9,7 @@ import { pt } from './strings';
 import { serverName, serverFlavor, upgradeName, upgradeEffect } from './catalog';
 import { rackUnitStates, unit2d } from './rack-model';
 import { daysAlive } from '../game/era-progress';
-import { serverCapacity } from '../game/server-types';
+import { serverCapacity, meetsServerRequirements, EDGE_POP_BANDWIDTH_UNITS } from '../game/server-types';
 import { effectiveMonthlyFees, ECONOMY } from '../game/economy';
 import { isDedicatedServer, dedicatedFeeMid } from '../game/dedicated';
 import { NO_EFFECTS } from '../game/upgrade-effects';
@@ -135,6 +135,7 @@ export function renderServersContent(d: ServersPageData): string {
       const fee = effectiveMonthlyFees(b.monthly_cost_cents, effs.fee_pct);
       const k = Math.max(1, Math.ceil(fee / Math.max(1, d.hobbyPriceCents ?? 500)));
       const rule = ECONOMY.dedicated;
+      const ent = ECONOMY.enterprise;
       if (isDedicatedServer(b.type) && rule) {
         // „1 nagy ügyfél, ~$X/hó, magas elvárás" + mikor térül meg a vételár (a sáv közepével számolva).
         const mid = dedicatedFeeMid(rule);
@@ -142,16 +143,23 @@ export function renderServersContent(d: ServersPageData): string {
         return `
           <div class="cat-item ded${ok ? ' affordable' : ''}">
             <div class="row1"><span class="name">${esc(serverName(L, b.type))}</span> ${dedTag}<span class="tag${ok ? '' : ' lock'}">${esc(pt(L, ok ? 'srv.tag_ok' : 'srv.tag_cash'))}</span></div>
-            <div class="ded-offer">${esc(pt(L, 'srv.ded_offer', { v: usd(mid) }))}</div>
+            <div class="ded-offer">${esc(pt(L, 'srv.ded_offer', { v: usd(mid) }))}</div>${ent && s.era >= ent.min_era ? `
+            <div class="ded-offer ent-offer">🌐 ${esc(pt(L, 'srv.ent_offer', { a: usd(ent.fee_min_cents), b: usd(ent.fee_max_cents), r: ent.min_reputation, c: ent.min_cloud_regions, p: ent.min_edge_pops }))}</div>` : ''}
             <div class="specs-mini"><span>${esc(pt(L, 'srv.per_month', { v: usd(fee) }))}</span><span>${esc(pt(L, 'srv.ded_payback', { m: months.toLocaleString(L === 'en' ? 'en-US' : L === 'de' ? 'de-DE' : 'hu-HU') }))}</span><span>${esc(pt(L, 'srv.ded_how', { d: Math.max(1, Math.round(1 / rule.arrival_per_day)), r: rule.min_reputation }))}</span></div>
             <div class="row2"><span class="price${ok ? '' : ' lock'}">${esc(usd(b.purchase_cost_cents))}</span><button class="buy" type="button"${ok ? ` data-buy-server="${esc(b.type)}" data-name="${esc(serverName(L, b.type))}" data-cost="${b.purchase_cost_cents}"` : ' disabled'}>${esc(pt(L, ok ? 'srv.buy' : 'srv.tag_cash'))}</button></div>
           </div>`;
       }
+      // 2026-11-13 (végjáték): a felhőrégióhoz 1 Gbites tranzit kell; az edge POP sávszélességet is ad.
+      const netOk = meetsServerRequirements(b.type, s.team?.network?.transit_tier ?? 0);
+      const can = ok && netOk;
+      const tagKey = !netOk ? 'srv.tag_net' : ok ? 'srv.tag_ok' : 'srv.tag_cash';
+      const extra = b.type === 'edge_pop' ? `<span>${esc(pt(L, 'srv.edge_bw', { n: EDGE_POP_BANDWIDTH_UNITS }))}</span>`
+        : b.type === 'cloud_region' ? `<span>${esc(pt(L, 'srv.need_net'))}</span>` : '';
       return `
-          <div class="cat-item${ok ? ' affordable' : ''}">
-            <div class="row1"><span class="name">${esc(serverName(L, b.type))}</span><span class="tag${ok ? '' : ' lock'}">${esc(pt(L, ok ? 'srv.tag_ok' : 'srv.tag_cash'))}</span></div>
-            <div class="specs-mini"><span>${esc(pt(L, 'dash.quick.slots', { n: slots }))}</span><span>${esc(pt(L, 'srv.per_month', { v: usd(fee) }))}</span><span>${esc(pt(L, 'srv.breakeven', { k }))}</span><span>${esc(serverFlavor(L, b.type))}</span></div>
-            <div class="row2"><span class="price${ok ? '' : ' lock'}">${esc(usd(b.purchase_cost_cents))}</span><button class="buy" type="button"${ok ? ` data-buy-server="${esc(b.type)}" data-name="${esc(serverName(L, b.type))}" data-cost="${b.purchase_cost_cents}"` : ' disabled'}>${esc(pt(L, ok ? 'srv.buy' : 'srv.tag_cash'))}</button></div>
+          <div class="cat-item${can ? ' affordable' : ''}">
+            <div class="row1"><span class="name">${esc(serverName(L, b.type))}</span><span class="tag${can ? '' : ' lock'}">${esc(pt(L, tagKey))}</span></div>
+            <div class="specs-mini"><span>${esc(pt(L, 'dash.quick.slots', { n: slots }))}</span><span>${esc(pt(L, 'srv.per_month', { v: usd(fee) }))}</span><span>${esc(pt(L, 'srv.breakeven', { k }))}</span>${extra}<span>${esc(serverFlavor(L, b.type))}</span></div>
+            <div class="row2"><span class="price${ok ? '' : ' lock'}">${esc(usd(b.purchase_cost_cents))}</span><button class="buy" type="button"${can ? ` data-buy-server="${esc(b.type)}" data-name="${esc(serverName(L, b.type))}" data-cost="${b.purchase_cost_cents}"` : ' disabled'}>${esc(pt(L, tagKey === 'srv.tag_ok' ? 'srv.buy' : tagKey))}</button></div>
           </div>`;
     }).join('');
 

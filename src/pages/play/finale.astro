@@ -1,0 +1,71 @@
+---
+import '../../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a Vite hash-elt néven adja ki
+import PlayAudio from '../../components/PlayAudio.astro'; // közös hangmotor (src/scripts/audio)
+import templateCssUrl from '../../styles/template.css?url';
+import playShellCssUrl from '../../styles/play-shell.css?url';
+// /play/finale — záróképernyő (2026-11-13, végjáték-kör): gratuláció, a cég története számokban, stáblista,
+// megosztás; befejezés előtt a végcél részletei. A számok: src/lib/play/finale-page.ts.
+import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
+import { renderFinaleContent, finaleClientData, FINALE_CLIENT_JS, type FinaleStats } from '../../lib/play/finale-page';
+import { loadMrrPeak } from '../../lib/game/endgame';
+import { ACHIEVEMENTS } from '../../lib/game/achievements';
+import { pt } from '../../lib/play/strings';
+import { resolveLocale } from '../../lib/i18n/server';
+import { getCurrentUser, getDB } from '../../lib/auth';
+import { jsonForScript } from '../../lib/safe-json';
+import { getPlayer } from '../../lib/game/db';
+
+type AnyCtx = Parameters<typeof getCurrentUser>[0];
+const ctx = Astro as unknown as AnyCtx;
+
+const user = await getCurrentUser(ctx);
+if (!user) return Astro.redirect('/login?next=/play/finale');
+const db = getDB(ctx);
+if (!db) return new Response('No DB', { status: 500 });
+const player = await getPlayer(db, user.id);
+if (!player) return Astro.redirect('/play');
+
+const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
+const shell = await loadShell(db, player, user, locale);
+const n = async (sql: string, ...a: unknown[]): Promise<number> => (await db.prepare(sql).bind(...a).first<{ n: number }>())?.n ?? 0;
+const done = shell.completed ?? null;
+const stats: FinaleStats = {
+  founded_at: player.founded_at,
+  completed_at: done?.at ?? null,
+  days: done ? done.days : null,
+  peak_mrr_cents: Math.max(player.mrr_usd_cents, done?.mrr_cents ?? 0, done ? await loadMrrPeak(db as never, user.id).catch(() => 0) : 0),
+  mrr_cents: player.mrr_usd_cents,
+  customers_total: done ? await n('SELECT COUNT(*) AS n FROM customers WHERE player_id = ?', user.id) : 0,
+  customers_active: shell.counts.customers,
+  shifts: done ? await n("SELECT COUNT(*) AS n FROM shift_history WHERE player_id = ? AND outcome = 'completed'", user.id) : 0,
+  tickets_resolved: done ? await n("SELECT COUNT(*) AS n FROM tickets WHERE player_id = ? AND status = 'resolved'", user.id) : 0,
+  staff: shell.team.staff.length,
+  servers: shell.counts.servers,
+  cloud_regions: shell.goal?.reqs.find((r) => r.key === 'regions')?.current ?? 0,
+  edge_pops: shell.goal?.reqs.find((r) => r.key === 'pops')?.current ?? 0,
+  achievements: done ? await n('SELECT COUNT(*) AS n FROM achievements WHERE player_id = ?', user.id) : 0,
+  achievements_total: ACHIEVEMENTS.length,
+};
+const shareUrl = new URL('/u/' + encodeURIComponent(user.id), 'https://hyperscales.app').toString();
+const pageHtml = '<div class="app"><aside></aside><main><header class="topbar"></header><div class="content"></div>\n  </main></div>';
+const shellHtml = applyContent(applyShell(pageHtml, shell, 'dashboard', [pt(locale, 'goal.title')]), renderFinaleContent(shell, stats, shareUrl));
+const clientData = finaleClientData(shell, stats, shareUrl);
+---
+<!doctype html>
+<html lang={locale}>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hyperscales — {pt(locale, 'goal.title')}</title>
+<link rel="stylesheet" href={templateCssUrl} />
+<link rel="stylesheet" href={playShellCssUrl} />
+  <script is:inline defer src="https://stats.aika.hu/aika.js" data-website-id="4edd333d-1a25-461f-bcd3-25a8bcf7f694" data-domains="hyperscales.app,www.hyperscales.app"></script>
+</head>
+<body>
+<Fragment set:html={shellHtml} />
+<script type="application/json" id="fin-data" set:html={jsonForScript(clientData)}></script>
+<script is:inline set:html={FINALE_CLIENT_JS}></script>
+<PlayAudio />
+<script is:inline src="/js/play-shell.js"></script>
+</body>
+</html>

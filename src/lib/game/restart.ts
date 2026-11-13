@@ -40,6 +40,8 @@ export async function restartCompany(
   for (const t of RESTART_OPTIONAL_TABLES) {
     try { await db.prepare(`DELETE FROM ${t} WHERE player_id = ?`).bind(userId).run(); } catch { /* nincs még tábla */ }
   }
+  // 2026-11-13 (végjáték): a csúcs-MRR (audit_log 'mrr_peak') az új cégé legyen; a befejezés az events-szel már törlődött.
+  try { await db.prepare("DELETE FROM audit_log WHERE player_id = ? AND action = 'mrr_peak'").bind(userId).run(); } catch { /* nincs tábla */ }
   // Játékállás → séma-alapértékek. Marad: cégnév, város, nyelv, Pro, a mai műszak-számláló, a bevezető.
   const now = Math.floor(Date.now() / 1000);
   await db.prepare(

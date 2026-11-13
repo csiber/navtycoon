@@ -12,6 +12,21 @@ export interface LbPlayer {
   reputation: number;
   current_era: number;
   founded_at: number;
+  /** 2026-11-13 (végjáték): ennyi nap alatt érte el a végcélt (null = még nem). Csak kijelzés, a sorrendet nem változtatja. */
+  finished_days?: number | null;
+}
+
+/** A ranglista-lekérdezés: a játékosok + a befejezés napja (events.game_completed, migráció nélkül). */
+export const LEADERBOARD_SQL =
+  'SELECT p.user_id, p.company_name, p.mrr_usd_cents, p.cash_usd_cents, p.current_era, p.reputation, p.founded_at, ' +
+  "(SELECT CAST(json_extract(e.data_json, '$.days') AS INTEGER) FROM events e WHERE e.player_id = p.user_id AND e.event_type = 'game_completed' ORDER BY e.id ASC LIMIT 1) AS finished_days " +
+  'FROM players p LIMIT 5000';
+
+/** A leggyorsabb befejezők (napok szerint növekvő, holtversenyben MRR szerint). */
+export function fastestFinishers<T extends LbPlayer>(rows: T[], n = 5): T[] {
+  return rows.filter((r) => r.finished_days != null)
+    .sort((a, b) => (a.finished_days! - b.finished_days!) || (b.mrr_usd_cents - a.mrr_usd_cents))
+    .slice(0, n);
 }
 
 export interface RankedPlayer extends LbPlayer { rank: number; is_npc: boolean; is_me: boolean }

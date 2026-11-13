@@ -7,7 +7,7 @@ import playShellCssUrl from '../../styles/play-shell.css?url'; // tartalom-hash-
 // Global top-100 by MRR + current player's rank.
 import { loadShell, applyShell, applyContent } from '../../lib/play/shell';
 import { renderLeaderboardContent } from '../../lib/play/leaderboard-page';
-import { rankPlayers } from '../../lib/game/leaderboard';
+import { rankPlayers, LEADERBOARD_SQL } from '../../lib/game/leaderboard';
 import { pt } from '../../lib/play/strings';
 import { resolveLocale } from '../../lib/i18n/server';
 import { getCurrentUser, getDB } from '../../lib/auth';
@@ -27,9 +27,8 @@ const player = await getPlayer(db, user.id);
 if (!player) return Astro.redirect('/play'); // a /play hozza létre a kezdőállást
 
 // Teljes lista (a helyezés és a táblázat ugyanabból a rendezésből jön — src/lib/game/leaderboard.ts).
-const lbAll = (await db.prepare(
-  'SELECT user_id, company_name, mrr_usd_cents, cash_usd_cents, current_era, reputation, founded_at FROM players LIMIT 5000',
-).all<{ user_id: string; company_name: string; mrr_usd_cents: number; cash_usd_cents: number; current_era: number; reputation: number; founded_at: number }>()).results ?? [];
+const lbAll = (await db.prepare(LEADERBOARD_SQL)
+  .all<{ user_id: string; company_name: string; mrr_usd_cents: number; cash_usd_cents: number; current_era: number; reputation: number; founded_at: number; finished_days: number | null }>()).results ?? [];
 const { ranked, me } = rankPlayers(lbAll, user.id);
 const unlockedIds = new Set(((await db.prepare('SELECT achievement_id FROM achievements WHERE player_id = ?')
   .bind(user.id).all<{ achievement_id: string }>()).results ?? []).map((r) => r.achievement_id));

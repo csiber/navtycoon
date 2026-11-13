@@ -99,7 +99,7 @@ export function renderSettingsContent(d: SettingsData): string {
           ${renderSoundControl(L, 'panel')}
         </section>
 
-        <section class="panel set-card set-danger">
+        <section class="panel set-card set-danger" id="restart">
           <h3>⚠ ${esc(pt(L, 'set.danger'))}</h3>
           <div class="set-row">
             <div><b>${esc(pt(L, 'set.reset'))}</b><small>${esc(pt(L, 'set.reset_help'))}</small></div>
