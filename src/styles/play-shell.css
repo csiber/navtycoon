@@ -39,7 +39,12 @@ aside[data-shell] .side-foot .me-name { overflow: hidden; text-overflow: ellipsi
 .era-box .era-count { font-family: var(--mono); font-size: 11px; color: var(--mint); font-weight: 700; }
 .era-reqs { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 /* 2026-11-13 (végjáték): végcél-doboz az oldalsávban (az era-box stílusán) */
-.goal-box, .goal-done { margin-top: 8px; border-color: rgba(245,158,11,.35); }
+.goal-box, .goal-done { margin-bottom: 8px; border-color: rgba(245,158,11,.35); }
+.goal-line { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; padding: 5px 10px; border: 1px dashed rgba(245,158,11,.4);
+  border-radius: 8px; font-family: var(--mono); font-size: 10px; color: var(--muted); text-decoration: none; white-space: nowrap; overflow: hidden; }
+.goal-line b { color: var(--amber); font-weight: 700; }
+.goal-line span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.goal-line-n { color: var(--amber); font-weight: 700; }
 .goal-done { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; background: linear-gradient(135deg, rgba(245,158,11,.12), var(--panel)); }
 .goal-done .era-count { color: var(--amber); }
 .goal-box .era-count { color: var(--amber); }

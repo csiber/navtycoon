@@ -333,6 +333,11 @@ export function renderGoalBox(s: ShellData): string {
   }
   const g = s.goal;
   if (!g) return '';
+  // A 4. korszak előtt egy rövid, egysoros link (a korszak-doboz fölött; kevés a hely az oldalsávban),
+  // az utolsó korszakban a teljes doboz a feltételekkel.
+  if (s.era < GOAL.era) {
+    return `<a class="goal-line" href="/play/finale" title="${esc(pt(L, 'goal.toggle'))}"><span>🏆 ${esc(pt(L, 'goal.k'))}: <b>${esc(pt(L, 'goal.title'))}</b></span><span class="goal-line-n">${g.met_count}/${g.total}</span></a>`;
+  }
   return `
     <details class="era-box goal-box" id="goal-box"${s.era >= GOAL.era ? ' open' : ''}>
       <summary title="${esc(pt(L, 'goal.toggle'))}">
@@ -425,8 +430,8 @@ export function renderSidebar(s: ShellData, active: NavId): string {
       ${fleetWarning(s)}
     </div>
     ${sections}
-    ${renderEraBox(s)}
     ${renderGoalBox(s)}
+    ${renderEraBox(s)}
     <div class="side-foot">
       <div>Hyperscales · ${esc(pt(L, 'foot.beta'))}</div>
       <a href="#">⌨ ${esc(pt(L, 'foot.shortcuts'))} ⌘K</a>
