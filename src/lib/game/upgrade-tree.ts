@@ -89,24 +89,24 @@ export const UPGRADE_SPECS: UpgradeSpec[] = [
 
   // Era 3 (3) — 2026-11-13 (végjáték). A jó játékosnál a ticket- és beszerzés-hatások a 2. korszak végére a korláthoz
   // közel járnak (−60% / +100%), ezért a 3–4. korszak ott ad, ahol még van mozgástér: hely, bevétel, műszak, díj.
-  { id: 'autoscaling', era: 3, display_name: 'Autoscaling', cost_usd_cents: 600000,
+  { id: 'autoscaling', era: 3, display_name: 'Autoscaling', cost_usd_cents: 300000,
     effect: 'Load moves itself to where there is room: every machine carries more customers.',
     effect_data: { capacity_pct: 30 }, prereq: 'docker_enabled' },
-  { id: 'object_storage', era: 3, display_name: 'Object Storage Add-on', cost_usd_cents: 800000,
+  { id: 'object_storage', era: 3, display_name: 'Object Storage Add-on', cost_usd_cents: 400000,
     effect: 'S3-compatible storage that customers pay extra for — backups, media, logs.',
     effect_data: { mrr_pct: 15 }, prereq: 'postgres_addon' },
-  { id: 'ai_triage', era: 3, display_name: 'AI Ticket Triage', cost_usd_cents: 500000,
+  { id: 'ai_triage', era: 3, display_name: 'AI Ticket Triage', cost_usd_cents: 200000,
     effect: 'A model sorts and drafts the boring tickets: more of them fit into a shift.',
     effect_data: { shift_slots: 3, ai_calls: 20 }, prereq: 'nagios' },
 
   // Era 4 (3)
-  { id: 'anycast_dns', era: 4, display_name: 'Anycast Network', cost_usd_cents: 1200000,
+  { id: 'anycast_dns', era: 4, display_name: 'Anycast Network', cost_usd_cents: 600000,
     effect: 'The same address answers from every POP: attacks spread thin, outages stay local.',
     effect_data: { avoid_network: 40, churn_pct: -10 } },
-  { id: 'green_ppa', era: 4, display_name: 'Renewable Power Deal', cost_usd_cents: 1500000,
+  { id: 'green_ppa', era: 4, display_name: 'Renewable Power Deal', cost_usd_cents: 800000,
     effect: 'A long-term green power contract: cheaper electricity for every machine.',
     effect_data: { fee_pct: -15 } },
-  { id: 'premium_support', era: 4, display_name: 'Premium Support Plans', cost_usd_cents: 2000000,
+  { id: 'premium_support', era: 4, display_name: 'Premium Support Plans', cost_usd_cents: 1000000,
     effect: 'Paid support tiers with a real phone line: customers pay more for peace of mind.',
     effect_data: { mrr_pct: 15 }, prereq: 'object_storage' },
 ];

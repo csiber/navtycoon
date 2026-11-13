@@ -18,6 +18,8 @@ const HUB_LIST = [
   'first_shift', 'first_blood', 'three_star_shift', 'ten_customers', 'shift_marathon', 'ticket_whisperer', 'era_colo',
   'first_k_mrr', 'perfect_week', 'high_rep', 'era_vps', 'hundred_customers', 'survived_first_ddos', 'first_10k_mrr',
   'era_dedicated', 'one_million_lifetime', 'refund_king', 'comeback_kid',
+  // 2026-11-13 (végjáték): a végére fűzve, a régi 18 sorrendje változatlan
+  'first_cloud_region', 'first_edge_pop', 'enterprise_contract', 'hyperscaled', 'speedrun_hyperscaler',
 ];
 
 function base(p: Player, extra: Partial<AchievementCheckInput> = {}): AchievementCheckInput {
@@ -25,12 +27,12 @@ function base(p: Player, extra: Partial<AchievementCheckInput> = {}): Achievemen
 }
 const check = (id: string, i: AchievementCheckInput) => ACHIEVEMENTS.find((a) => a.id === id)!.check(i);
 
-describe('catalog = hyperscales.md (18)', () => {
+describe('catalog = hyperscales.md (18) + endgame (5)', () => {
   it('same ids in the Hub order', () => {
     expect(ACHIEVEMENTS.map((a) => a.id)).toEqual(HUB_LIST);
   });
-  it('hidden: only refund_king and comeback_kid', () => {
-    expect(ACHIEVEMENTS.filter((a) => a.hidden).map((a) => a.id).sort()).toEqual(['comeback_kid', 'refund_king']);
+  it('hidden: only refund_king, comeback_kid and speedrun_hyperscaler', () => {
+    expect(ACHIEVEMENTS.filter((a) => a.hidden).map((a) => a.id).sort()).toEqual(['comeback_kid', 'refund_king', 'speedrun_hyperscaler']);
   });
   it('every achievement has HU and DE title + description', () => {
     for (const l of ['hu', 'de'] as const) {

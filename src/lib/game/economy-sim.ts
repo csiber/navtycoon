@@ -931,10 +931,14 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     } else if (profile === 'active' || profile === 'overbuy' || buysDedicated || profile === 'no_staff' || profile === 'overhire_staff') {
       if (profile !== 'overbuy') {
         // Nem hirdet, amíg nincs hova tenni az ügyfelet (teli flottánál a PPC kidobott pénz).
-        if (util >= 90) { p.seo = 50; p.ppc = 0; p.ref = 50; } else { p.seo = 25; p.ppc = 50; p.ref = 25; }
+        if (util >= 90) { p.seo = 50; p.ppc = 0; p.ref = 50; } else if (p.era >= 3) {
+          // 2026-11-13 (végjáték): a 3. korszaktól a nagy cég a hírnévre és az ajánlásra épít, a hirdetésből
+          // visszavesz — különben a PPC-keret minden pénzt elvisz, és soha nem gyűlik össze egy felhőrégió ára.
+          p.seo = 40; p.ppc = 20; p.ref = 40;
+        } else { p.seo = 25; p.ppc = 50; p.ref = 25; }
         // Időben (80%-nál) vesz gépet, $200 tartalékkal — a kapacitás előbb van, mint a fejlesztés.
         // A 3. korszaktól a felhőrégióra spórol ($1000 tartalékkal), régi gépet csak szorult helyzetben (95%) vesz.
-        if (cloudOk && profile !== 'never_buy') {
+        if (cloudOk) {
           if (util >= 80 && p.cash >= cloudPrice + 100000) buyServer('cloud_region');
           else if (util >= 95 && p.cash >= lamp + 20000) buyServer('lamp_box');
         } else if (util >= 80 && p.cash >= lamp + 20000) buyServer('lamp_box');

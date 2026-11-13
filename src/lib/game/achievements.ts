@@ -22,7 +22,17 @@ export interface AchievementCheckInput {
   ddos_survived?: boolean;
   /** A 30 napon belüli pénz-mélyponthoz (audit_log 'cash_low_point') képest legalább kétszeres MRR. */
   comeback?: boolean;
+  /** 2026-11-13 (végjáték): felhőrégiók és edge POP-ok száma most; volt-e már nagyvállalati szerződés;
+   *  a befejezés napja (null = még nem fejezte be; endgame.ts game_completed). */
+  cloud_regions?: number;
+  edge_pops?: number;
+  enterprise_ever?: boolean;
+  finished_days?: number | null;
 }
+
+/** Rejtett „gyors befejezés" achievement határa (napban, az alapítástól). A szimulátorban az aktív játékos
+ *  mediánja ~150 nap; ennyi alatt csak a nagyon jól játszó cég ér célba. */
+export const SPEEDRUN_DAYS = 120;
 
 export interface AchievementDef {
   id: string;
@@ -35,7 +45,8 @@ export interface AchievementDef {
   check(input: AchievementCheckInput): boolean;
 }
 
-// A sorrend = a megjelenítési sorrend = a Hub-definíció (hyperscales.md, 18 db). A Hub-id: hubAchievementId (aikahub-achi.ts).
+// A sorrend = a megjelenítési sorrend = a Hub-definíció (hyperscales.md, 18 db + 2026-11-13: 5 végjáték-achievement).
+// A Hub-id: hubAchievementId (aikahub-achi.ts).
 export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: 'first_shift',
@@ -167,6 +178,44 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     emoji: '🔥',
     hidden: true,
     check: (i) => i.comeback === true,
+  },
+  // 2026-11-13 (végjáték, Csaba jóváhagyásával): a 3–4. korszak és a befejezés. A Hub-definíciót claude-3 tölti be;
+  // addig a retry-sor (aikahub-achi.ts, 404 → újrapróbál) tartja őket.
+  {
+    id: 'first_cloud_region',
+    title: 'Multi-AZ',
+    description: 'Opened your first cloud region.',
+    emoji: '🌩️',
+    check: (i) => (i.cloud_regions ?? 0) >= 1,
+  },
+  {
+    id: 'first_edge_pop',
+    title: 'Closer to the Edge',
+    description: 'Lit up your first edge POP.',
+    emoji: '📡',
+    check: (i) => (i.edge_pops ?? 0) >= 1,
+  },
+  {
+    id: 'enterprise_contract',
+    title: 'Enterprise Grade',
+    description: 'Signed your first enterprise contract.',
+    emoji: '🤝',
+    check: (i) => i.enterprise_ever === true,
+  },
+  {
+    id: 'hyperscaled',
+    title: 'Hyperscaled',
+    description: 'Reached the final goal: you are a hyperscaler.',
+    emoji: '🌐',
+    check: (i) => i.finished_days != null,
+  },
+  {
+    id: 'speedrun_hyperscaler',
+    title: 'Blitzscaling',
+    description: `Reached the final goal within ${SPEEDRUN_DAYS} days.`,
+    emoji: '⚡',
+    hidden: true,
+    check: (i) => i.finished_days != null && i.finished_days <= SPEEDRUN_DAYS,
   },
 ];
 

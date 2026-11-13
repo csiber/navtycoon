@@ -63,12 +63,12 @@ export const SERVER_SPECS: Record<ServerType, ServerSpec> = {
   //    szolgálja ki: +EDGE_POP_BANDWIDTH_UNITS sávszélesség (network.ts edge_units). A végcél is kér belőlük.
   cloud_region: {
     type: 'cloud_region', era: 3, display_name: 'Cloud Region',
-    capacity: 500, monthly_cost_cents: 70000, purchase_cost_cents: 750000,
+    capacity: 400, monthly_cost_cents: 45000, purchase_cost_cents: 300000,
     flavor: 'Three availability zones, one invoice, and a status page you actually have to keep green.',
   },
   edge_pop: {
     type: 'edge_pop', era: 4, display_name: 'Edge POP',
-    capacity: 120, monthly_cost_cents: 35000, purchase_cost_cents: 400000,
+    capacity: 120, monthly_cost_cents: 25000, purchase_cost_cents: 250000,
     flavor: 'A small cage in a faraway exchange. Your traffic stops crossing the ocean.',
   },
 };

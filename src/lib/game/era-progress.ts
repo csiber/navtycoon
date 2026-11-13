@@ -29,7 +29,9 @@ export const ERA_REQUIREMENTS: EraRequirements[] = [
   // Era 2 → 3 (VPS)
   { era: 3, display: 'VPS', min_mrr_cents: 100000, min_servers: 3, min_days_alive: 30, min_reputation: 70 },
   // Era 3 → 4 (Dedicated)
-  { era: 4, display: 'Dedicated', min_mrr_cents: 1000000, min_servers: 8, min_days_alive: 90, min_reputation: 80 },
+  // 2026-11-13 (végjáték): MRR $10 000 → $8000 (a végcél $15 000; a régi határral a 4. korszak a 160. nap körül jött,
+  // és a befejezés 6 hónapon túlra csúszott — szimulátor, aktív profil, 8 seed).
+  { era: 4, display: 'Dedicated', min_mrr_cents: 800000, min_servers: 8, min_days_alive: 90, min_reputation: 80 },
 ];
 
 export interface EraCheckInput {

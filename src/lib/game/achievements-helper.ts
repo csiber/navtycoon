@@ -95,6 +95,18 @@ export async function computeAchievementInput(
     'WHERE player_id = ? AND action = ? AND created_at >= ?',
   ).bind(playerId, CASH_LOW_POINT_ACTION, nowSec - COMEBACK_WINDOW_SEC).first<{ m: number | null }>();
   const comeback = comebackReached(low?.m ?? null, player.mrr_usd_cents);
+  // 2026-11-13 (végjáték): felhőrégió, edge POP, nagyvállalati szerződés (volt-e valaha), befejezés.
+  const srv = (await d.prepare(
+    "SELECT type, COUNT(*) AS n FROM servers WHERE player_id = ? AND type IN ('cloud_region', 'edge_pop') GROUP BY type",
+  ).bind(playerId).all<{ type: string; n: number }>()).results ?? [];
+  const ent = await d.prepare(
+    "SELECT 1 AS x FROM events WHERE player_id = ? AND event_type = 'dedicated_signed' AND json_extract(data_json, '$.enterprise') = 1 LIMIT 1",
+  ).bind(playerId).first<{ x: number }>();
+  const fin = await d.prepare(
+    "SELECT data_json FROM events WHERE player_id = ? AND event_type = 'game_completed' ORDER BY id ASC LIMIT 1",
+  ).bind(playerId).first<{ data_json: string | null }>();
+  let finished_days: number | null = null;
+  if (fin) { try { finished_days = Number((JSON.parse(fin.data_json ?? '{}') as { days?: number }).days) || 0; } catch { finished_days = 0; } }
   return {
     player,
     customer_count,
@@ -106,5 +118,9 @@ export async function computeAchievementInput(
     shift_streak_days,
     ddos_survived,
     comeback,
+    cloud_regions: srv.find((r) => r.type === 'cloud_region')?.n ?? 0,
+    edge_pops: srv.find((r) => r.type === 'edge_pop')?.n ?? 0,
+    enterprise_ever: !!ent,
+    finished_days,
   };
 }

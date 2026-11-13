@@ -28,7 +28,7 @@ export interface GoalRule {
 
 export const GOAL: GoalRule = {
   era: 4,
-  min_mrr_cents: 2500000,
+  min_mrr_cents: 1500000,
   min_reputation: 90,
   min_cloud_regions: 2,
   min_edge_pops: 3,

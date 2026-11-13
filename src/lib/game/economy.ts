@@ -409,6 +409,10 @@ export const ECONOMY: EconomyRules = {
   staff: STAFF_RULE_V3,
   network: NETWORK_RULE_V3,
   enterprise: ENTERPRISE_RULE_V3,
+  // 2026-11-13 (végjáték): beszerzési szorzó a 3. korszakban ×2 → ×4, a 4.-ben ×3 → ×5 (az 1–2. változatlan, így a
+  // 3. korszak elérése sem gyorsul). Régi értékkel a 3. korszakban napi ~4–5 új ügyfél jött: a 4. korszak MRR-feltételéig
+  // 120+ nap telt el, az aktív játékos 300 nap alatt sem ért célba (szimulátor, 365 napos futások).
+  era_factor: { 1: 1, 2: 1.5, 3: 4, 4: 5 },
 };
 
 // ─── v3: szerver-havidíj, kapacitás, tartozás ───
