@@ -55,7 +55,7 @@ export function renderFinaleContent(s: ShellData, st: FinaleStats, shareUrl: str
   if (st.days == null || !s.goal) {
     // Még nincs befejezés: a végcél részletei.
     const g = s.goal;
-    return `<div class="content">
+    return `<div class="content"><div class="fin-wrap">
       <div class="pagehead"><div class="h-left">
         <h1>🏆 ${esc(pt(L, 'goal.title'))} <span class="count">${g ? `${g.met_count}/${g.total}` : ''}</span></h1>
         <div class="sub">${esc(pt(L, 'fin.pre_sub'))}</div>
@@ -70,7 +70,7 @@ export function renderFinaleContent(s: ShellData, st: FinaleStats, shareUrl: str
         </ul>
         <div class="lk-actions"><a class="btn" href="/play">${esc(pt(L, 'locked.back'))}</a></div>
       </section>
-    </div>`;
+    </div></div>`;
   }
   const cell = (k: PlayKey, v: string, sub = '') => `<div class="fin-stat"><div class="k">${esc(pt(L, k))}</div><div class="v">${esc(v)}</div>${sub ? `<div class="m">${esc(sub)}</div>` : ''}</div>`;
   const stats = [
@@ -84,7 +84,7 @@ export function renderFinaleContent(s: ShellData, st: FinaleStats, shareUrl: str
   ].join('');
   const credits = CREDITS.map(([k, name]) => `<div class="fin-cr"><span>${esc(pt(L, k))}</span><b>${esc(name === '—' ? pt(L, 'fin.cr.you') : name)}</b></div>`).join('');
   const text = finaleShareText(s, st, shareUrl);
-  return `<div class="content">
+  return `<div class="content"><div class="fin-wrap">
       <section class="fin-hero">
         <div class="fin-trophy" aria-hidden="true">🏆</div>
         <div class="fin-kicker">${esc(pt(L, 'fin.kicker'))}</div>
@@ -117,7 +117,7 @@ export function renderFinaleContent(s: ShellData, st: FinaleStats, shareUrl: str
           <a class="btn" href="/play/settings#restart">${esc(pt(L, 'fin.restart'))}</a>
         </div>
       </section>
-    </div>`;
+    </div></div>`;
 }
 
 /** A kliensnek (kép rajzolása, másolás): a számok és a feliratok. */

@@ -39,8 +39,8 @@ aside[data-shell] .side-foot .me-name { overflow: hidden; text-overflow: ellipsi
 .era-box .era-count { font-family: var(--mono); font-size: 11px; color: var(--mint); font-weight: 700; }
 .era-reqs { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
 /* 2026-11-13 (végjáték): végcél-doboz az oldalsávban (az era-box stílusán) */
-.goal-box, .goal-done { margin-bottom: 8px; border-color: rgba(245,158,11,.35); }
-.goal-line { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; padding: 5px 10px; border: 1px dashed rgba(245,158,11,.4);
+.goal-box, .goal-done { flex-shrink: 0; margin-bottom: 8px; border-color: rgba(245,158,11,.35); }
+.goal-line { flex-shrink: 0; line-height: 1.4; display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; padding: 5px 10px; border: 1px dashed rgba(245,158,11,.4);
   border-radius: 8px; font-family: var(--mono); font-size: 10px; color: var(--muted); text-decoration: none; white-space: nowrap; overflow: hidden; }
 .goal-line b { color: var(--amber); font-weight: 700; }
 .goal-line span:first-child { overflow: hidden; text-overflow: ellipsis; }
@@ -689,6 +689,7 @@ aside[data-shell] .nav-item .badge.warn { background: rgba(245,158,11,.18); colo
 .lb-fin-empty { padding: 10px 16px 14px; color: var(--muted); font-size: 12px; }
 
 /* 2026-11-13 (végjáték): záróképernyő (/play/finale) */
+.fin-wrap { grid-column: 1 / -1; width: 100%; max-width: 1000px; margin: 0 auto; min-width: 0; }
 .fin-hero { text-align: center; padding: 34px 16px 22px; }
 .fin-trophy { font-size: 64px; line-height: 1; filter: drop-shadow(0 6px 24px rgba(245,158,11,.45)); }
 .fin-kicker { margin-top: 12px; font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--amber); }
