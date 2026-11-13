@@ -57,7 +57,7 @@ describe('Hub ids', () => {
     expect(hubEntitlementId('rack_led_theme')).toBe('hyperscales:rack-led-theme');
     expect(hubEntitlementId('company_banner')).toBe('hyperscales:company-banner');
   });
-  it('all 18 ids match the live Hub map (aikahub main 836ed57, docs/achievements-integracio.md)', () => {
+  it('all 18 (+5 endgame) ids match the live Hub map (aikahub main 836ed57, docs/achievements-integracio.md)', () => {
     const HUB_MAP: Record<string, string> = {
       first_shift: 'hyperscales:first-shift',
       first_blood: 'hyperscales:first-blood',
@@ -77,6 +77,12 @@ describe('Hub ids', () => {
       one_million_lifetime: 'hyperscales:one-million-lifetime',
       refund_king: 'hyperscales:refund-king',
       comeback_kid: 'hyperscales:comeback-kid',
+      // 2026-11-13 (végjáték): az 5 új achievement — a Hub-definíciót claude-3 tölti be
+      first_cloud_region: 'hyperscales:first-cloud-region',
+      first_edge_pop: 'hyperscales:first-edge-pop',
+      enterprise_contract: 'hyperscales:enterprise-contract',
+      hyperscaled: 'hyperscales:hyperscaled',
+      speedrun_hyperscaler: 'hyperscales:speedrun-hyperscaler',
     };
     expect(ACHIEVEMENTS.map((a) => a.id).sort()).toEqual(Object.keys(HUB_MAP).sort());
     for (const [id, hub] of Object.entries(HUB_MAP)) expect(hubAchievementId(id)).toBe(hub);

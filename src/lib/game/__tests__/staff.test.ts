@@ -21,11 +21,11 @@ const mk = (o: Partial<StaffMember> = {}): StaffMember => ({
 });
 
 describe('staff rules', () => {
-  it('limits: none in Era 1, 3 in Era 2, 6 from Era 3', () => {
+  it('limits: none in Era 1, 3 in Era 2, 6 in Era 3, 8 in Era 4 (2026-11-13)', () => {
     expect(maxStaff(R, 1)).toBe(0);
     expect(maxStaff(R, 2)).toBe(3);
     expect(maxStaff(R, 3)).toBe(6);
-    expect(maxStaff(R, 4)).toBe(6);
+    expect(maxStaff(R, 4)).toBe(8);
     expect(maxStaff(null, 3)).toBe(0);
   });
 
