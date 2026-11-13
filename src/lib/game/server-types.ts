@@ -1,10 +1,10 @@
 // Hyperscales — Server-tier definitions.
-// Era 1+2 active (Phase 1). Era 3+4 placeholders for Phase 2.
+// Minden korszak gépei élnek (2026-11-13, végjáték: a felhőrégió és az edge POP is).
 //
 // Konvenciók:
 //  - Pénz INTEGER (USD cents).
 //  - capacity = max sites/customers per server (dedicated_box = 1, per-customer).
-//  - Era 3-4 placeholderek: capacity=0, monthly=0 → affordableServerTypes() szűri.
+//  - (2026-11-13 előtt a 3–4. korszak gépei helyőrzők voltak: capacity=0 → affordableServerTypes() szűrte.)
 //  - 2026-11-12 (játékmag): a kapacitás és a havidíj most SZÁMÍT. A kapacitás a típusból jön (nem a
 //    servers.capacity oszlopból — így a hangolás a meglévő gépekre is érvényes), × a fejlesztések
 //    capacity_pct-je (serverCapacity). A havidíjat a tick időarányosan vonja le a servers.monthly_cost_cents
@@ -56,17 +56,42 @@ export const SERVER_SPECS: Record<ServerType, ServerSpec> = {
     capacity: 1, monthly_cost_cents: 5000, purchase_cost_cents: 35000,
     flavor: 'One business client, their own bare metal, and a phone number they will actually call.',
   },
+  // 2026-11-13 (végjáték): a 3–4. korszak gépei valódiak (eddig 0 hely, $0, kiszűrve).
+  //  - Felhőrégió: a 3. korszaktól, legalább 1 Gbites tranzittal (SERVER_REQUIREMENTS). Sok hely, magas havidíj:
+  //    500 hely $700/hó ($1,4/hely, a VPS-csomóponté $1,47) $7500-ért — a nagy flotta gerince.
+  //  - Edge POP: a 4. korszaktól. Kevés hely (120, $350/hó, $4000), de minden POP a forgalom egy részét helyben
+  //    szolgálja ki: +EDGE_POP_BANDWIDTH_UNITS sávszélesség (network.ts edge_units). A végcél is kér belőlük.
   cloud_region: {
-    type: 'cloud_region', era: 3, display_name: 'Cloud Region (Phase 2)',
-    capacity: 0, monthly_cost_cents: 0, purchase_cost_cents: 0,
-    flavor: 'Era 3 unlock — coming Phase 2.',
+    type: 'cloud_region', era: 3, display_name: 'Cloud Region',
+    capacity: 500, monthly_cost_cents: 70000, purchase_cost_cents: 750000,
+    flavor: 'Three availability zones, one invoice, and a status page you actually have to keep green.',
   },
   edge_pop: {
-    type: 'edge_pop', era: 4, display_name: 'Edge POP (Phase 2)',
-    capacity: 0, monthly_cost_cents: 0, purchase_cost_cents: 0,
-    flavor: 'Era 4 unlock — coming Phase 2.',
+    type: 'edge_pop', era: 4, display_name: 'Edge POP',
+    capacity: 120, monthly_cost_cents: 35000, purchase_cost_cents: 400000,
+    flavor: 'A small cage in a faraway exchange. Your traffic stops crossing the ocean.',
   },
 };
+
+/** Egy edge POP ennyi forgalmi egységet szolgál ki helyben (a tranzit sávszélessége fölött). */
+export const EDGE_POP_BANDWIDTH_UNITS = 250;
+
+/** Vásárlási feltételek a korszakon túl (2026-11-13): a felhőrégió legalább ekkora tranzit-csomagot kér
+ *  (2 = 1 Gbit). A szerver-API, a katalógus és a szimulátor is ezt nézi. */
+export const SERVER_REQUIREMENTS: Partial<Record<ServerType, { min_transit_tier: number }>> = {
+  cloud_region: { min_transit_tier: 2 },
+};
+
+/** Megveheti-e a gépet a tranzit-csomag alapján (a korszakot és a pénzt a hívó nézi). */
+export function meetsServerRequirements(type: string, transitTier: number): boolean {
+  const req = (SERVER_REQUIREMENTS as Record<string, { min_transit_tier: number } | undefined>)[type];
+  return !req || transitTier >= req.min_transit_tier;
+}
+
+/** Az edge POP-ok helyben kiszolgált forgalma (egység). */
+export function edgeUnits(servers: Array<{ type: string }>): number {
+  return servers.reduce((a, s) => a + (s.type === 'edge_pop' ? EDGE_POP_BANDWIDTH_UNITS : 0), 0);
+}
 
 export function affordableServerTypes(currentEra: EraId): ServerSpec[] {
   return Object.values(SERVER_SPECS).filter(s => s.era <= currentEra && s.capacity > 0);

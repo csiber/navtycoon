@@ -111,6 +111,23 @@ export interface EconomyRules {
   staff: StaffRule | null;
   /** v3 (2026-11-12, hálózat-kör): sávszélesség, peering, DDoS-védelem a 2. korszaktól (network.ts). null = nincs. */
   network: NetworkRule | null;
+  /** 2026-11-13 (végjáték): nagyvállalati szerződés a 4. korszakban (dedicated.ts). null = nincs. */
+  enterprise?: EnterpriseRule | null;
+}
+
+/** A nagyvállalati ügyfél (plan_tier = 'enterprise'): ugyanaz a nagy-ügyfél-gondozás, mint a dedikáltnál
+ *  (DedicatedRule: SLA, ticketek, lezárás, távozás), de nagyobb szerződés, és csak globális jelenléttel jön. */
+export interface EnterpriseRule {
+  min_era: number;
+  /** Ennyi hírnévtől jelentkezik. */
+  min_reputation: number;
+  /** Ennyi felhőrégió és edge POP kell hozzá (a nagyvállalat több kontinensen fut). */
+  min_cloud_regions: number;
+  min_edge_pops: number;
+  /** A szerződés havidíj-sávja (cent), az azonosítóból determinisztikusan (mint a dedikáltnál). */
+  fee_min_cents: number;
+  fee_max_cents: number;
+  fee_step_cents: number;
 }
 
 export type StaffRole = 'support' | 'sre' | 'sales';
@@ -297,7 +314,8 @@ export const BALANCE_V2_RULES: EconomyRules = {
 /** 2026-11-12 (csapat-kör): a csapat számai. Indoklás: staff.ts fejkomment + szimulátor (economy-sim.ts). */
 export const STAFF_RULE_V3: StaffRule = {
   min_era: 2,
-  max_by_era: { 2: 3, 3: 6, 4: 6 },
+  // 2026-11-13 (végjáték): a 4. korszakban 6 → 8 fő (a nagy flotta ticketjei különben a műszakon és 6 emberen elakadtak).
+  max_by_era: { 2: 3, 3: 6, 4: 8 },
   base_salary_cents: { support: 7500, sre: 11000, sales: 9500 },
   level_salary: [1, 1.35, 1.7],
   level_days: [14, 42],
@@ -329,10 +347,23 @@ export const NETWORK_RULE_V3: NetworkRule = {
     { bandwidth_units: 80, monthly_cents: 0, min_era: 1 },
     { bandwidth_units: 200, monthly_cents: 4000, min_era: 2 },
     { bandwidth_units: 600, monthly_cents: 12000, min_era: 2 },
+    // 2026-11-13 (végjáték): 10 Gbit a 3. korszaktól. Nélküle a forgalom ~780 egységnél (1 Gbit + peering) megállt,
+    // a 4. korszak MRR-feltétele elérhetetlen volt (szimulátor, 365 nap).
+    { bandwidth_units: 2000, monthly_cents: 40000, min_era: 3 },
   ],
   peering: { setup_cents: 20000, monthly_cents: 1500, bandwidth_pct: 30, transit_discount_pct: 30, min_tier: 1 },
   ddos: { monthly_cents: 3000, avoid_network: 75 },
   slowdown: { ticket_factor: 1.5, sat_step: 2 },
+};
+
+/** 2026-11-13 (végjáték): a nagyvállalati szerződés. A díj $1200–$2000/hó (átlag $1600 ≈ 6–7 dedikált ügyfél);
+ *  a végcél MRR-jébe nem számít (mint a dedikálté sem a korszakéba), a végcél egy élő szerződést kér. */
+export const ENTERPRISE_RULE_V3: EnterpriseRule = {
+  min_era: 4,
+  min_reputation: 75,
+  min_cloud_regions: 1,
+  min_edge_pops: 2,
+  fee_min_cents: 120000, fee_max_cents: 200000, fee_step_cents: 20000,
 };
 
 /** Az élő szabályok (v3, játékmag-kör): a v2 + szerver-havidíj, kapacitás-korlát, a fejlesztések valódi hatása.
@@ -377,6 +408,7 @@ export const ECONOMY: EconomyRules = {
   },
   staff: STAFF_RULE_V3,
   network: NETWORK_RULE_V3,
+  enterprise: ENTERPRISE_RULE_V3,
 };
 
 // ─── v3: szerver-havidíj, kapacitás, tartozás ───

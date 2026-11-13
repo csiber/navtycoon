@@ -48,12 +48,14 @@ import {
 } from './economy';
 import {
   isDedicatedServer, dedicatedArrivalProb, dedicatedBoxes, dedicatedCloseDelta, dedicatedReplyDelta, feeSteps,
+  enterpriseEligible,
 } from './dedicated';
+import { GOAL, goalProgress } from './endgame';
 import { assignFleetLoad } from './capacity';
 import { EVENT_DEFINITIONS } from './event-options';
 import { PERSONAS } from './persona-pool';
 import { meetsNextEra } from './era-progress';
-import { SERVER_SPECS, serverCapacity } from './server-types';
+import { SERVER_SPECS, serverCapacity, edgeUnits, meetsServerRequirements } from './server-types';
 import { UPGRADE_SPECS } from './upgrade-tree';
 import { effectsOf, eventAvoidProb, NO_EFFECTS, type UpgradeEffects } from './upgrade-effects';
 import type { EventType, EraId, ServerType } from './types';
@@ -76,6 +78,8 @@ export const ALL_PROFILES: readonly ProfileId[] = ['idle', 'casual', 'active', '
 export const ACTIVE_UPGRADE_ORDER = [
   'cpanel_license', 'mod_pagespeed', 'backup_script', 'ram_bump', 'cdn_bind', 'postgres_addon', 'webmin_license',
   'ssl_wildcard', 'hardware_raid', 'docker_enabled', 'nagios', 'cdn_global',
+  // 2026-11-13 (végjáték): a 3–4. korszak fejlesztései
+  'ai_triage', 'object_storage', 'autoscaling', 'green_ppa', 'premium_support', 'anycast_dns',
 ];
 
 export interface SimDay {
@@ -98,6 +102,10 @@ export interface SimDay {
   /** Dedikált ügyfelek a nap végén, és az ő havidíjuk (az MRR része). */
   dedicated_customers: number;
   dedicated_mrr_cents: number;
+  /** 2026-11-13 (végjáték): felhőrégiók, edge POP-ok, élő nagyvállalati szerződések a nap végén. */
+  cloud_regions: number;
+  edge_pops: number;
+  enterprise: number;
   /** Csapat-kör: munkatársak és a havi bérük a nap végén; a hálózat (csomag, forgalom, sávszélesség). */
   staff: number;
   salary_monthly_cents: number;
@@ -142,6 +150,9 @@ export interface SimResult {
   network_fees_total_cents: number;
   support_resolved: number;
   slow_halfdays: number;
+  /** 2026-11-13 (végjáték): a végcél napja (null = nem érte el), és a nagyvállalati szerződések száma. */
+  finished_day: number | null;
+  enterprise_signed: number;
 }
 
 interface SimCustomer {
@@ -149,6 +160,8 @@ interface SimCustomer {
   tier: 'hobby' | 'business' | 'dedicated';
   /** Dedikált ügyfél havidíja (cent). */
   fee?: number;
+  /** 2026-11-13: nagyvállalati szerződés (a dedikált gondozási szabályaival, nagyobb díjjal). */
+  ent?: boolean;
   active: boolean;
   tickets: number[]; // a nyitott ticketek létrehozási ideje
 }
@@ -258,6 +271,9 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
   let dedBoughtDay: number | null = null;
   let dedLastLost: number | null = null;
   let nowSec = 0;
+  let edgeU = 0;
+  let finishedDay: number | null = null;
+  let entSigned = 0;
 
   const upEff = (): UpgradeEffects => (rules.upgrade_effects ? p.eff : NO_EFFECTS);
   // A fejlesztések + a csapat + a hálózat hatása (a csapaté szinttől és hangulattól függ, ezért mindig frissen).
@@ -272,13 +288,36 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     return effVal;
   };
   const dirtyEff = (): void => { effAt = -1; };
-  const capacity = (): number => p.servers.reduce((s, sv) => s + serverCapacity(sv.type, 0, eff().capacity_pct), 0);
-  const activeN = (): number => customers.reduce((s, c) => s + (c.active ? 1 : 0), 0);
+  // 2026-11-13 (végjáték): a hosszú (180–365 napos) futásokhoz a darabszámok gyorsítótárban; a custVer / srvVer
+  // minden ügyfél- és gépváltozáskor nő. Az eredmény bitre ugyanaz, mint a régi, mindig újraszámoló változaté.
+  let custVer = 0, srvVer = 0;
+  let capAt = '', capVal = 0;
+  const capacity = (): number => {
+    const key = `${srvVer}:${eff().capacity_pct}`;
+    if (key !== capAt) { capVal = p.servers.reduce((s, sv) => s + serverCapacity(sv.type, 0, eff().capacity_pct), 0); capAt = key; }
+    return capVal;
+  };
+  let cntAt = -1;
+  let cnt = { active: 0, hobby: 0, business: 0, dedicated: 0, dedMrr: 0, ent: 0 };
+  const counts = () => {
+    if (cntAt !== custVer) {
+      const c2 = { active: 0, hobby: 0, business: 0, dedicated: 0, dedMrr: 0, ent: 0 };
+      for (const c of customers) {
+        if (!c.active) continue;
+        c2.active++;
+        if (c.tier === 'dedicated') { c2.dedicated++; c2.dedMrr += c.fee ?? 0; if (c.ent) c2.ent++; } else if (c.tier === 'business') c2.business++; else c2.hobby++;
+      }
+      cnt = c2; cntAt = custVer;
+    }
+    return cnt;
+  };
+  const activeN = (): number => counts().active;
   // A sima ügyfelek (a kapacitás csak rájuk vonatkozik) és a dedikáltak.
-  const dedN = (): number => customers.reduce((s, c) => s + (c.active && c.tier === 'dedicated' ? 1 : 0), 0);
+  const dedN = (): number => counts().dedicated;
   const generalN = (): number => activeN() - dedN();
-  const dedMrr = (): number => customers.reduce((s, c) => s + (c.active && c.tier === 'dedicated' ? (c.fee ?? 0) : 0), 0);
+  const dedMrr = (): number => counts().dedMrr;
   const loseDedicated = (c: SimCustomer): void => {
+    custVer++;
     c.active = false;
     c.tickets = [];
     dedLost++;
@@ -286,14 +325,16 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     if (ded) p.rep = Math.max(0, p.rep - ded.leave_rep);
   };
   const listedFees = (): number => p.servers.reduce((s, sv) => s + sv.monthly, 0);
-  const tierCounts = () => {
-    let hobby = 0, business = 0, dedicated = 0;
-    for (const c of customers) if (c.active) { if (c.tier === 'dedicated') dedicated++; else if (c.tier === 'business') business++; else hobby++; }
-    return { hobby, business, dedicated };
-  };
+  const tierCounts = () => { const k = counts(); return { hobby: k.hobby, business: k.business, dedicated: k.dedicated }; };
   const netOn = (): boolean => networkActive(NR, p.era);
   const traffic = (): number => (NR ? trafficUnits(NR, tierCounts()) : 0);
-  const bandwidth = (): number => (NR ? bandwidthUnits(NR, net) : 0);
+  // Az edge POP-ok a forgalom egy részét helyben szolgálják ki (server-types.edgeUnits).
+  const bandwidth = (): number => (NR ? bandwidthUnits(NR, { ...net, edge_units: edgeU }) : 0);
+  const nType = (t: ServerType): number => p.servers.reduce((a, sv) => a + (sv.type === t ? 1 : 0), 0);
+  const goalNow = () => goalProgress({
+    era: p.era, goal_mrr_cents: p.mrr - dedMrr(), reputation: p.rep,
+    cloud_regions: nType('cloud_region'), edge_pops: nType('edge_pop'), enterprise_clients: counts().ent,
+  });
   const slowRatio = (): number => (netOn() ? slowdownRatio(traffic(), bandwidth()) : 0);
   const netMonthly = (): number => (netOn() ? networkMonthlyCents(NR, net) : 0);
   const removeStaff = (i: number): StaffMember => { dirtyEff(); return staff.splice(i, 1)[0]; };
@@ -400,11 +441,13 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       let act = activeN();
       const cutoff = now - rules.churn_hours * 3600;
       for (const c of customers) {
-        if (!c.active || !c.tickets.some((ts) => ts < cutoff)) continue;
+        // (a ticketek létrehozási idő szerint növekvő sorrendben vannak: elég az elsőt nézni)
+        if (!c.active || !(c.tickets.length > 0 && c.tickets[0] < cutoff)) continue;
         if (act <= rules.churn_floor_customers) break;
         if (r() < churnProb(rules, c.sat, false, eff().churn_pct)) {
           if (c.tier === 'dedicated') loseDedicated(c);
           c.active = false;
+          custVer++;
           act--;
           churnedTotal++;
           // v2: a lemorzsolódott ügyfél ticketjei lezárulnak (nem foglalnak helyet a műszakban).
@@ -436,6 +479,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
             lostTotal++;
           } else {
             customers.push({ sat, tier, active: true, tickets: [] });
+            custVer++;
             acquiredTotal++;
           }
         }
@@ -451,8 +495,14 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     if (ded) {
       const prob = dedicatedArrivalProb(rules, { free_boxes: dedicatedBoxes(p.servers, dedN()).free, reputation: p.rep, now, last_lost_at: dedLastLost });
       if (prob > 0 && r() < prob) {
-        const fee = ded.fee_min_cents + Math.floor(r() * feeSteps(ded)) * ded.fee_step_cents;
-        customers.push({ sat: ded.start_sat, tier: 'dedicated', fee, active: true, tickets: [] });
+        // 2026-11-13: a 4. korszakban, globális jelenléttel a szabad gépre nagyvállalat jön (tick.ts 6.2).
+        const E = rules.enterprise;
+        const ent = enterpriseEligible(E, { era: p.era, reputation: p.rep, cloud_regions: nType('cloud_region'), edge_pops: nType('edge_pop') });
+        const band = ent && E ? { fee_min_cents: E.fee_min_cents, fee_max_cents: E.fee_max_cents, fee_step_cents: E.fee_step_cents } : ded;
+        const fee = band.fee_min_cents + Math.floor(r() * feeSteps(band as typeof ded)) * band.fee_step_cents;
+        customers.push({ sat: ded.start_sat, tier: 'dedicated', fee, active: true, tickets: [], ...(ent ? { ent: true } : {}) });
+        if (ent) entSigned++;
+        custVer++;
         dedSigned++;
       }
     }
@@ -474,13 +524,17 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
 
     // 7.5 passzív hírnév-sodródás
     {
-      const act = customers.filter((c) => c.active);
-      if (act.length >= 3) {
-        const avg = act.reduce((s, c) => s + c.sat, 0) / act.length;
+      let actN = 0, satSum = 0;
+      for (const c of customers) if (c.active) { actN++; satSum += c.sat; }
+      if (actN >= 3) {
+        const avg = satSum / actN;
         const roll = r();
         const cutoff = now - rules.churn_hours * 3600;
-        const staleOk = !rules.rep_drift_requires_no_stale_tickets
-          || !act.some((c) => c.tickets.some((ts) => ts < cutoff));
+        let stale = false;
+        if (rules.rep_drift_requires_no_stale_tickets) {
+          for (const c of customers) { if (c.active && c.tickets.length > 0 && c.tickets[0] < cutoff) { stale = true; break; } }
+        }
+        const staleOk = !rules.rep_drift_requires_no_stale_tickets || !stale;
         if (avg >= 70 && staleOk && engaged && roll < 0.02) p.rep = Math.min(100, p.rep + 1);
         else if (avg < 30 && roll < 0.02) p.rep = Math.max(0, p.rep - 1);
       }
@@ -495,11 +549,20 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       days_alive: Math.floor(now / 86400), reputation: p.rep,
     });
     if (target) { p.era = target.era; dirtyEff(); }
+    // 8.5 végcél (endgame.ts): az első nap, amikor minden feltétel teljesül.
+    if (finishedDay === null && p.era >= GOAL.era && goalNow().met) finishedDay = dayIdx;
 
     minCash = Math.min(minCash, p.cash);
     if (!rules.server_fees && brokeDay === null && p.cash < 100) brokeDay = dayIdx;
 
     if (tickOfDay === 0) {
+      // Naponta kidobjuk a lemorzsolódott ügyfeleket (a ticketjeik már lezárultak, véletlent nem húznak):
+      // a hosszú futásokban különben minden ciklus az összes valaha volt ügyfelen menne végig.
+      if (rules.close_tickets_on_churn) {
+        let j = 0;
+        for (const c of customers) if (c.active) customers[j++] = c;
+        customers.length = j;
+      }
       out.push({
         day: dayIdx,
         cash_cents: p.cash,
@@ -516,6 +579,9 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
         lost_total: lostTotal,
         dedicated_customers: dedN(),
         dedicated_mrr_cents: dedMrr(),
+        cloud_regions: nType('cloud_region'),
+        edge_pops: nType('edge_pop'),
+        enterprise: counts().ent,
         staff: staff.length,
         salary_monthly_cents: totalSalaryCents(SR, staff, now),
         avg_morale: staff.length ? Math.round(staff.reduce((a, m) => a + m.morale, 0) / staff.length) : 0,
@@ -536,6 +602,7 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     dedicated_signed: dedSigned, dedicated_lost: dedLost, dedicated_income_cents: dedIncome, dedicated_bought_day: dedBoughtDay,
     staff_hired: staffHired, staff_quit: staffQuit, staff_cut_debt: staffCutDebt, salaries_total_cents: salariesTotal,
     network_fees_total_cents: netFeesTotal, support_resolved: supportResolved, slow_halfdays: slowHalfDays,
+    finished_day: finishedDay, enterprise_signed: entSigned,
   };
 
   // ——— csapat ———
@@ -624,7 +691,8 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
     }
     // team: amire most szükség van, és amit az MRR elbír (a bérek legfeljebb az MRR negyede)
     const want: string[] = [];
-    if (leftoverAfterShift > 3 && has('support') < 2) want.push('support');
+    // 2026-11-13 (végjáték): a nagyobb cég több ügyfélszolgálatost tart (2. korszak: 2, 3.: 3, 4.: 5 — amíg a műszak után marad ticket).
+    if (leftoverAfterShift > 3 && has('support') < (p.era >= 4 ? 5 : p.era >= 3 ? 3 : 2)) want.push('support');
     if (p.mrr >= 40000 && has('sre') < 1) want.push('sre');
     if (p.mrr >= 50000 && has('sales') < 1 && fleetUtilPct(generalN(), capacity()) < 70) want.push('sales');
     for (const role of want) {
@@ -699,6 +767,8 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       if (c) loseDedicated(c);
     }
     const sv = p.servers.splice(i, 1)[0];
+    srvVer++;
+    edgeU = edgeUnits(p.servers);
     p.cash += Math.round((sv.price * rules.auto_sell_refund_pct) / 100);
     soldTotal++;
   }
@@ -706,9 +776,12 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
   function buyServer(type: ServerType): boolean {
     const spec = SERVER_SPECS[type];
     if (p.cash < spec.purchase_cost_cents) return false;
+    if (spec.era > p.era || !meetsServerRequirements(type, net.transit_tier)) return false;
     p.cash -= spec.purchase_cost_cents;
     invested += spec.purchase_cost_cents;
     p.servers.push({ type, monthly: spec.monthly_cost_cents, price: spec.purchase_cost_cents });
+    srvVer++;
+    edgeU = edgeUnits(p.servers);
     return true;
   }
 
@@ -844,15 +917,28 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       buyServer('dedicated_box');
       if (dedBoughtDay === null) dedBoughtDay = day;
     }
+    // 2026-11-13 (végjáték): a 3. korszaktól felhőrégiót (ha a tranzit elég), a 4.-ben a végcél felé is vesz.
+    const cloudOk = p.era >= 3 && meetsServerRequirements('cloud_region', net.transit_tier);
+    const cloudPrice = SERVER_SPECS.cloud_region.purchase_cost_cents;
     if (profile === 'casual') {
-      // A vezérlő 85%-nál szól; az alkalmi játékos akkor vesz, ha marad $200 tartalék.
-      if (util >= 85 && p.cash >= lamp + 20000) buyServer('lamp_box');
+      // A vezérlő 85%-nál szól; az alkalmi játékos akkor vesz, ha marad $200 tartalék (a 3. korszaktól a felhőrégiót,
+      // ha éppen kifizeti, különben a régi gépet — nem spórol rá).
+      if (util >= 85) {
+        if (cloudOk && p.cash >= cloudPrice + 20000) buyServer('cloud_region');
+        else if (p.cash >= lamp + 20000) buyServer('lamp_box');
+      }
+      goalBuys(200000);
     } else if (profile === 'active' || profile === 'overbuy' || buysDedicated || profile === 'no_staff' || profile === 'overhire_staff') {
       if (profile !== 'overbuy') {
         // Nem hirdet, amíg nincs hova tenni az ügyfelet (teli flottánál a PPC kidobott pénz).
         if (util >= 90) { p.seo = 50; p.ppc = 0; p.ref = 50; } else { p.seo = 25; p.ppc = 50; p.ref = 25; }
         // Időben (80%-nál) vesz gépet, $200 tartalékkal — a kapacitás előbb van, mint a fejlesztés.
-        if (util >= 80 && p.cash >= lamp + 20000) buyServer('lamp_box');
+        // A 3. korszaktól a felhőrégióra spórol ($1000 tartalékkal), régi gépet csak szorult helyzetben (95%) vesz.
+        if (cloudOk && profile !== 'never_buy') {
+          if (util >= 80 && p.cash >= cloudPrice + 100000) buyServer('cloud_region');
+          else if (util >= 95 && p.cash >= lamp + 20000) buyServer('lamp_box');
+        } else if (util >= 80 && p.cash >= lamp + 20000) buyServer('lamp_box');
+        goalBuys(100000);
       } else {
         // Túl sokat vesz: minden nap egy gépet, ha kifizeti (max 12), akár üresen is.
         if (p.servers.length < 12) buyServer('lamp_box');
@@ -873,5 +959,25 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
       }
     }
     // never_buy: semmit
+  }
+
+  /** A 4. korszakban a végcél felé (endgame.GOAL): naponta legfeljebb egy vásárlás, `reserve` tartalékkal —
+   *  edge POP-ok, a második felhőrégió, és egy dedikált gép a nagyvállalati szerződésnek. */
+  function goalBuys(reserve: number): void {
+    if (p.era < GOAL.era || profile === 'never_buy' || profile === 'idle') return;
+    const pops = nType('edge_pop');
+    const regions = nType('cloud_region');
+    const edgePrice = SERVER_SPECS.edge_pop.purchase_cost_cents;
+    if (pops < GOAL.min_edge_pops) { if (p.cash >= edgePrice + reserve) buyServer('edge_pop'); return; }
+    if (regions < GOAL.min_cloud_regions) {
+      if (meetsServerRequirements('cloud_region', net.transit_tier) && p.cash >= SERVER_SPECS.cloud_region.purchase_cost_cents + reserve) buyServer('cloud_region');
+      return;
+    }
+    const E = rules.enterprise;
+    if (ded && E && counts().ent < GOAL.min_enterprise && dedicatedBoxes(p.servers, dedN()).free === 0
+      && enterpriseEligible(E, { era: p.era, reputation: p.rep, cloud_regions: regions, edge_pops: pops })
+      && p.cash >= SERVER_SPECS.dedicated_box.purchase_cost_cents + reserve) {
+      buyServer('dedicated_box');
+    }
   }
 }

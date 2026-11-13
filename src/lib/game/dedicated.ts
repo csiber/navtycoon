@@ -14,13 +14,21 @@
 // A tick (tick.ts), a műszak (api/shift/start.ts, shift-room DO), a felület és a szimulátor (economy-sim.ts)
 // mind ezeket a függvényeket hívja.
 
-import { TICKS_PER_DAY, type DedicatedRule, type EconomyRules } from './economy';
+import { TICKS_PER_DAY, type DedicatedRule, type EconomyRules, type EnterpriseRule } from './economy';
 
 export const DEDICATED_SERVER_TYPE = 'dedicated_box';
 export const DEDICATED_TIER = 'dedicated';
+/** 2026-11-13 (végjáték): a nagyvállalati ügyfél is egy dedikált gépen ül, ugyanazokkal a gondozási szabályokkal
+ *  (DedicatedRule); csak a szerződése nagyobb, és csak a 4. korszakban, globális jelenléttel jön (EnterpriseRule). */
+export const ENTERPRISE_TIER = 'enterprise';
+/** A „nagy ügyfél" sorok SQL-szűrője (dedikált + nagyvállalati). Konstans, nem felhasználói adat. */
+export const BIG_TIERS_SQL = "('dedicated', 'enterprise')";
 
 export const isDedicatedServer = (type: string): boolean => type === DEDICATED_SERVER_TYPE;
-export const isDedicatedCustomer = (planTier: string | null | undefined): boolean => planTier === DEDICATED_TIER;
+/** Nagy ügyfél-e (dedikált VAGY nagyvállalati): saját gépen ül, SLA-ja van, a korszak-MRR-be nem számít. */
+export const isDedicatedCustomer = (planTier: string | null | undefined): boolean =>
+  planTier === DEDICATED_TIER || planTier === ENTERPRISE_TIER;
+export const isEnterpriseCustomer = (planTier: string | null | undefined): boolean => planTier === ENTERPRISE_TIER;
 
 /** A havidíj-lépcsők száma (min..max, step-enként, mindkét vég benne). */
 export function feeSteps(rule: DedicatedRule): number {
@@ -33,6 +41,30 @@ export function dedicatedFeeCents(rule: DedicatedRule, customerId: number): numb
   const h = Math.imul((customerId | 0) ^ 0x5bd1e995, 2654435761) >>> 0;
   return rule.fee_min_cents + (h % feeSteps(rule)) * rule.fee_step_cents;
 }
+
+/** Egy nagy ügyfél havidíja a tier szerint: a nagyvállalati a saját sávjából (EnterpriseRule), különben a dedikált. */
+export function bigClientFeeCents(rules: Pick<EconomyRules, 'dedicated' | 'enterprise'>, customerId: number, planTier: string | null | undefined): number {
+  const e = rules.enterprise;
+  if (isEnterpriseCustomer(planTier) && e) {
+    return dedicatedFeeCents({ fee_min_cents: e.fee_min_cents, fee_max_cents: e.fee_max_cents, fee_step_cents: e.fee_step_cents } as DedicatedRule, customerId);
+  }
+  return rules.dedicated ? dedicatedFeeCents(rules.dedicated, customerId) : 0;
+}
+
+/** Jelentkezhet-e most nagyvállalati ügyfél (a szabad dedikált gépet és a várakozást a hívó nézi). */
+export function enterpriseEligible(
+  rule: EnterpriseRule | null | undefined,
+  p: { era: number; reputation: number; cloud_regions: number; edge_pops: number },
+): boolean {
+  return !!rule && p.era >= rule.min_era && p.reputation >= rule.min_reputation
+    && p.cloud_regions >= rule.min_cloud_regions && p.edge_pops >= rule.min_edge_pops;
+}
+
+/** Kitalált nagyvállalat-nevek (nyelvfüggetlenek). */
+export const ENTERPRISE_CLIENT_NAMES = [
+  'Polaris Retail Holdings', 'Quantum Ledger Payments', 'Transoceanic Logistics', 'Helios Mobility', 'Aurora Media Network',
+  'Caldera Health Systems', 'Skyward Airlines', 'Evergreen Foods International', 'Lighthouse Learning', 'Continental Telecom Group',
+] as const;
 
 /** A sáv közepe (a katalógus „~$X/hó" felirata). */
 export function dedicatedFeeMid(rule: DedicatedRule): number {
@@ -80,7 +112,8 @@ export const DEDICATED_CLIENT_NAMES = [
 ] as const;
 
 /** Nagy ügyfél jelleme: többnyire szakember („pro"), néha követelőző („karen"). */
-export function pickDedicatedClient(r: () => number = Math.random): { name: string; archetype: 'pro' | 'karen' } {
-  const name = DEDICATED_CLIENT_NAMES[Math.floor(r() * DEDICATED_CLIENT_NAMES.length)];
+export function pickDedicatedClient(r: () => number = Math.random, enterprise = false): { name: string; archetype: 'pro' | 'karen' } {
+  const list: readonly string[] = enterprise ? ENTERPRISE_CLIENT_NAMES : DEDICATED_CLIENT_NAMES;
+  const name = list[Math.floor(r() * list.length)];
   return { name, archetype: r() < 0.7 ? 'pro' : 'karen' };
 }

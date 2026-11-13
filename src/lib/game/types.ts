@@ -9,7 +9,7 @@
 
 export type EraId = 1 | 2 | 3 | 4;
 
-export type PlanTier = 'hobby' | 'business' | 'vps' | 'dedicated';
+export type PlanTier = 'hobby' | 'business' | 'vps' | 'dedicated' | 'enterprise';
 
 export type PersonaArchetype =
   | 'karen'
@@ -63,7 +63,10 @@ export type EventType =
   | 'staff_cut_debt'
   | 'staff_work'
   | 'network_changed'
-  | 'network_ddos_cancelled';
+  | 'network_ddos_cancelled'
+  // 2026-11-13 (végjáték): a végcél elérése (egyszer, lezárt sor; endgame.ts). A nagyvállalati szerződés a
+  // dedicated_signed / dedicated_lost sorokat használja (data_json.enterprise = true).
+  | 'game_completed';
 
 export type EventOutcome = 'positive' | 'neutral' | 'negative';
 

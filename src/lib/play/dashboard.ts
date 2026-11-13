@@ -8,6 +8,7 @@
 
 import { esc, usd, usd2, type ShellData, renderEraReqs } from './shell';
 import { pt, type PlayLocale, type PlayKey } from './strings';
+import { isDedicatedCustomer } from '../game/dedicated';
 import { eventLine, ago, type FeedEvent } from './events';
 import { serverName, upgradeName } from './catalog';
 import { SERVER_SPECS, affordableServerTypes } from '../game/server-types';
@@ -140,9 +141,9 @@ export function renderDashboardContent(d: DashboardData): string {
   const s = d.shell;
   const L = s.locale;
   const active = d.customersAll;
-  const paying = active.filter((c) => c.plan_tier === 'hobby' || c.plan_tier === 'business' || c.plan_tier === 'dedicated');
+  const paying = active.filter((c) => c.plan_tier === 'hobby' || c.plan_tier === 'business' || isDedicatedCustomer(c.plan_tier));
   // 2026-11-12 (dedikált-kör): a nagy ügyfelek a saját dedikált gépükön ülnek, a flotta-kapacitás a többieké.
-  const dedActive = active.filter((c) => c.plan_tier === 'dedicated').sort((a, b) => a.id - b.id);
+  const dedActive = active.filter((c) => isDedicatedCustomer(c.plan_tier)).sort((a, b) => a.id - b.id);
   const generalN = active.length - dedActive.length;
   const hobby = active.filter((c) => c.plan_tier === 'hobby').length;
   const business = active.filter((c) => c.plan_tier === 'business').length;

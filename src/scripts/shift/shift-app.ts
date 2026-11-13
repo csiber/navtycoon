@@ -167,7 +167,7 @@ function renderQueue() {
       const right = el('div');
       const nm = el('div', 'nm');
       nm.append(el('b', '', c.customer_name), el('span', 'sx-chip ' + c.archetype, L.arch?.[c.archetype] ?? c.archetype));
-      if (c.plan_tier === 'dedicated') nm.append(el('span', 'sx-chip ded', tr('sx.ded')));
+      if (c.plan_tier === 'dedicated' || c.plan_tier === 'enterprise') nm.append(el('span', 'sx-chip ded', tr(c.plan_tier === 'enterprise' ? 'sx.ent' : 'sx.ded')));
       nm.append(el('span', 'st'));
       const meta = el('div', 'meta');
       meta.append(satBar(c.current_satisfaction), el('span', 'sx-satv', String(c.current_satisfaction)));
@@ -202,9 +202,9 @@ function renderHead() {
     headFor = c.ticket_id;
     const who = el('div', 'who');
     const top = el('div'); top.append(el('b', '', c.customer_name), document.createTextNode(' '), el('span', 'sx-chip ' + c.archetype, L.arch?.[c.archetype] ?? c.archetype));
-    if (c.plan_tier === 'dedicated') top.append(document.createTextNode(' '), el('span', 'sx-chip ded', tr('sx.ded')));
+    if (c.plan_tier === 'dedicated' || c.plan_tier === 'enterprise') top.append(document.createTextNode(' '), el('span', 'sx-chip ded', tr(c.plan_tier === 'enterprise' ? 'sx.ent' : 'sx.ded')));
     who.append(top, el('div', 'subj', c.ticket_subject));
-    if (c.plan_tier === 'dedicated') who.append(el('div', 'sx-ded-note', tr('sx.ded_note')));
+    if (c.plan_tier === 'dedicated' || c.plan_tier === 'enterprise') who.append(el('div', 'sx-ded-note', tr('sx.ded_note')));
     const mood = el('div', 'sx-mood');
     const row = el('div', 'row');
     const lbl = el('span', '', tr('sx.mood.label'));

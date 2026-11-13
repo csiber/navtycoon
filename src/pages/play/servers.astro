@@ -19,7 +19,7 @@ import { buildRackModel } from '../../lib/play/rack-model';
 import { serverName } from '../../lib/play/catalog';
 import { clientStrings } from '../../lib/play/strings';
 import { ECONOMY } from '../../lib/game/economy';
-import { dedicatedFeeCents } from '../../lib/game/dedicated';
+import { bigClientFeeCents, BIG_TIERS_SQL } from '../../lib/game/dedicated';
 
 type AnyCtx = Parameters<typeof getCurrentUser>[0];
 const ctx = Astro as unknown as AnyCtx;
@@ -42,12 +42,12 @@ const pageHtml = "\n<div class=\"app\">\n\n  <!-- Sidebar -->\n  <aside>\n    <a
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
 const shell = await loadShell(db, player, user, locale);
 // 2026-11-12 (dedikált-kör): a sima ügyfelek a sima gépeken, a nagy ügyfelek a dedikált gépeken (vásárlási sorrendben).
-const activeCustomers = (await db.prepare("SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier != 'dedicated'")
+const activeCustomers = (await db.prepare(`SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier NOT IN ${BIG_TIERS_SQL}`)
   .bind(user.id).first<{ n: number }>())?.n ?? 0;
 const dedRule = ECONOMY.dedicated;
-const dedCustomers = ((await db.prepare("SELECT id, name, satisfaction FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier = 'dedicated' ORDER BY id ASC")
+const dedCustomers = ((await db.prepare(`SELECT id, name, satisfaction, plan_tier FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier IN ${BIG_TIERS_SQL} ORDER BY id ASC`)
   .bind(user.id).all<{ id: number; name: string; satisfaction: number }>()).results ?? [])
-  .map((c) => ({ ...c, fee_cents: dedRule ? dedicatedFeeCents(dedRule, c.id) : 0 }));
+  .map((c) => ({ ...c, fee_cents: dedRule ? bigClientFeeCents(ECONOMY, c.id, c.plan_tier) : 0 }));
 const lastDedLost = (await db.prepare("SELECT MAX(spawned_at) AS t FROM events WHERE player_id = ? AND event_type = 'dedicated_lost'")
   .bind(user.id).first<{ t: number | null }>())?.t ?? null;
 const nowSrv = Math.floor(Date.now() / 1000);

@@ -2,7 +2,8 @@
 // Hyperscales — a Hálózat szabályai EGY helyen (2026-11-12, hálózat-kör).
 //
 // Három döntés, nem tizenöt csúszka (a számok: economy.ts NETWORK_RULE_V3):
-//  1. Tranzit-csomag (sávszélesség): ingyenes alap (80 egység) → 100 Mbit ($40/hó, 200) → 1 Gbit ($120/hó, 600).
+//  1. Tranzit-csomag (sávszélesség): ingyenes alap (80 egység) → 100 Mbit ($40/hó, 200) → 1 Gbit ($120/hó, 600)
+//     → 10 Gbit a 3. korszaktól ($400/hó, 2000; 2026-11-13, végjáték — e nélkül ~600 ügyfélnél megállt a növekedés).
 //     Minden ügyfél forgalmat visz (hobbi 1, üzleti 2, nagy ügyfél 8 egység). Ha több a forgalom, mint a
 //     sávszélesség, lassulnak az oldalak: több ticket (×1 + 1,5 × túllógás) és félnaponta −2 elégedettség —
 //     ugyanúgy, mint a gépek túlterhelésénél. Kicsi csomag = lassulás, nagy csomag = kidobott havidíj.
@@ -30,6 +31,9 @@ export interface NetworkState {
   ddos: number;
   /** Piactéri peering-szerződés havidíja (cent); null/hiányzik = a normál díj (rule.peering.monthly_cents). */
   peering_monthly_cents?: number | null;
+  /** 2026-11-13 (végjáték): az edge POP-ok helyben kiszolgált forgalma (server-types.edgeUnits); nem tárolt,
+   *  a hívó tölti ki a flottából. */
+  edge_units?: number;
 }
 
 export const NO_NETWORK: NetworkState = Object.freeze({ transit_tier: 0, peering: 0, ddos: 0 });
@@ -43,10 +47,10 @@ export function clampTier(rule: NetworkRule, tier: number): number {
   return Math.max(0, Math.min(rule.tiers.length - 1, Math.floor(Number(tier) || 0)));
 }
 
-/** A hasznos sávszélesség (egység): a csomag + a peering. */
+/** A hasznos sávszélesség (egység): a csomag + a peering + az edge POP-ok (4. korszak). */
 export function bandwidthUnits(rule: NetworkRule, n: NetworkState): number {
   const base = rule.tiers[clampTier(rule, n.transit_tier)].bandwidth_units;
-  return Math.floor(base * (n.peering ? 1 + rule.peering.bandwidth_pct / 100 : 1));
+  return Math.floor(base * (n.peering ? 1 + rule.peering.bandwidth_pct / 100 : 1)) + Math.max(0, n.edge_units ?? 0);
 }
 
 /** A forgalom (egység) az ügyfelekből. */

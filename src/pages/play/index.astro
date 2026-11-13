@@ -199,6 +199,7 @@ import { nextEraTarget } from '../../lib/game/era-progress';
 import I18nDashboard from '../../components/I18nDashboard.astro';
 import DashboardAnims from '../../components/DashboardAnims.astro';
 import { buildRackModel } from '../../lib/play/rack-model';
+import { isDedicatedCustomer } from '../../lib/game/dedicated';
 import { serverName as serverName3d } from '../../lib/play/catalog';
 import { clientStrings as clientStrings3d } from '../../lib/play/strings';
 const nextEra = nextEraTarget(player.current_era);
@@ -309,10 +310,10 @@ const rack3d = {
   model: buildRackModel({
     servers: rack3dServers, openIncidents: openIncidents3d, nameOf: (t) => serverName3d(locale, t), minSlots: 8,
     // 2026-11-12 (dedikált-kör): a nagy ügyfelek a dedikált gépeken, a többiek a sima gépeken.
-    activeCustomers: allActiveCustomers.filter((c) => c.plan_tier !== 'dedicated').length,
-    dedicatedCustomers: allActiveCustomers.filter((c) => c.plan_tier === 'dedicated').length,
+    activeCustomers: allActiveCustomers.filter((c) => !isDedicatedCustomer(c.plan_tier)).length,
+    dedicatedCustomers: allActiveCustomers.filter((c) => isDedicatedCustomer(c.plan_tier)).length,
     dedTag: pt(locale, 'srv.ded_tag'),
-    dedNames: allActiveCustomers.filter((c) => c.plan_tier === 'dedicated').sort((a, b) => a.id - b.id).map((c) => c.name),
+    dedNames: allActiveCustomers.filter((c) => isDedicatedCustomer(c.plan_tier)).sort((a, b) => a.id - b.id).map((c) => c.name),
   }),
   labels: { ...clientStrings3d(locale, ['r3.']), 'r3.empty': pt(locale, 'dash.fleet.empty') },
 };

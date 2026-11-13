@@ -1,5 +1,5 @@
-// Hyperscales — Upgrade-tree (20 specs: Era 1: 8, Era 2: 12).
-// Phase 1 scope. Era 3-4 upgrades come in Phase 2.
+// Hyperscales — Upgrade-tree (26 specs: Era 1: 8, Era 2: 12, Era 3: 3, Era 4: 3).
+// 2026-11-13 (végjáték): a 3–4. korszak is kapott fejlesztést, mind a meglévő hatás-kulcsokon (upgrade-effects.ts).
 //
 // Konvenciók:
 //  - Pénz INTEGER (USD cents).
@@ -86,6 +86,29 @@ export const UPGRADE_SPECS: UpgradeSpec[] = [
   { id: 'cdn_global', era: 2, display_name: 'Global CDN POP', cost_usd_cents: 150000,
     effect: 'Fast everywhere: more sign-ups worldwide, fewer speed tickets.',
     effect_data: { acq_pct: 25, ticket_pct: -10 }, prereq: 'cdn_bind' },
+
+  // Era 3 (3) — 2026-11-13 (végjáték). A jó játékosnál a ticket- és beszerzés-hatások a 2. korszak végére a korláthoz
+  // közel járnak (−60% / +100%), ezért a 3–4. korszak ott ad, ahol még van mozgástér: hely, bevétel, műszak, díj.
+  { id: 'autoscaling', era: 3, display_name: 'Autoscaling', cost_usd_cents: 600000,
+    effect: 'Load moves itself to where there is room: every machine carries more customers.',
+    effect_data: { capacity_pct: 30 }, prereq: 'docker_enabled' },
+  { id: 'object_storage', era: 3, display_name: 'Object Storage Add-on', cost_usd_cents: 800000,
+    effect: 'S3-compatible storage that customers pay extra for — backups, media, logs.',
+    effect_data: { mrr_pct: 15 }, prereq: 'postgres_addon' },
+  { id: 'ai_triage', era: 3, display_name: 'AI Ticket Triage', cost_usd_cents: 500000,
+    effect: 'A model sorts and drafts the boring tickets: more of them fit into a shift.',
+    effect_data: { shift_slots: 3, ai_calls: 20 }, prereq: 'nagios' },
+
+  // Era 4 (3)
+  { id: 'anycast_dns', era: 4, display_name: 'Anycast Network', cost_usd_cents: 1200000,
+    effect: 'The same address answers from every POP: attacks spread thin, outages stay local.',
+    effect_data: { avoid_network: 40, churn_pct: -10 } },
+  { id: 'green_ppa', era: 4, display_name: 'Renewable Power Deal', cost_usd_cents: 1500000,
+    effect: 'A long-term green power contract: cheaper electricity for every machine.',
+    effect_data: { fee_pct: -15 } },
+  { id: 'premium_support', era: 4, display_name: 'Premium Support Plans', cost_usd_cents: 2000000,
+    effect: 'Paid support tiers with a real phone line: customers pay more for peace of mind.',
+    effect_data: { mrr_pct: 15 }, prereq: 'object_storage' },
 ];
 
 export function availableUpgrades(currentEra: EraId, ownedIds: Set<string>): UpgradeSpec[] {

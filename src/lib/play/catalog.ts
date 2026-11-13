@@ -16,16 +16,16 @@ const SERVERS: Record<'hu' | 'de', Record<string, Tr>> = {
     rack_unit: { name: '1U rack-szerver', text: 'Dupla Xeon, redundáns táp, friss adatközpont-illat.' },
     vps_node: { name: 'VPS-csomópont', text: 'KVM-virtualizált, 32 GB RAM. A gyakornok szerint a VPS „Very Powerful Server”.' },
     dedicated_box: { name: 'Dedikált gép (1 nagy ügyfél)', text: 'Egy üzleti ügyfél, a saját vasa, és egy telefonszám, amit tényleg fel is hív.' },
-    cloud_region: { name: 'Felhőrégió (később)', text: 'A 3. korszakban nyílik — egy későbbi frissítésben.' },
-    edge_pop: { name: 'Edge POP (később)', text: 'A 4. korszakban nyílik — egy későbbi frissítésben.' },
+    cloud_region: { name: 'Felhőrégió', text: 'Három rendelkezésre állási zóna, egy számla, és egy állapotoldal, amit tényleg zölden kell tartani.' },
+    edge_pop: { name: 'Edge POP', text: 'Egy kis ketrec egy távoli internet-csomópontban. A forgalmad már nem kel át az óceánon.' },
   },
   de: {
     lamp_box: { name: 'Beiger Tower (LAMP)', text: 'Pentium III, 512 MB, der Lüfter ist lauter als die Kundenbeschwerden. Ehrliche Arbeit.' },
     rack_unit: { name: '1U-Rackserver', text: 'Dual-Xeon, redundantes Netzteil, riecht nach frischem Rechenzentrum.' },
     vps_node: { name: 'VPS-Knoten', text: 'KVM-virtualisiert, 32 GB RAM. Der Praktikant hält VPS für „Very Powerful Server“.' },
     dedicated_box: { name: 'Dedizierter Server (1 Großkunde)', text: 'Ein Geschäftskunde, eigenes Blech und eine Telefonnummer, die er wirklich anruft.' },
-    cloud_region: { name: 'Cloud-Region (später)', text: 'Wird in Ära 3 freigeschaltet — in einem späteren Update.' },
-    edge_pop: { name: 'Edge-POP (später)', text: 'Wird in Ära 4 freigeschaltet — in einem späteren Update.' },
+    cloud_region: { name: 'Cloud-Region', text: 'Drei Verfügbarkeitszonen, eine Rechnung und eine Statusseite, die wirklich grün bleiben muss.' },
+    edge_pop: { name: 'Edge-POP', text: 'Ein kleiner Käfig in einem fernen Internetknoten. Dein Traffic überquert nicht mehr den Ozean.' },
   },
 };
 
@@ -53,6 +53,12 @@ const UPGRADES: Record<'hu' | 'de', Record<string, Tr>> = {
     cicd_pipeline: { name: 'CI/CD-folyamat', text: 'A javítás percek alatt kimegy, a sablonválaszok maguktól készülnek.' },
     postgres_addon: { name: 'PostgreSQL-kiegészítő', text: 'Fizetős adatbázis-kiegészítő, amit sok ügyfél megvesz.' },
     cdn_global: { name: 'Globális CDN-pont', text: 'Mindenhol gyors: több regisztráció világszerte, kevesebb sebesség-ticket.' },
+    autoscaling: { name: 'Automatikus skálázás', text: 'A terhelés magától oda költözik, ahol van hely: minden gép több ügyfelet bír.' },
+    object_storage: { name: 'Objektumtár-kiegészítő', text: 'S3-kompatibilis tárhely, amiért az ügyfelek külön fizetnek: mentés, média, naplók.' },
+    ai_triage: { name: 'MI-s ticket-előszűrés', text: 'Egy modell válogatja és fogalmazza meg az unalmas ticketeket: több fér egy műszakba.' },
+    anycast_dns: { name: 'Anycast-hálózat', text: 'Ugyanaz a cím minden POP-ból válaszol: a támadás szétterül, a kiesés helyi marad.' },
+    green_ppa: { name: 'Zöldáram-szerződés', text: 'Hosszú távú megújuló-áram szerződés: olcsóbb áram minden gépnek.' },
+    premium_support: { name: 'Prémium támogatási csomagok', text: 'Fizetős támogatási szintek valódi telefonvonallal: a nyugalomért többet fizetnek.' },
   },
   de: {
     cooling_fan: { name: 'Bessere Kühlung', text: 'Kühlere Maschinen vertragen etwas mehr Last und fallen seltener aus.' },
@@ -75,6 +81,12 @@ const UPGRADES: Record<'hu' | 'de', Record<string, Tr>> = {
     cicd_pipeline: { name: 'CI/CD-Pipeline', text: 'Fixes gehen in Minuten raus, Standardantworten schreiben sich fast selbst.' },
     postgres_addon: { name: 'PostgreSQL-Add-on', text: 'Ein kostenpflichtiges Datenbank-Add-on, das viele Kunden buchen.' },
     cdn_global: { name: 'Globaler CDN-POP', text: 'Überall schnell: mehr Anmeldungen weltweit, weniger Geschwindigkeits-Tickets.' },
+    autoscaling: { name: 'Autoscaling', text: 'Die Last zieht von selbst dorthin, wo Platz ist: jede Maschine trägt mehr Kunden.' },
+    object_storage: { name: 'Object-Storage-Add-on', text: 'S3-kompatibler Speicher, für den Kunden extra zahlen: Backups, Medien, Logs.' },
+    ai_triage: { name: 'KI-Ticket-Triage', text: 'Ein Modell sortiert und entwirft die langweiligen Tickets: mehr passen in eine Schicht.' },
+    anycast_dns: { name: 'Anycast-Netz', text: 'Dieselbe Adresse antwortet aus jedem POP: Angriffe verteilen sich, Ausfälle bleiben lokal.' },
+    green_ppa: { name: 'Ökostrom-Vertrag', text: 'Ein langfristiger Ökostromvertrag: günstigerer Strom für jede Maschine.' },
+    premium_support: { name: 'Premium-Support-Pakete', text: 'Bezahlte Support-Stufen mit echter Telefonleitung: Kunden zahlen mehr für Ruhe.' },
   },
 };
 

@@ -11,7 +11,7 @@ import { ago } from './events';
 import { tip } from './dashboard';
 import { localizePlaceholderTicket } from '../game/customer-spawn';
 import { ECONOMY } from '../game/economy';
-import { dedicatedFeeCents, isDedicatedCustomer } from '../game/dedicated';
+import { bigClientFeeCents, isDedicatedCustomer } from '../game/dedicated';
 
 export interface CustRow {
   id: number; name: string; persona_archetype: string; plan_tier: string; joined_at: number;
@@ -47,7 +47,7 @@ export function planPrice(plan: string, prices: { hobby: number; business: numbe
 
 /** Egy ügyfél havidíja: a dedikált (nagy) ügyfélé az azonosítójából (dedicated.ts), a többieké a csomag ára. */
 export function customerPrice(c: { id: number; plan_tier: string }, prices: { hobby: number; business: number }): number {
-  if (isDedicatedCustomer(c.plan_tier)) return ECONOMY.dedicated ? dedicatedFeeCents(ECONOMY.dedicated, c.id) : 0;
+  if (isDedicatedCustomer(c.plan_tier)) return ECONOMY.dedicated ? bigClientFeeCents(ECONOMY, c.id, c.plan_tier) : 0;
   return planPrice(c.plan_tier, prices);
 }
 
@@ -91,10 +91,12 @@ export function renderCustomersContent(d: CustomersPageData): string {
   const rows = sorted.map((c, i) => {
     const mood = c.satisfaction - 50;
     const moodCls = c.is_active !== 1 ? 'muted' : mood >= 20 ? 'good' : mood >= 0 ? 'warn' : 'bad';
-    const tags = [c.is_active !== 1 ? 'left' : '', c.churn_risk >= 50 && c.is_active === 1 ? 'risk' : '', c.plan_tier].filter(Boolean).join(' ');
+    const tags = [c.is_active !== 1 ? 'left' : '', c.churn_risk >= 50 && c.is_active === 1 ? 'risk' : '', c.plan_tier,
+      // a nagyvállalati ügyfél a „nagy ügyfelek" szűrőben is látszik
+      c.plan_tier === 'enterprise' ? 'dedicated' : ''].filter(Boolean).join(' ');
     const price = customerPrice(c, d.prices);
     const ded = isDedicatedCustomer(c.plan_tier);
-    const badge = ded ? ` <b class="ded-badge">${esc(pt(L, 'sx.ded'))}</b>` : '';
+    const badge = ded ? ` <b class="ded-badge">${esc(pt(L, c.plan_tier === 'enterprise' ? 'sx.ent' : 'sx.ded'))}</b>` : '';
     return `<button type="button" class="cust-row${i === 0 ? ' selected' : ''}" data-cust="${c.id}" data-tags="${esc(tags)}">
             <div class="av av-${esc(c.name.charAt(0).toUpperCase())}${mood < -20 ? ' angry' : mood < 0 ? ' warn' : ''}">${esc(c.name.charAt(0).toUpperCase())}</div>
             <div><div class="name">${esc(c.name)}${badge}</div><div class="meta">${esc(ded ? pt(L, 'cust.ded_meta') : pt(L, (`plan.${c.plan_tier}`) as PlayKey) + ' · ' + personaLabel(L, c.persona_archetype))}</div></div>

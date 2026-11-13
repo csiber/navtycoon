@@ -11,6 +11,7 @@ import type { Player } from '../game/types';
 import { UPGRADE_SPECS } from '../game/upgrade-tree';
 import { renderSoundControl } from './sound-ui';
 import { eraProgress, daysAlive, eraMrrCents, dedicatedMrrCents, type EraProgress } from '../game/era-progress';
+import { BIG_TIERS_SQL } from '../game/dedicated';
 import { dailyCashFlow, type CashFlow } from '../game/runway';
 import { LOW_CASH_WARN_CENTS, ECONOMY, FLEET_WARN_PCT, fleetUtilPct } from '../game/economy';
 import { effectsOf, type UpgradeEffects } from '../game/upgrade-effects';
@@ -123,7 +124,7 @@ export async function loadShell(
     one("SELECT COALESCE(SUM(CAST(json_extract(data_json, '$.count') AS INTEGER)), 0) AS n FROM events " +
       "WHERE player_id = ? AND event_type = 'capacity_lost' AND spawned_at >= ?", uid, now - 86400),
     // 2026-11-12 (dedikált-kör): a nagy ügyfelek a saját gépükön ülnek — a flotta-terhelésbe nem számítanak.
-    one("SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier = 'dedicated'", uid),
+    one(`SELECT COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier IN ${BIG_TIERS_SQL}`, uid),
   ]);
   // A korszakhoz számító MRR a nagy ügyfelek díja nélkül (era-progress.eraMrrCents).
   const dedFees = dedCustomers > 0 ? await dedicatedMrrCents(db as never, uid) : 0;
@@ -142,7 +143,8 @@ export async function loadShell(
     const tiers = (await db.prepare("SELECT plan_tier AS t, COUNT(*) AS n FROM customers WHERE player_id = ? AND is_active = 1 GROUP BY plan_tier")
       .bind(uid).all<{ t: string; n: number }>()).results ?? [];
     const by = (t: string) => tiers.find((r) => r.t === t)?.n ?? 0;
-    traffic = trafficUnits(NR, { hobby: customers - by('business') - by('dedicated'), business: by('business'), dedicated: by('dedicated') });
+    const big = by('dedicated') + by('enterprise');
+    traffic = trafficUnits(NR, { hobby: customers - by('business') - big, business: by('business'), dedicated: big });
   }
   const bandwidth = netOn && NR ? bandwidthUnits(NR, network) : 0;
   const team: TeamInfo = {

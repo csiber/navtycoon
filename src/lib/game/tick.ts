@@ -37,7 +37,8 @@ import { generateAiTicket } from '../ai/ticket-generator';
 import { storeTicketMemory, type VectorizeBinding } from '../ai/vectorize';
 import { tryConsumeLlmCall } from './llm-cap';
 import type { WorkersAIBinding } from '../ai/workers-ai';
-import { maybeAdvanceEra } from './era-progress';
+import { maybeAdvanceEra, eraMrrCents, dedicatedMrrCents } from './era-progress';
+import { GOAL, maybeCompleteGame, recordMrrPeak } from './endgame';
 import {
   ECONOMY, TICK_MINUTES, ppcSpendPerTick, acquisitionProb, ticketSpawnProb, churnProb, bridgeDue, isEngaged,
   serverFeeForTick, effectiveMonthlyFees, applyServerFee, pickServerToSell, overloadTicketFactor, overloadRatio,
@@ -52,11 +53,11 @@ import {
   type NetworkState, NO_NETWORK, loadNetwork, networkActive, networkEffects, networkMonthlyCents, bandwidthUnits,
   trafficUnits, slowdownRatio, slowdownTicketFactor,
 } from './network';
-import { SERVER_SPECS, serverCapacity } from './server-types';
+import { SERVER_SPECS, serverCapacity, edgeUnits } from './server-types';
 import { assignFleetLoad } from './capacity';
 import {
-  isDedicatedCustomer, isDedicatedServer, dedicatedFeeCents, dedicatedArrivalProb, dedicatedBoxes, pickDedicatedClient,
-  DEDICATED_TIER,
+  isDedicatedCustomer, isDedicatedServer, dedicatedArrivalProb, dedicatedBoxes, pickDedicatedClient,
+  DEDICATED_TIER, ENTERPRISE_TIER, BIG_TIERS_SQL, bigClientFeeCents, enterpriseEligible, isEnterpriseCustomer,
 } from './dedicated';
 import { getEnterpriseTicket } from './customer-spawn';
 import { eventPoolForEra } from './event-pool';
@@ -102,6 +103,8 @@ export interface TickResult {
   staff_cut?: number;
   network_slow?: boolean;
   era_advanced_to: EraId | null;
+  /** 2026-11-13 (végjáték): ebben a tickben teljesült a végcél (egyszer). */
+  game_completed?: boolean;
   /** A tick végén feloldott achievementek (lásd achievement-tick.ts). */
   achievements_unlocked?: string[];
 }
@@ -138,7 +141,7 @@ export async function tickPlayer(
   const DED = ECONOMY.dedicated;
   // Egy nagy ügyfél távozása: inaktív, a ticketjei lezárulnak, hírnevet visz, és eseménysor (ebből számoljuk a
   // várakozási időt is, így nem kell új oszlop).
-  const loseDedicated = async (c: { id: number; name: string }, reason: 'unhappy' | 'sla' | 'sold'): Promise<void> => {
+  const loseDedicated = async (c: { id: number; name: string; plan_tier?: string }, reason: 'unhappy' | 'sla' | 'sold'): Promise<void> => {
     await db.prepare('UPDATE customers SET is_active = 0, churn_risk = 100 WHERE id = ?').bind(c.id).run();
     await db.prepare("UPDATE tickets SET status = 'churned' WHERE customer_id = ? AND status IN ('open', 'in_progress')").bind(c.id).run();
     const repLoss = DED?.leave_rep ?? 0;
@@ -150,6 +153,7 @@ export async function tickPlayer(
       "VALUES (?, 'dedicated_lost', ?, ?, 'negative', ?)",
     ).bind(player.user_id, JSON.stringify({
       customer_name: c.name, reason, rep_delta: repLoss, cooldown_days: DED?.leave_cooldown_days ?? 0,
+      ...(isEnterpriseCustomer(c.plan_tier) ? { enterprise: true } : {}),
     }), now, now).run();
     dedLostN++;
   };
@@ -335,8 +339,8 @@ export async function tickPlayer(
   if (DED && halfDayTurn && dedCustomers.length > 0) {
     const stale = new Set(((await db.prepare(
       "SELECT DISTINCT t.customer_id AS id FROM tickets t JOIN customers c ON c.id = t.customer_id " +
-      "WHERE t.player_id = ? AND c.plan_tier = ? AND c.is_active = 1 AND t.status IN ('open', 'in_progress') AND t.created_at < ?",
-    ).bind(player.user_id, DEDICATED_TIER, now - DED.sla_hours * 3600).all<{ id: number }>()).results ?? []).map((r) => r.id));
+      `WHERE t.player_id = ? AND c.plan_tier IN ${BIG_TIERS_SQL} AND c.is_active = 1 AND t.status IN ('open', 'in_progress') AND t.created_at < ?`,
+    ).bind(player.user_id, now - DED.sla_hours * 3600).all<{ id: number }>()).results ?? []).map((r) => r.id));
     for (const c of [...dedCustomers]) {
       const breached = stale.has(c.id);
       if (breached) {
@@ -361,11 +365,12 @@ export async function tickPlayer(
     for (const c of rows) {
       if (isDedicatedCustomer(c.plan_tier)) { if (dedIds.has(c.id)) cnt.dedicated++; } else if (c.plan_tier === 'business') cnt.business++; else cnt.hobby++;
     }
-    slowRatio = slowdownRatio(trafficUnits(NR, cnt), bandwidthUnits(NR, net));
+    // 2026-11-13 (végjáték): az edge POP-ok a forgalom egy részét helyben szolgálják ki (+sávszélesség).
+    slowRatio = slowdownRatio(trafficUnits(NR, cnt), bandwidthUnits(NR, { ...net, edge_units: edgeUnits(fleet) }));
     if (slowRatio > 0 && halfDayTurn) {
       await db.prepare(
-        'UPDATE customers SET satisfaction = MAX(-100, satisfaction - ?) WHERE player_id = ? AND is_active = 1 AND plan_tier != ?',
-      ).bind(NR.slowdown.sat_step, player.user_id, DEDICATED_TIER).run();
+        `UPDATE customers SET satisfaction = MAX(-100, satisfaction - ?) WHERE player_id = ? AND is_active = 1 AND plan_tier NOT IN ${BIG_TIERS_SQL}`,
+      ).bind(NR.slowdown.sat_step, player.user_id).run();
     }
   }
 
@@ -375,14 +380,14 @@ export async function tickPlayer(
     const cap = staff.reduce((a, m) => a + supportShare(SR, m, now), 0);
     const queueRow = await db.prepare(
       "SELECT COUNT(*) AS n FROM tickets t JOIN customers c ON c.id = t.customer_id WHERE t.player_id = ? AND t.status = 'open' " +
-      'AND c.is_active = 1 AND c.plan_tier != ? AND c.satisfaction >= ?',
-    ).bind(player.user_id, DEDICATED_TIER, SR.support_min_sat).first<{ n: number }>();
+      `AND c.is_active = 1 AND c.plan_tier NOT IN ${BIG_TIERS_SQL} AND c.satisfaction >= ?`,
+    ).bind(player.user_id, SR.support_min_sat).first<{ n: number }>();
     const queueBefore = queueRow?.n ?? 0;
     if (cap > 0 && queueBefore > 0) {
       const pick = (await db.prepare(
         "SELECT t.id, t.customer_id, c.satisfaction FROM tickets t JOIN customers c ON c.id = t.customer_id WHERE t.player_id = ? AND t.status = 'open' " +
-        'AND c.is_active = 1 AND c.plan_tier != ? AND c.satisfaction >= ? ORDER BY t.created_at ASC, t.id ASC LIMIT ?',
-      ).bind(player.user_id, DEDICATED_TIER, SR.support_min_sat, cap).all<{ id: number; customer_id: number; satisfaction: number }>()).results ?? [];
+        `AND c.is_active = 1 AND c.plan_tier NOT IN ${BIG_TIERS_SQL} AND c.satisfaction >= ? ORDER BY t.created_at ASC, t.id ASC LIMIT ?`,
+      ).bind(player.user_id, SR.support_min_sat, cap).all<{ id: number; customer_id: number; satisfaction: number }>()).results ?? [];
       const sat = new Map<number, number>();
       for (const t of pick) {
         const before = sat.get(t.customer_id) ?? t.satisfaction;
@@ -461,8 +466,8 @@ export async function tickPlayer(
   if (ECONOMY.capacity_limit && ECONOMY.overload && overloadRatio(generalNow, capacityNow) > 0 && halfDayTurn) {
     // Túlterhelés: 12 óránként −sat_step elégedettség minden aktív sima ügyfélnek (lassú oldalak, kiesések).
     await db.prepare(
-      'UPDATE customers SET satisfaction = MAX(-100, satisfaction - ?) WHERE player_id = ? AND is_active = 1 AND plan_tier != ?',
-    ).bind(ECONOMY.overload.sat_step, player.user_id, DEDICATED_TIER).run();
+      `UPDATE customers SET satisfaction = MAX(-100, satisfaction - ?) WHERE player_id = ? AND is_active = 1 AND plan_tier NOT IN ${BIG_TIERS_SQL}`,
+    ).bind(ECONOMY.overload.sat_step, player.user_id).run();
   }
   for (const c of customers.results ?? []) {
     const isDed = isDedicatedCustomer(c.plan_tier);
@@ -587,7 +592,7 @@ export async function tickPlayer(
     "  COALESCE(SUM(CASE WHEN plan_tier = 'hobby' THEN ? " +
     "                    WHEN plan_tier = 'business' THEN ? " +
     "                    ELSE 0 END), 0) AS mrr " +
-    "FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier != 'dedicated'",
+    `FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier NOT IN ${BIG_TIERS_SQL}`,
   ).bind(
     player.pricing_hobby_cents,
     player.pricing_business_cents,
@@ -595,7 +600,7 @@ export async function tickPlayer(
   ).first<{ mrr: number }>();
   // A fejlesztések mrr_pct-je (pl. PostgreSQL-kiegészítő) ügyfelenként több bevételt hoz.
   // A dedikált ügyfél szerződéses díja fix (az azonosítójából, dedicated.ts) — a fejlesztés nem emeli.
-  const dedMrr = DED ? dedCustomers.reduce((a, c) => a + dedicatedFeeCents(DED, c.id), 0) : 0;
+  const dedMrr = DED ? dedCustomers.reduce((a, c) => a + bigClientFeeCents(ECONOMY, c.id, c.plan_tier), 0) : 0;
   const newMrr = Math.round((mrrRow?.mrr ?? 0) * (ECONOMY.upgrade_effects ? 1 + eff.mrr_pct / 100 : 1)) + dedMrr;
   if (newMrr !== player.mrr_usd_cents) {
     await db.prepare(
@@ -678,16 +683,24 @@ export async function tickPlayer(
           free_boxes: free, reputation: player.reputation, now, last_lost_at: lastLost?.t ?? null,
         });
         if (pArr > 0 && Math.random() < pArr) {
-          const client = pickDedicatedClient();
+          // 2026-11-13 (végjáték): a 4. korszakban, globális jelenléttel (felhőrégió + edge POP-ok) és elég
+          // hírnévvel a szabad gépre nagyvállalat jön — ugyanaz a gondozás, nagyobb szerződés (dedicated.ts).
+          const enterprise = enterpriseEligible(ECONOMY.enterprise, {
+            era: player.current_era, reputation: player.reputation,
+            cloud_regions: fleet.filter((sv) => sv.type === 'cloud_region').length,
+            edge_pops: fleet.filter((sv) => sv.type === 'edge_pop').length,
+          });
+          const tierNew = enterprise ? ENTERPRISE_TIER : DEDICATED_TIER;
+          const client = pickDedicatedClient(Math.random, enterprise);
           const ins = await db.prepare(
             'INSERT INTO customers (player_id, name, persona_archetype, plan_tier, joined_at, satisfaction) ' +
             'VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
-          ).bind(player.user_id, client.name, client.archetype, DEDICATED_TIER, now, DED.start_sat).first<{ id: number }>();
-          const fee = ins ? dedicatedFeeCents(DED, ins.id) : DED.fee_min_cents;
+          ).bind(player.user_id, client.name, client.archetype, tierNew, now, DED.start_sat).first<{ id: number }>();
+          const fee = ins ? bigClientFeeCents(ECONOMY, ins.id, tierNew) : DED.fee_min_cents;
           await db.prepare(
             'INSERT INTO events (player_id, event_type, data_json, spawned_at, outcome, resolved_at) ' +
             "VALUES (?, 'dedicated_signed', ?, ?, 'positive', ?)",
-          ).bind(player.user_id, JSON.stringify({ customer_name: client.name, fee_cents: fee }), now, now).run();
+          ).bind(player.user_id, JSON.stringify({ customer_name: client.name, fee_cents: fee, ...(enterprise ? { enterprise: true } : {}) }), now, now).run();
           // Az MRR azonnal tartalmazza (különben a következő tickig hiányozna).
           await db.prepare('UPDATE players SET mrr_usd_cents = mrr_usd_cents + ? WHERE user_id = ?').bind(fee, player.user_id).run();
           dedSigned = 1;
@@ -800,6 +813,25 @@ export async function tickPlayer(
     console.error('maybeAdvanceEra failed', e);
   }
 
+  // 8.5. Végcél (2026-11-13, végjáték): félnaponta a csúcs-MRR (a záróképernyőhöz), és ha a cél most teljesül,
+  //      egyszer a befejezés (endgame.ts). A nagy ügyfelek díja a célhoz sem számít. Best-effort.
+  let gameCompleted = false;
+  try {
+    if (halfDayTurn || player.current_era >= GOAL.era) {
+      const fresh = await db.prepare('SELECT user_id, founded_at, current_era, reputation, mrr_usd_cents FROM players WHERE user_id = ?')
+        .bind(player.user_id).first<{ user_id: string; founded_at: number; current_era: number; reputation: number; mrr_usd_cents: number }>();
+      if (fresh) {
+        if (halfDayTurn) await recordMrrPeak(db, fresh.user_id, fresh.mrr_usd_cents, now);
+        if (fresh.current_era >= GOAL.era) {
+          gameCompleted = await maybeCompleteGame(db, fresh, eraMrrCents(fresh.mrr_usd_cents, await dedicatedMrrCents(db, fresh.user_id)), now);
+        }
+      }
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('endgame check failed', (e as Error)?.message);
+  }
+
   // 9. Achievementek a tick után (korszak, MRR, ügyfélszám, DDoS-túlélés, mélypont). Best-effort.
   let achievementsUnlocked: string[] = [];
   try {
@@ -842,6 +874,7 @@ export async function tickPlayer(
     network_slow: slowRatio > 0,
     era_advanced_to: eraAdvancedTo,
     achievements_unlocked: achievementsUnlocked,
+    game_completed: gameCompleted,
   };
 }
 

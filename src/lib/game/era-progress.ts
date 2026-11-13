@@ -12,7 +12,7 @@
 import type { D1Database } from '@cloudflare/workers-types/experimental';
 import type { Player, EraId } from './types';
 import { ECONOMY } from './economy';
-import { dedicatedFeeCents, DEDICATED_TIER } from './dedicated';
+import { bigClientFeeCents, BIG_TIERS_SQL } from './dedicated';
 
 export interface EraRequirements {
   era: EraId;
@@ -119,13 +119,12 @@ export function eraMrrCents(totalMrrCents: number, dedicatedFeesCents: number): 
   return Math.max(0, totalMrrCents - Math.max(0, dedicatedFeesCents));
 }
 
-/** Az aktív dedikált ügyfelek díjainak összege (cent). */
+/** Az aktív nagy ügyfelek (dedikált + 2026-11-13 óta nagyvállalati) díjainak összege (cent). */
 export async function dedicatedMrrCents(db: D1Database, playerId: string): Promise<number> {
-  const d = ECONOMY.dedicated;
-  if (!d) return 0;
-  const rows = (await db.prepare('SELECT id FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier = ?')
-    .bind(playerId, DEDICATED_TIER).all<{ id: number }>()).results ?? [];
-  return rows.reduce((a, r) => a + dedicatedFeeCents(d, r.id), 0);
+  if (!ECONOMY.dedicated) return 0;
+  const rows = (await db.prepare(`SELECT id, plan_tier FROM customers WHERE player_id = ? AND is_active = 1 AND plan_tier IN ${BIG_TIERS_SQL}`)
+    .bind(playerId).all<{ id: number; plan_tier: string }>()).results ?? [];
+  return rows.reduce((a, r) => a + bigClientFeeCents(ECONOMY, r.id, r.plan_tier), 0);
 }
 
 /**

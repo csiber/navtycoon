@@ -46,6 +46,8 @@ const SERVER_NAMES: Record<string, Record<PlayLocale, string>> = {
   rack_unit: { en: '1U Rack Server', hu: '1U rack-szerver', de: '1U-Rackserver' },
   vps_node: { en: 'VPS Node', hu: 'VPS-csomópont', de: 'VPS-Knoten' },
   dedicated_box: { en: 'Dedicated Box', hu: 'Dedikált gép', de: 'Dedizierter Server' },
+  cloud_region: { en: 'Cloud Region', hu: 'Felhőrégió', de: 'Cloud-Region' },
+  edge_pop: { en: 'Edge POP', hu: 'Edge POP', de: 'Edge-POP' },
 };
 
 const L = {
@@ -62,6 +64,9 @@ const L = {
     era_unlock: '🎉 Era {n} unlocked{name}.',
     dedicated_signed: '🏢 A big client signed for your dedicated box: {who}, {v}/mo. They expect fast, real answers.',
     dedicated_lost: '🏢 {who} cancelled the dedicated contract ({why}). Reputation −{rep}; no new big client for {days} days.',
+    enterprise_signed: '🌐 Enterprise contract signed: {who}, {v}/mo on your dedicated box. Same care as any big client — just more at stake.',
+    enterprise_lost: '🌐 {who} ended the enterprise contract ({why}). Reputation −{rep}; no new big client for {days} days.',
+    game_completed: '🏆 Goal reached in {days} days: you are a Hyperscaler! The finale is waiting — and the game goes on.',
     ded_why_unhappy: 'unhappy with the support',
     ded_why_sla: 'unanswered tickets',
     ded_why_sold: 'the box was sold',
@@ -104,6 +109,9 @@ const L = {
     era_unlock: '🎉 Megnyílt a(z) {n}. korszak{name}.',
     dedicated_signed: '🏢 Nagy ügyfél bérli a dedikált gépedet: {who}, {v}/hó. Gyors, érdemi választ vár.',
     dedicated_lost: '🏢 {who} felmondta a dedikált szerződést ({why}). Hírnév −{rep}; {days} napig nem jön új nagy ügyfél.',
+    enterprise_signed: '🌐 Nagyvállalati szerződés: {who}, {v}/hó a dedikált gépeden. Ugyanaz a gondoskodás kell, mint minden nagy ügyfélnek — csak több a tét.',
+    enterprise_lost: '🌐 {who} felmondta a nagyvállalati szerződést ({why}). Hírnév −{rep}; {days} napig nem jön új nagy ügyfél.',
+    game_completed: '🏆 {days} nap alatt elérted a végcélt: Hyperscaler lettél! Vár a záróképernyő — és a játék megy tovább.',
     ded_why_unhappy: 'elégedetlen a támogatással',
     ded_why_sla: 'megválaszolatlan ticketek',
     ded_why_sold: 'eladtuk a gépét',
@@ -146,6 +154,9 @@ const L = {
     era_unlock: '🎉 Ära {n} freigeschaltet{name}.',
     dedicated_signed: '🏢 Ein Großkunde mietet deinen dedizierten Server: {who}, {v}/Monat. Er erwartet schnelle, echte Antworten.',
     dedicated_lost: '🏢 {who} hat den dedizierten Vertrag gekündigt ({why}). Ruf −{rep}; {days} Tage lang kein neuer Großkunde.',
+    enterprise_signed: '🌐 Konzernvertrag unterschrieben: {who}, {v}/Monat auf deinem dedizierten Server. Dieselbe Pflege wie jeder Großkunde — nur mehr auf dem Spiel.',
+    enterprise_lost: '🌐 {who} hat den Konzernvertrag beendet ({why}). Ruf −{rep}; {days} Tage lang kein neuer Großkunde.',
+    game_completed: '🏆 Ziel in {days} Tagen erreicht: Du bist ein Hyperscaler! Das Finale wartet — und das Spiel geht weiter.',
     ded_why_unhappy: 'unzufrieden mit dem Support',
     ded_why_sla: 'unbeantwortete Tickets',
     ded_why_sold: 'der Server wurde verkauft',
@@ -230,15 +241,18 @@ export function eventLine(locale: PlayLocale, ev: FeedEvent): FeedLine {
     }
     case 'dedicated_signed': {
       const c = typeof d.fee_cents === 'number' ? d.fee_cents : 0;
+      if (d.enterprise === true) return { text: fill(t.enterprise_signed, { who, v: '$' + Math.round(c / 100) }), tone: 'good', ico: '🌐', tag: '' };
       return { text: fill(t.dedicated_signed, { who, v: '$' + Math.round(c / 100) }), tone: 'good', ico: '🏢', tag: '' };
     }
     case 'dedicated_lost': {
       const why = d.reason === 'sla' ? t.ded_why_sla : d.reason === 'sold' ? t.ded_why_sold : t.ded_why_unhappy;
       return {
-        text: fill(t.dedicated_lost, { who, why, rep: Number(d.rep_delta) || 0, days: Number(d.cooldown_days) || 0 }),
+        text: fill(d.enterprise === true ? t.enterprise_lost : t.dedicated_lost, { who, why, rep: Number(d.rep_delta) || 0, days: Number(d.cooldown_days) || 0 }),
         tone: 'alert', ico: '!', tag: '',
       };
     }
+    case 'game_completed':
+      return { text: fill(t.game_completed, { days: Number(d.days) || 0 }), tone: 'good', ico: '🏆', tag: '' };
     case 'staff_hired':
     case 'staff_fired':
     case 'staff_quit':
