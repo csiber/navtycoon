@@ -50,9 +50,11 @@ mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d
   (`dedicated.ts enterpriseEligible`). Az események a `dedicated_signed/lost` sorokat használják (`enterprise: true`).
 - **Tempó** (szimulátor, `__tests__/economy-sim-endgame.test.ts`, 365 nap): beszerzési szorzó 3. korszak ×2 → ×4,
   4. ×3 → ×5; a 4. korszak MRR-feltétele $10 000 → $8000. Az 1–2. korszak és így a 3. korszak elérése változatlan.
-  Aktív játékos: célba ér ~150–220 nap alatt (medián ~170); alkalmi: a 3. korszakban ~110 ügyfélnél megáll (napi egy
-  műszak, fejlesztés nélkül) → soha; tétlen: soha. A szimulátor a hosszú futásokhoz gyorsítótárazott darabszámokkal
-  fut (bitre azonos eredmény).
+  6 seed, 365 nap — aktív: 4. korszak a 92–175. napon, célba a 137–233. napon (medián ~150, ≈ 5 hónap); dedikált
+  profil: célba 126–178 (medián ~165); alkalmi (napi egy műszak, fejlesztés nélkül): a 3. korszakban ~100–130 ügyfélnél
+  megáll → soha; csapat nélkül: ~$5,5k MRR-nél megáll → soha; tétlen és „soha nem vesz”: soha. A célba érés után az
+  MRR ~$21k körül beáll (a ticket-kapacitás a plafon) — onnan sandbox. A szimulátor a hosszú futásokhoz
+  gyorsítótárazott darabszámokkal fut (bitre azonos eredmény).
 - **Achievementek** (+5, összesen 23): `first_cloud_region`, `first_edge_pop`, `enterprise_contract`, `hyperscaled`,
   rejtett `speedrun_hyperscaler` (≤ 120 nap). A Hub-definíciót claude-3 tölti be; addig a retry-sor tartja őket.
 - A tick, a műszak és a DO is változott → **a `navtycoon-do` workert újra kell telepíteni.**
