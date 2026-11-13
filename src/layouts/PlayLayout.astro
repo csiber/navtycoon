@@ -1,4 +1,6 @@
 ---
+import { hubFromLocals } from '../lib/aikahub-achi'; // kozmetikai Hub-jogosultságok (cosmetics.ts)
+import playShellJsUrl from '../scripts/play-shell.js?url'; // tartalom-hash-es URL (/_astro/…, immutable): a deploy azonnal érvényes
 import '../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a Vite hash-elt néven adja ki
 import templateCssUrl from '../styles/template.css?url';
 import playShellCssUrl from '../styles/play-shell.css?url'; // tartalom-hash-es URL: a CSS-változás azonnal kimegy
@@ -24,7 +26,7 @@ const user = await getCurrentUser(ctx);
 const db = getDB(ctx);
 const player = user && db ? await getPlayer(db, user.id) : null;
 const locale = await resolveLocale({ request: Astro.request, db, userId: user?.id });
-const shell = user && db && player ? await loadShell(db, player, user, locale) : null;
+const shell = user && db && player ? await loadShell(db, player, user, locale, undefined, { hub: hubFromLocals(Astro.locals) }) : null;
 ---
 <!doctype html>
 <html lang={locale} class="dark">
@@ -51,6 +53,6 @@ const shell = user && db && player ? await loadShell(db, player, user, locale) :
   </div>
   <I18nDashboard />
   <PlayAudio />
-  <script is:inline src="/js/play-shell.js"></script>
+  <script is:inline src={playShellJsUrl}></script>
 </body>
 </html>

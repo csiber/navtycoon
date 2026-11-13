@@ -20,6 +20,9 @@ export interface MountOptions {
   /** Az újonnan megjelent gépek (becsúszó animáció). */
   fresh: Set<number>;
   debug?: boolean;
+  /** AikaHub-kozmetika (2026-11-13): „colo” rack-bőr és „aurora” LED-téma. Csak megjelenés. */
+  skin?: 'colo' | null;
+  led?: 'aurora' | null;
 }
 export interface RackHandle { dispose(): void; stats(): { fps: number; frames: number; cpuMs: number; calls: number; triangles: number } }
 
@@ -27,9 +30,17 @@ const COL = {
   indigo: new Color('#6366f1'), indigo2: new Color('#818cf8'), mint: new Color('#34d399'),
   amber: new Color('#f59e0b'), pink: new Color('#f43f5e'), panel: new Color('#161a2c'),
 };
-const STATE_COL: Record<RackUnit['state'], Color> = {
+const BASE_STATE_COL: Record<RackUnit['state'], Color> = {
   idle: COL.indigo2, ok: COL.mint, warn: COL.amber, hot: COL.pink, down: COL.pink,
 };
+/** „aurora” LED-téma: türkiz / ibolya / rózsaszín; a borostyán (terhelt) és a piros (hiba) jelzés marad. */
+const AURORA_STATE_COL: Record<RackUnit['state'], Color> = {
+  idle: new Color('#a78bfa'), ok: new Color('#22d3ee'), warn: COL.amber, hot: COL.pink, down: COL.pink,
+};
+const AURORA_MID = new Color('#e879f9');
+// A mountRack állítja be (egy oldalon egy rack van); a faceTexture és a villogás is ezt olvassa.
+let STATE_COL = BASE_STATE_COL;
+let MID_COL = COL.indigo2;
 const U_H = 0.2;      // egy rack-egység magassága
 const W = 2.0;        // belső szélesség
 const D = 1.5;        // mélység
@@ -113,6 +124,9 @@ interface UnitObj {
 
 export function mountRack(host: HTMLElement, model: RackModel, opt: MountOptions): RackHandle {
   const L = opt.labels;
+  STATE_COL = opt.led === 'aurora' ? AURORA_STATE_COL : BASE_STATE_COL;
+  MID_COL = opt.led === 'aurora' ? AURORA_MID : COL.indigo2;
+  const colo = opt.skin === 'colo';
   const renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = SRGBColorSpace;
@@ -141,7 +155,8 @@ export function mountRack(host: HTMLElement, model: RackModel, opt: MountOptions
   const track = <T extends { dispose(): void }>(x: T) => { disposables.push(x); return x; };
 
   // Rack-keret: oszlopok, tető, talp, oldalpanelek.
-  const frameMat = track(new MeshStandardMaterial({ color: 0x1a1f33, metalness: 0.7, roughness: 0.38 }));
+  // „colo” bőr: meleg grafit keret, borostyán élfény (colocation-ketrec).
+  const frameMat = track(new MeshStandardMaterial({ color: colo ? 0x3a3024 : 0x1a1f33, metalness: colo ? 0.8 : 0.7, roughness: colo ? 0.32 : 0.38 }));
   const postGeo = track(new BoxGeometry(0.12, rackH + 0.3, 0.12));
   for (const [x, z] of [[-W / 2 - 0.08, D / 2], [W / 2 + 0.08, D / 2], [-W / 2 - 0.08, -D / 2], [W / 2 + 0.08, -D / 2]]) {
     const p = new Mesh(postGeo, frameMat); p.position.set(x, rackH / 2, z); root.add(p);
@@ -149,13 +164,13 @@ export function mountRack(host: HTMLElement, model: RackModel, opt: MountOptions
   const capGeo = track(new BoxGeometry(W + 0.34, 0.12, D + 0.2));
   const top = new Mesh(capGeo, frameMat); top.position.y = rackH + 0.15; root.add(top);
   const bottom = new Mesh(capGeo, frameMat); bottom.position.y = -0.15; root.add(bottom);
-  const sideMat = track(new MeshStandardMaterial({ color: 0x0e1220, metalness: 0.4, roughness: 0.7, transparent: true, opacity: 0.92 }));
+  const sideMat = track(new MeshStandardMaterial({ color: colo ? 0x1c160e : 0x0e1220, metalness: 0.4, roughness: 0.7, transparent: true, opacity: colo ? 0.8 : 0.92 }));
   const sideGeo = track(new BoxGeometry(0.04, rackH + 0.2, D));
   for (const x of [-W / 2 - 0.1, W / 2 + 0.1]) { const s = new Mesh(sideGeo, sideMat); s.position.set(x, rackH / 2, 0); root.add(s); }
   const backGeo = track(new PlaneGeometry(W, rackH));
   const back = new Mesh(backGeo, track(new MeshBasicMaterial({ color: 0x05070c }))); back.position.set(0, rackH / 2, -D / 2 + 0.02); root.add(back);
   // Indigó élfény a keret elején.
-  const edgeMat = track(new MeshBasicMaterial({ color: COL.indigo, transparent: true, opacity: 0.55 }));
+  const edgeMat = track(new MeshBasicMaterial({ color: colo ? COL.amber : COL.indigo, transparent: true, opacity: colo ? 0.7 : 0.55 }));
   const edgeGeo = track(new BoxGeometry(0.02, rackH + 0.2, 0.02));
   for (const x of [-W / 2 - 0.02, W / 2 + 0.02]) { const e = new Mesh(edgeGeo, edgeMat); e.position.set(x, rackH / 2, D / 2 + 0.07); root.add(e); }
 
@@ -191,9 +206,9 @@ export function mountRack(host: HTMLElement, model: RackModel, opt: MountOptions
     const col = STATE_COL[u.state];
     const leds: Mesh[] = []; const halos: Sprite[] = [];
     for (let k = 0; k < 3; k++) {
-      const lm = track(new MeshBasicMaterial({ color: k === 1 ? COL.indigo2 : col }));
+      const lm = track(new MeshBasicMaterial({ color: k === 1 ? MID_COL : col }));
       const led = new Mesh(ledGeo, lm); led.position.set(W / 2 - 0.42 + k * 0.08, 0, face.position.z + 0.012); g.add(led); leds.push(led);
-      const sm = track(new SpriteMaterial({ map: glowTex, color: k === 1 ? COL.indigo2 : col, blending: AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.8 }));
+      const sm = track(new SpriteMaterial({ map: glowTex, color: k === 1 ? MID_COL : col, blending: AdditiveBlending, transparent: true, depthWrite: false, opacity: 0.8 }));
       const halo = new Sprite(sm); halo.scale.setScalar(0.2); halo.position.copy(led.position); halo.position.z += 0.01; g.add(halo); halos.push(halo);
     }
     let glow: Sprite | null = null;
@@ -320,7 +335,7 @@ export function mountRack(host: HTMLElement, model: RackModel, opt: MountOptions
         const on = k === 1 ? 0.9 : (Math.sin((t * hz + k * 0.37) * Math.PI * 2 + u.phase) > (k === 0 ? -0.2 : 0.35) ? 1 : 0.18);
         const lvl = u.unit.state === 'down' && k !== 1 ? (Math.sin(t * 7.5) > 0 ? 1 : 0.05) : on;
         (u.halos[k].material as SpriteMaterial).opacity = 0.85 * lvl;
-        (u.leds[k].material as MeshBasicMaterial).color.copy(k === 1 ? COL.indigo2 : STATE_COL[u.unit.state]).multiplyScalar(0.35 + 0.65 * lvl);
+        (u.leds[k].material as MeshBasicMaterial).color.copy(k === 1 ? MID_COL : STATE_COL[u.unit.state]).multiplyScalar(0.35 + 0.65 * lvl);
       }
       if (u.glow) {
         (u.glow.material as SpriteMaterial).opacity = 0.22 + 0.22 * (0.5 + 0.5 * Math.sin(t * (u.unit.state === 'down' ? 6 : 2.4)));

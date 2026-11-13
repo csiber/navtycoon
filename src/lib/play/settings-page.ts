@@ -57,7 +57,7 @@ export function renderSettingsContent(d: SettingsData): string {
           <div class="set-prof">
             <div class="crest">${esc(s.initials)}</div>
             <div>
-              <h2>${esc(s.company)} <span class="set-pill">${d.isPro ? 'PRO' : 'FREE'}</span></h2>
+              <h2>${esc(s.company)}</h2>
               <div class="set-meta">${esc(d.emailLabel)}${d.city ? ' · ' + esc(d.city) : ''}</div>
               <div class="set-stats">
                 <span>${esc(pt(L, 'top.cash'))} <b>${esc(usd(s.cashCents))}</b></span>
@@ -89,9 +89,7 @@ export function renderSettingsContent(d: SettingsData): string {
           ${aikahub}
           ${ahErr ? `<p class="set-err">${esc(ahErr)}</p>` : ''}
           <h3 class="set-h3-gap">${esc(pt(L, 'set.sub_title'))}</h3>
-          <p class="set-help">${esc(d.isPro
-            ? pt(L, 'set.pro_on', { until: d.proUntil ?? '—', cap: d.proCap })
-            : pt(L, 'set.free', { cap: d.freeCap }))}</p>
+          <p class="set-help">${esc(pt(L, 'set.limits', { shifts: d.isPro ? 5 : 1, cap: d.isPro ? d.proCap : d.freeCap }))}</p>
         </section>
 
         <section class="panel set-card" id="sound">

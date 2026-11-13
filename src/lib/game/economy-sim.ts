@@ -44,7 +44,7 @@
 import {
   type EconomyRules, TICKS_PER_DAY, TICK_MINUTES, ppcSpendPerTick, acquisitionProb, ticketSpawnProb, churnProb,
   bridgeDue, applyCashDelta, scaleEventCash, isEngaged, serverFeeForTick, effectiveMonthlyFees, applyServerFee,
-  pickServerToSell, overloadTicketFactor, overloadRatio, fleetUtilPct,
+  pickServerToSell, overloadTicketFactor, overloadRatio, fleetUtilPct, eraTicketFactor,
 } from './economy';
 import {
   isDedicatedServer, dedicatedArrivalProb, dedicatedBoxes, dedicatedCloseDelta, dedicatedReplyDelta, feeSteps,
@@ -425,7 +425,8 @@ export function simulate(rules: EconomyRules, profile: ProfileId, opts: SimOptio
 
     // 3. ticketek
     {
-      const ovl = overloadTicketFactor(rules, generalN(), capacity()) * (NR && slowRatio() > 0 ? slowdownTicketFactor(NR, slowRatio()) : 1);
+      const ovl = overloadTicketFactor(rules, generalN(), capacity()) * (NR && slowRatio() > 0 ? slowdownTicketFactor(NR, slowRatio()) : 1)
+        * eraTicketFactor(rules, p.era);
       for (const c of customers) {
         if (!c.active) continue;
         // A dedikált ügyfél saját gépen ül (nincs túlterhelés), de ticket_factor-szor annyi ticketet hoz.

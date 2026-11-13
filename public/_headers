@@ -1,5 +1,7 @@
 # Cloudflare Pages — statikus fejlécek.
 # Az /_astro/ alatti fájlok neve tartalom-hash-t tartalmaz (CSS, fontok, JS): ha változik a tartalom, változik az URL is,
 # ezért ezek nyugodtan gyorsítótárazhatók örökre. (A public/ többi fájlja a CF alapértékével megy ki.)
+# 2026-11-13: a /play keret-szkriptje (src/scripts/play-shell.js, `?url` import) és a landing könyvtárai (gsap, lenis,
+# canvas-confetti) is itt, tartalom-hash-es néven jönnek — egy deploy után azonnal az új változat töltődik be.
 /_astro/*
   Cache-Control: public, max-age=31536000, immutable

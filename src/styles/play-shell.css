@@ -715,3 +715,34 @@ aside[data-shell] .nav-item .badge.warn { background: rgba(245,158,11,.18); colo
 .fin-hints { color: var(--muted); font-size: 13px; margin: 6px 16px 12px 34px; }
 .fin-pre .lk-actions { padding: 0 16px 16px; }
 @media (max-width: 900px) { .fin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fin-stat .v { font-size: 18px; } }
+
+/* ─── AikaHub kozmetikák (2026-11-13, src/lib/play/cosmetics.ts) — csak megjelenés, a szerver dönti el ─── */
+/* company_banner: díszcsík + zászló a cégkártya tetején */
+aside[data-shell] .company-card.has-banner {
+  position: relative; overflow: hidden; padding-top: 30px;
+  border-color: rgba(245,158,11,.45);
+  background: linear-gradient(180deg, rgba(245,158,11,.10), transparent 60%), var(--panel);
+}
+aside[data-shell] .company-card .co-banner {
+  position: absolute; inset: 0 0 auto 0; height: 20px;
+  background: repeating-linear-gradient(135deg, rgba(245,158,11,.85) 0 10px, rgba(99,102,241,.85) 10px 20px);
+  display: flex; align-items: center; justify-content: center;
+}
+aside[data-shell] .company-card .co-banner span {
+  font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+  color: #fff; background: rgba(7,9,15,.72); padding: 1px 8px; border-radius: 3px;
+}
+aside[data-shell] .company-card.has-banner .crest { box-shadow: 0 0 0 2px rgba(245,158,11,.75); }
+
+/* rack_skin_colo: meleg grafit „colo-ketrec” a 2D rack-sorokon */
+.rack-body.skin-colo, .rack-vis.skin-colo {
+  background-image: repeating-linear-gradient(45deg, rgba(245,158,11,.05) 0 2px, transparent 2px 9px);
+  border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(245,158,11,.35);
+}
+.rack-body.skin-colo .u, .rack-vis.skin-colo .u-row { border-color: rgba(245,158,11,.28); background-color: rgba(38,30,18,.55); }
+.rack-body.skin-colo .u .lbl, .rack-vis.skin-colo .u-row .lbl { color: #d6a35c; }
+
+/* rack_led_theme: „aurora” LED-ek (türkiz / ibolya); a borostyán és a piros jelzés változatlan */
+.led-aurora .leds i.g { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+.led-aurora .leds i.g:nth-child(2) { background: #e879f9; box-shadow: 0 0 6px #e879f9; }
+.led-aurora .u[data-state="idle"] .leds i.g, .led-aurora .u-row[data-state="idle"] .leds i.g { background: #a78bfa; box-shadow: 0 0 6px #a78bfa; }

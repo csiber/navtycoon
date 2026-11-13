@@ -1,4 +1,6 @@
 ---
+import { hubFromLocals } from '../../lib/aikahub-achi'; // kozmetikai Hub-jogosultságok (cosmetics.ts)
+import playShellJsUrl from '../../scripts/play-shell.js?url'; // tartalom-hash-es URL (/_astro/…, immutable): a deploy azonnal érvényes
 import '../../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a Vite hash-elt néven adja ki
 import PlayAudio from '../../components/PlayAudio.astro'; // közös hangmotor (src/scripts/audio)
 import templateCssUrl from '../../styles/template.css?url';
@@ -276,7 +278,7 @@ const pageHtml = `
 `;
 // Közös keret (oldalsáv + felső sáv) valós adatból, a játékos nyelvén — src/lib/play/shell.ts
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
-const shell = await loadShell(db, player, user, locale);
+const shell = await loadShell(db, player, user, locale, undefined, { hub: hubFromLocals(Astro.locals) });
 const shellHtml = applyShell(localizeHtml(pageHtml, locale, MARKETING_TR), shell, 'marketing', [pt(locale, 'nav.marketing')]);
 const msT = { saving: pt(locale, 'set.saving'), saved: pt(locale, 'ms.saved'), error: pt(locale, 'toast.error', { msg: '{msg}' }), perDay: pt(locale, 'ms.per_day'), zero: pt(locale, 'ms.zero'), welcome: pt(locale, 'ms.welcome'), ppcCost: pt(locale, 'ms.ppc_cost'), ppcOff: pt(locale, 'ms.ppc_off') };
 ---
@@ -364,7 +366,6 @@ const msT = { saving: pt(locale, 'set.saving'), saved: pt(locale, 'ms.saved'), e
         }
       }
       const tags = [];
-      if (s.isPro) tags.push('Pro 2×');
       if (welcomeFactor > 1) tags.push(MS.welcome);
       if (tags.length > 0) text += ' (' + tags.join(', ') + ')';
       previewEl.textContent = text;
@@ -431,6 +432,6 @@ const msT = { saving: pt(locale, 'set.saving'), saved: pt(locale, 'ms.saved'), e
 <I18nDashboard />
 <DashboardAnims />
 <PlayAudio />
-<script is:inline src="/js/play-shell.js"></script>
+<script is:inline src={playShellJsUrl}></script>
 </body>
 </html>

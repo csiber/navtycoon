@@ -7,7 +7,7 @@ import type { RackModel } from '../../lib/play/rack-model';
 import type { RackHandle } from './rack3d';
 import './rack3d.css';
 
-interface RackBoot { model: RackModel; labels: Record<string, string>; page: 'dashboard' | 'servers' }
+interface RackBoot { model: RackModel; labels: Record<string, string>; page: 'dashboard' | 'servers'; cosmetics?: { skin?: string | null; led?: string | null } }
 
 const SEEN_KEY = 'hs_rack_seen';
 
@@ -73,7 +73,11 @@ async function boot() {
       // Előbb látható legyen a tartó, hogy az első képkocka már a valódi méretre illesszen.
       host!.hidden = false;
       panel!.classList.add('rack3d-on');
-      handle = mountRack(host!, data.model, { labels: data.labels, onOpen, fresh, debug: q === 'debug' });
+      handle = mountRack(host!, data.model, {
+        labels: data.labels, onOpen, fresh, debug: q === 'debug',
+        // AikaHub-kozmetika: a szerver adja (cosmetics.ts), itt csak a két ismert érték számít.
+        skin: data.cosmetics?.skin === 'colo' ? 'colo' : null, led: data.cosmetics?.led === 'aurora' ? 'aurora' : null,
+      });
       (window as unknown as { __rack3d?: RackHandle }).__rack3d = handle;
       host!.querySelector('canvas')?.addEventListener('webglcontextlost', () => off(false), { once: true });
     } catch (e) {

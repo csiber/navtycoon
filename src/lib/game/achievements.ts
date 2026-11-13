@@ -180,8 +180,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hidden: true,
     check: (i) => i.comeback === true,
   },
-  // 2026-11-13 (végjáték, Csaba jóváhagyásával): a 3–4. korszak és a befejezés. A Hub-definíciót claude-3 tölti be;
-  // addig a retry-sor (aikahub-achi.ts, 404 → újrapróbál) tartja őket.
+  // 2026-11-13 (végjáték, Csaba jóváhagyásával): a 3–4. korszak és a befejezés. A Hub-definíció és az ikonok élnek.
   {
     id: 'first_cloud_region',
     title: 'Multi-AZ',

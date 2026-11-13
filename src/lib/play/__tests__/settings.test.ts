@@ -34,4 +34,16 @@ describe('settings actions', () => {
     expect(src).not.toMatch(/\/Reset save\|Mentés törlése\/\.test/);
     for (const a of SETTINGS_ACTIONS) expect(src).toContain(`'${a}'`);
   });
+  // 2026-11-13: fizetős csomag nem lesz — a beállításokban nincs Pro-/Free-szöveg, a napi keret tényként látszik.
+  for (const locale of ['en', 'hu', 'de'] as const) {
+    it(`no Pro / Free tier wording, plain daily limits in ${locale}`, () => {
+      const html = renderSettingsContent({
+        shell: shell(locale), displayName: 'T', emailLabel: 't@example.com', city: null, preferredLang: locale,
+        isPro: false, proUntil: null, llmUsed: 0, llmCap: 30, shiftsToday: 0, freeCap: 30, proCap: 100,
+        aikahub: null, aikahubCsrf: 'x', aikahubError: null,
+      });
+      expect(html).not.toMatch(/\bPro\b|\bPRO\b|\bFREE\b|set-pill/);
+      expect(html).toMatch(/\b30\b/);
+    });
+  }
 });

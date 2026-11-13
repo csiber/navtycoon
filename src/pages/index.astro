@@ -457,8 +457,7 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
     })();
   </script>
 
-  <!-- ─── Confetti library (canvas-confetti, MIT) ─── -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <!-- canvas-confetti (ISC): saját kiszolgálásból, lásd lent a „Cinematic scroll” könyvtár-szkriptet. -->
 
   <!-- ─── Idle pulse on era + feature images ─── -->
   <style is:global>
@@ -557,14 +556,20 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
   });
 </script>
 
-<!-- ─── Cinematic scroll: GSAP + ScrollTrigger + Lenis ─── -->
-<!-- GSAP is free for everyone since 2024 (Webflow acquisition). -->
-<!-- is:inline is REQUIRED — without it Astro bundles these as ES modules
-     and the UMD bundles fail with "Cannot set property window" because
-     they're loaded in strict-module scope. -->
-<script is:inline src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-<script is:inline src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-<script is:inline src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
+<!-- ─── Cinematic scroll: GSAP + ScrollTrigger + Lenis (+ canvas-confetti) ─── -->
+<!-- 2026-11-13: saját kiszolgálásból (npm, pontos verzió, a Vite tartalom-hash-es /_astro/ csomagjában) — korábban a
+     egy külső CDN-ről jöttek (harmadik fél, GDPR). Licencek: gsap = GSAP Standard „no charge” License (Webflow; ingyenes,
+     kereskedelmi célra is; a szerzői megjegyzések maradnak), lenis = MIT, canvas-confetti = ISC (README). A modul a
+     dokumentum beolvasása után fut, ezért globálisra teszi a könyvtárakat, és a `hs:libs` eseménnyel szól a lenti
+     inline szkriptnek. -->
+<script>
+  import { gsap } from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+  import Lenis from 'lenis';
+  import confetti from 'canvas-confetti';
+  Object.assign(window, { gsap, ScrollTrigger, Lenis, confetti });
+  window.dispatchEvent(new Event('hs:libs'));
+</script>
 <style is:global>
   /* Off-screen reveal start positions (persona cards slide in from x:±120px) must not widen the page:
      on a 390px phone the document was 494px wide and scrolled sideways. `clip` (unlike `hidden`)
@@ -630,7 +635,11 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
 <div id="year-ticker">1</div>
 <div id="mouse-spotlight"></div>
 <script is:inline>
-  (function () {
+  // A könyvtárak (gsap, ScrollTrigger, Lenis) a fenti modulból jönnek; ha még nincsenek meg, a `hs:libs` eseményre indul.
+  (function (run) {
+    if (typeof gsap !== 'undefined') run();
+    else window.addEventListener('hs:libs', run, { once: true });
+  })(function () {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduceMotion) return;
     if (typeof gsap === 'undefined' || typeof ScrollTrigger === 'undefined') return;
@@ -645,7 +654,6 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
         duration: 1.15,
         easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
         smoothWheel: true,
-        smoothTouch: false,
       });
       lenis.on('scroll', ScrollTrigger.update);
       gsap.ticker.add((time) => lenis.raf(time * 1000));
@@ -913,7 +921,7 @@ const pageHtml = "\n\n<!-- ───── Nav ───── -->\n<nav class=\
       });
     };
     setTimeout(forceShow, 3500);
-  })();
+  });
 </script>
 
 <!-- ─── PWA install pill (beforeinstallprompt) ─── -->

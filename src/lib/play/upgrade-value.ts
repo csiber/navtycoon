@@ -4,7 +4,7 @@
 // számol, mint a tick (economy.ts, upgrade-effects.ts), csak várható értékkel, véletlen nélkül.
 
 import {
-  ECONOMY, TICKS_PER_DAY, acquisitionProb, ticketSpawnProb, ppcSpendPerTick, type EconomyRules,
+  ECONOMY, TICKS_PER_DAY, acquisitionProb, ticketSpawnProb, eraTicketFactor, ppcSpendPerTick, type EconomyRules,
 } from '../game/economy';
 import { getDailyCap } from '../game/llm-cap';
 import { serverCapacity } from '../game/server-types';
@@ -51,7 +51,8 @@ function valueLine(L: PlayLocale, key: EffectKey, v: number, c: UpgradeValueCtx,
     }
     case 'ticket_pct': {
       if (n === 0) return null;
-      const perWeek = c.satisfactions.reduce((a, sat) => a + ticketSpawnProb({ ...rules, upgrade_effects: false }, sat), 0) * TICKS_PER_DAY * 7;
+      const perWeek = c.satisfactions.reduce((a, sat) => a + ticketSpawnProb({ ...rules, upgrade_effects: false }, sat), 0) * TICKS_PER_DAY * 7
+        * eraTicketFactor(rules, c.player.current_era);
       return pt(L, 'now.ticket_pct', { n: round1((perWeek * Math.abs(v)) / 100) });
     }
     case 'churn_pct': {

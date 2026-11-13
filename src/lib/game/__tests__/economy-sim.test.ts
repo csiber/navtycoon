@@ -296,15 +296,22 @@ describe('v3 team and network (2026-11-12, csapat- és hálózat-kör)', () => {
   it('a good team makes the active player measurably better than never hiring anyone', T, () => {
     const team = runs('active');
     const none = runs('no_staff');
-    expect(mean(team.map(mrrMonth3))).toBeGreaterThan(1.15 * mean(none.map(mrrMonth3)));
-    expect(median(team.map(mrr90))).toBeGreaterThan(median(none.map(mrr90)));
+    // 2026-11-13 (lezárás): a 3. korszakban a sima ügyfelek ticketje ×0,12 (era_ticket_factor) — ott az ügyfélszolgálat
+    // már kevésbé számít, ezért a csapat-kör mércéje a ticket-szorzó nélküli szabály (a 2. korszak változatlan);
+    // az élő szabállyal a csapat nem rosszabb, mint a csapat nélküli játék.
+    const NO_ERA_TF: EconomyRules = { ...LIVE, era_ticket_factor: undefined };
+    const teamPre = S10.map((seed) => simulate(NO_ERA_TF, 'active', { days: 90, seed }));
+    const nonePre = S10.map((seed) => simulate(NO_ERA_TF, 'no_staff', { days: 90, seed }));
+    expect(mean(teamPre.map(mrrMonth3))).toBeGreaterThan(1.15 * mean(nonePre.map(mrrMonth3)));
+    expect(median(teamPre.map(mrr90))).toBeGreaterThan(median(nonePre.map(mrr90)));
+    expect(mean(team.map(mrrMonth3))).toBeGreaterThan(0.9 * mean(none.map(mrrMonth3)));
     for (const r of team) {
       expect(r.min_cash_cents).toBeGreaterThanOrEqual(0);
       expect(r.sold_total).toBe(0);
       expect(r.staff_cut_debt).toBe(0);
     }
-    expect(mean(team.map((r) => r.staff_hired))).toBeGreaterThanOrEqual(1.5);
-    expect(mean(team.map((r) => r.support_resolved))).toBeGreaterThan(20);
+    expect(mean(teamPre.map((r) => r.staff_hired))).toBeGreaterThanOrEqual(1.5);
+    expect(mean(teamPre.map((r) => r.support_resolved))).toBeGreaterThan(20);
     // a csapat a korlátokon belül marad
     for (const r of team) for (const d of r.days) expect(d.staff).toBeLessThanOrEqual(d.era >= 3 ? 6 : d.era >= 2 ? 3 : 0);
     // a jó csapatépítő bérei az MRR kis részét viszik

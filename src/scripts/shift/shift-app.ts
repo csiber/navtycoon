@@ -334,6 +334,23 @@ function onMessage(m: { type: string; [k: string]: unknown }) {
 
 // ─── result screen ───
 const STAR = 'M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z';
+/** A frissen feloldott, az oldalba nem ágyazott (rejtett) achievementek neve a szervertől (GET /api/game/achievements). */
+async function fillUnlockedNames(items: Array<{ id: string; title: HTMLElement; desc: HTMLElement; emo: HTMLElement }>): Promise<void> {
+  type Row = { id: string; title_local?: string; desc_local?: string; title?: string; description?: string; emoji?: string };
+  let rows: Row[] = [];
+  try {
+    const r = await fetch('/api/game/achievements', { credentials: 'same-origin' });
+    if (r.ok) rows = ((await r.json()) as { achievements?: Row[] }).achievements ?? [];
+  } catch { /* csend: a „…” marad */ }
+  for (const it of items) {
+    const a = rows.find((x) => x.id === it.id);
+    // textContent: a szöveg soha nem HTML
+    it.title.textContent = a?.title_local || a?.title || it.id.replace(/[_-]+/g, ' ');
+    it.desc.textContent = a?.desc_local || a?.description || '';
+    if (a?.emoji) it.emo.textContent = a.emoji;
+  }
+}
+
 function showEnd(sum: EndSummary, unlocked: string[]) {
   if (document.querySelector('.sx-result')) return;
   ended = true;
@@ -374,14 +391,21 @@ function showEnd(sum: EndSummary, unlocked: string[]) {
   cell(tr('sx.res.rep'), signed(rep), rep > 0 ? 'good' : rep < 0 ? 'bad' : '');
   card.appendChild(grid);
 
+  const missing: Array<{ id: string; title: HTMLElement; desc: HTMLElement; emo: HTMLElement }> = [];
   for (const id of unlocked) {
     const a = L.achievements?.[id];
     const b = el('div', 'sx-badge');
     const txt = el('div');
-    txt.append(el('div', 'l', tr('sx.res.badge')), el('b', '', a?.title ?? id.replace(/[_-]+/g, ' ')), el('span', '', a?.desc ?? ''));
-    b.append(el('div', 'e', a?.emoji ?? '🏅'), txt);
+    const title = el('b', '', a?.title ?? '…');
+    const desc = el('span', '', a?.desc ?? '');
+    const emo = el('div', 'e', a?.emoji ?? '🏅');
+    txt.append(el('div', 'l', tr('sx.res.badge')), title, desc);
+    b.append(emo, txt);
     card.appendChild(b);
+    if (!a) missing.push({ id, title, desc, emo });
   }
+  // A rejtett achievement neve nincs az oldalban (achievementMap): a feloldás után a szervertől kérjük le.
+  if (missing.length > 0) void fillUnlockedNames(missing);
   card.appendChild(el('div', 'sx-tip', tr(`sx.tip.${sum.tip ?? 'great'}`)));
   const next = el('div', 'sx-next');
   const left = BOOT.shiftsLeft ?? 0;

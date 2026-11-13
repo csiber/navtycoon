@@ -1,4 +1,6 @@
 ---
+import { hubFromLocals } from '../../lib/aikahub-achi'; // kozmetikai Hub-jogosultságok (cosmetics.ts)
+import playShellJsUrl from '../../scripts/play-shell.js?url'; // tartalom-hash-es URL (/_astro/…, immutable): a deploy azonnal érvényes
 import '../../styles/fonts.css'; // saját kiszolgálású webfontok (GDPR), a Vite hash-elt néven adja ki
 import PlayAudio from '../../components/PlayAudio.astro'; // közös hangmotor (src/scripts/audio)
 import templateCssUrl from '../../styles/template.css?url';
@@ -26,7 +28,7 @@ const player = await getPlayer(db, user.id);
 if (!player) return Astro.redirect('/play');
 
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
-const shell = await loadShell(db, player, user, locale);
+const shell = await loadShell(db, player, user, locale, undefined, { hub: hubFromLocals(Astro.locals) });
 const n = async (sql: string, ...a: unknown[]): Promise<number> => (await db.prepare(sql).bind(...a).first<{ n: number }>())?.n ?? 0;
 const done = shell.completed ?? null;
 const stats: FinaleStats = {
@@ -66,6 +68,6 @@ const clientData = finaleClientData(shell, stats, shareUrl);
 <script type="application/json" id="fin-data" set:html={jsonForScript(clientData)}></script>
 <script is:inline set:html={FINALE_CLIENT_JS}></script>
 <PlayAudio />
-<script is:inline src="/js/play-shell.js"></script>
+<script is:inline src={playShellJsUrl}></script>
 </body>
 </html>

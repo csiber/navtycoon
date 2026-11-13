@@ -25,16 +25,44 @@ Tesztek: CT120, `npx vitest run`.
 A `@hyperscales.app` címekre (hello/privacy/legal/abuse) érkező levelek továbbítva (Cloudflare Email Routing),
 a 15 árva `players`-sor (a PromNET-korszak törölt fiókjai) törölve.
 
-### Nyitott pontok
+### Lezárási kör (ág: lezaras, 2026-11-13) — a nyitott pontok lezárva
 
-- TODO: a végjáték-achievementek (+5) Hub-definíciója és ikonjai (Csaba / claude-3); addig a retry-sor tartja őket.
-- TODO: az alkalmi játékos (napi egy műszak, fejlesztés nélkül) a 3. korszakban elakad — ha ő is célba érjen,
-  a ticket-kapacitáson kell lazítani.
-- TODO: a kozmetikai Hub-jogosultságok (`rack_skin_colo`, `rack_led_theme`, `company_banner`) hatása nincs bekötve.
-- TODO: a /play `achievementMap` (toastokhoz) a rejtett achievementek nevét is a kliensnek adja (enyhe spoiler).
-- TODO: a `public/js/play-shell.js` a CF alapérték szerinti 4 órás cache-sel megy ki (nem verziózott).
-- TODO: a landing a gsap / lenis / canvas-confetti könyvtárat a jsdelivr CDN-ről tölti (harmadik fél, GDPR).
-- TODO: saját Pro-forrás (most nincs Pro).
+- **Végjáték-achievementek a Hubon**: a +5 achievement Hub-definíciója és ikonja él (AikaHub); a retry-sor átvitte őket.
+  Az AikaHub-profilkeret (`frame:hyperscaler`) felülete is él a Hub oldalán (AikaHub 11.43.0, claude-3).
+- **Kozmetikai Hub-jogosultságok bekötve** (`src/lib/play/cosmetics.ts`): `rack_skin_colo` → „colo” rack-bőr (meleg
+  grafit keret, borostyán élfény a 3D racken, borostyán ketrec-szegély a 2D rack-sorokon: vezérlő + Szerverek lap);
+  `rack_led_theme` → „aurora” LED-téma (türkiz / ibolya / rózsaszín; a borostyán és a piros jelzés változatlan);
+  `company_banner` → cégzászló a cégkártyán (oldalsáv, minden /play oldalon). A szerver dönti el
+  (`loadShell(…, { hub })` → `fetchHubEntitlements`, 10 perces gyorsítótár), a kliens csak kész osztályneveket kap;
+  a gazdaságra nincs hatása. Teszt: `src/lib/play/__tests__/cosmetics.test.ts`.
+- **Rejtett achievementek a toast-térképben**: az `achievementMap` a rejtett, még meg nem szerzett achievementet kihagyja;
+  a GET /api/game/achievements a játékos nyelvén adja a nevet (`title_local`, `desc_local`, rejtettnél „???”), a toast és a
+  műszak-zárókép ebből veszi a frissen feloldott rejtett nevét. Teszt: `achievement-map.test.ts`.
+- **`play-shell.js` verziózva**: `src/scripts/play-shell.js`, az oldalak `?url` importtal, tartalom-hash-es `/_astro/…`
+  URL-en töltik be (`public/_headers`: immutable) — deploy után azonnal az új változat jön. A `public/js/` megszűnt.
+- **Landing CDN nélkül**: a gsap (+ ScrollTrigger), a lenis és a canvas-confetti npm-csomagból, a Vite csomagjában
+  (`src/pages/index.astro`), pontos verzióval: `gsap` 3.15.1 — GSAP Standard „no charge” License (Webflow; ingyenes,
+  kereskedelmi célra is; tilos vele vizuális animáció-szerkesztő eszközt építeni, a szerzői megjegyzések maradnak — a
+  csomagban megmaradnak), `lenis` 1.3.27 — MIT, `canvas-confetti` 1.9.4 — ISC. A buildelt `dist`-ben nincs jsdelivr /
+  unpkg / cdnjs hivatkozás (`static-assets.test.ts` a forrást ellenőrzi).
+- **Nincs Pro**: fizetős csomag nem készül (a fizetéshez jogi/ÁSZF-munka kellene). A Pro-szövegek eltűntek (Beállítások:
+  PRO/FREE jelvény és „Pro most nem elérhető” → „Napi keret” tényként; az újraindítás súgója; „upgrade to Pro” a
+  műszaknál; a PromNET-előfizetéses Pro-szövegek; a „Pro 2×” címke; a nyilvános profil PRO-jelvénye) EN/HU/DE-ben.
+  Az `is_pro` / `pro_until` oszlop marad (nincs migráció), a „pro” ügyfél-persona is.
+- **Alkalmi játékos célba ér** (`economy.ts` `era_ticket_factor`, a tick, a szimulátor és a fejlesztés-becslő is használja):
+  a 3–4. korszak sima ügyfelei kevesebb ticketet nyitnak (VPS/felhő: önkiszolgáló vezérlőpult; 4.: edge + menedzselt
+  szolgáltatások) — 3. korszak ×0,12, 4. ×0,04; az 1–2. korszak és a dedikált / nagyvállalati ügyfél változatlan. Csak a
+  ticket-szorzó változott (a szimulátorral keresve; enyhébb értéknél az alkalmi játékos a 3. korszakban a ticketeken
+  ragadt). Szimulátor, 6 seed, 365 nap:
+  - alkalmi: előtte soha (a 3. korszakban ~100–150 ügyfélnél megállt) → most 4/6 célba ér: 252., 253., 307., 316. nap
+    (medián ~316); 2 seed a 365. napig nem (az egyik csak a 196. napon ér a 3. korszakba);
+  - aktív: előtte 137–233 (medián 151) → most 125–247 (medián 158), a 3. korszak elérése változatlan (medián ~75. nap);
+  - villámskálázás (≤ 140 nap): 6-ból 2 seed (125, 136) — továbbra is a gyorsak jutalma;
+  - tétlen és „soha nem vesz”: soha (változatlan).
+  Ára: a késői játékban kevés a ticket (az aktív játékos ~2 ügyfélszolgálatossal is elboldogul, a 90 napos csapat-teszt
+  ezért a ticket-szorzó nélküli szabállyal méri a csapat hasznát); a célba érés után az MRR nem áll be $21k-nál, a
+  sávszélesség lesz a plafon (sandbox: a szimulátor-profil nem bővít tovább, ezért a hírneve ott leesik).
+  Csak a navtycoon-do worker újratelepítése kell (a tick a `src/lib/game/`-ben), migráció nincs.
 
 ## Belépés AikaHub-fiókkal (ág: aikahub-auth)
 
@@ -73,11 +101,12 @@ mindig kér jóváhagyó kattintást). A migrációk helyben/prodon: `wrangler d
   6 seed, 365 nap — aktív: 4. korszak a 92–175. napon, célba a 137–233. napon (medián ~150, ≈ 5 hónap); dedikált
   profil: célba 126–178 (medián ~165); alkalmi (napi egy műszak, fejlesztés nélkül): a 3. korszakban ~100–130 ügyfélnél
   megáll → soha; csapat nélkül: ~$5,5k MRR-nél megáll → soha; tétlen és „soha nem vesz”: soha. A célba érés után az
-  MRR ~$21k körül beáll (a ticket-kapacitás a plafon) — onnan sandbox. A szimulátor a hosszú futásokhoz
+  MRR ~$21k körül beáll (a ticket-kapacitás a plafon) — onnan sandbox. **2026-11-13 (lezárás) óta** a 3–4. korszak
+  ticket-szorzójával (lásd fent, „Lezárási kör”) az alkalmi is célba ér (medián ~316. nap), az aktív medián ~158 nap. A szimulátor a hosszú futásokhoz
   gyorsítótárazott darabszámokkal fut (bitre azonos eredmény).
 - **Achievementek** (+5, összesen 23): `first_cloud_region`, `first_edge_pop`, `enterprise_contract`, `hyperscaled`,
   rejtett `speedrun_hyperscaler` (≤ 140 nap; 2026-11-13-ig 120 volt, de a szimulátorban egy seed
-  sem ért be 120 alatt, a leggyorsabb 126 nap). A Hub-definíciót claude-3 tölti be; addig a retry-sor tartja őket.
+  sem ért be 120 alatt, a leggyorsabb 126 nap). A Hub-definíció és az ikonok élnek (2026-11-13).
 - A tick, a műszak és a DO is változott → **a `navtycoon-do` workert újra kell telepíteni.**
 
 ## Csapat és Hálózat (ág: csapat-halozat, 2026-11-12)

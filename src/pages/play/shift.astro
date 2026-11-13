@@ -33,6 +33,10 @@ const player = await getPlayer(db, user.id);
 if (!player) return Astro.redirect('/play'); // a /play hozza létre a kezdőállást
 
 const locale = await resolveLocale({ request: Astro.request, db, userId: user.id });
+// A rejtett achievement nevét csak megszerzés után kapja meg a kliens (achievementMap); a műszak végén frissen
+// feloldottét a kliens a GET /api/game/achievements-ből kéri le (src/scripts/shift/shift-app.ts).
+const unlockedAchIds = ((await db.prepare('SELECT achievement_id FROM achievements WHERE player_id = ?').bind(user.id)
+  .all<{ achievement_id: string }>()).results ?? []).map((r) => r.achievement_id);
 
 // Ugyanaz a lekérdezés, mint a /api/shift/start-ban ('open' + 'in_progress', legrégebbi elöl, max. 10).
 const waiting = (await db.prepare(`
@@ -66,7 +70,7 @@ const labels = {
   err_could_not_start: t(locale, 'shift.error.could_not_start'),
   err_llm_cap: t(locale, 'shift.error.llm_cap'),
   arch: Object.fromEntries(['newbie', 'pro', 'cheapskate', 'karen', 'loyalist', 'ghost', 'drama', 'crypto'].map((a) => [a, ARCH(a)])),
-  achievements: achievementMap(locale),
+  achievements: achievementMap(locale, unlockedAchIds),
 };
 const boot = { capRemaining, cap, shiftsLeft: Math.max(0, shiftsLeft - 1), resetIn, locale };
 ---

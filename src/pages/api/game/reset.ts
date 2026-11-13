@@ -1,5 +1,5 @@
 // POST /api/game/reset — „Vállalat újraindítása": a cég állása nulláról indul, a fiók marad.
-// A logika a src/lib/game/restart.ts-ben (tesztelt): megmarad a cégnév, a nyelv, a Pro-előfizetés, a mai
+// A logika a src/lib/game/restart.ts-ben (tesztelt): megmarad a cégnév, a nyelv (és a régi is_pro mező), a mai
 // műszak- és AI-keret (llm_usage) és a műszak-történet; ürül: ügyfelek, ticketek, szerverek, események,
 // eredmények, fejlesztések. Utána azonnal van kezdőállás, a /play nem irányít sehova.
 

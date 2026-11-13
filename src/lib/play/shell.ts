@@ -18,6 +18,8 @@ import { LOW_CASH_WARN_CENTS, ECONOMY, FLEET_WARN_PCT, fleetUtilPct } from '../g
 import { effectsOf, type UpgradeEffects } from '../game/upgrade-effects';
 import { serverCapacity, edgeUnits } from '../game/server-types';
 import { pt, clientStrings, type PlayLocale, type PlayKey } from './strings';
+import { loadCosmetics, NO_COSMETICS, type Cosmetics } from './cosmetics';
+import type { HubCtx } from '../aikahub-achi';
 import { type StaffMember, loadStaff, totalSalaryCents, maxStaff, supportPerDay } from '../game/staff';
 import {
   type NetworkState, NO_NETWORK, loadNetwork, networkActive, networkMonthlyCents, bandwidthUnits, trafficUnits,
@@ -97,6 +99,8 @@ export interface ShellData {
   /** A birtokolt fejlesztések összesített hatása. */
   effects: UpgradeEffects;
   team: TeamInfo;
+  /** 2026-11-13: az AikaHub kozmetikai jogosultságai (cosmetics.ts) — szerveroldalon eldöntve, csak megjelenés. */
+  cosmetics?: Cosmetics;
 }
 
 export function initialsOf(name: string): string {
@@ -109,7 +113,11 @@ export async function loadShell(
   user: { display_name?: string | null; email?: string | null },
   locale: PlayLocale,
   now: number = Math.floor(Date.now() / 1000),
+  /** A Hub-környezet (hubFromLocals): a kozmetikai jogosultságokhoz. Nélküle nincs kozmetika. */
+  opts: { hub?: HubCtx | null } = {},
 ): Promise<ShellData> {
+  // A Hub-lekérés (gyorsítótárazott, legfeljebb 5 mp) a többi lekérdezéssel párhuzamosan fut.
+  const cosmeticsP = opts.hub ? loadCosmetics(db as never, opts.hub, player.user_id) : Promise.resolve(NO_COSMETICS);
   const one = async (sql: string, ...args: unknown[]): Promise<number> =>
     (await db.prepare(sql).bind(...args).first<{ n: number }>())?.n ?? 0;
   const uid = player.user_id;
@@ -172,8 +180,10 @@ export async function loadShell(
     networkMonthlyCents: netOn ? networkMonthlyCents(NR, network) : 0,
     slow: netOn && traffic > bandwidth,
   };
+  const cosmetics = await cosmeticsP;
   return {
     team,
+    cosmetics,
     goal,
     completed,
     locale,
@@ -414,7 +424,8 @@ export function renderSidebar(s: ShellData, active: NavId): string {
   return `<aside id="play-nav" data-shell="1">
     <a class="brand" href="/play"><div class="brand-mark"></div>Hyperscales</a>
     <button type="button" class="nav-close" aria-label="${esc(pt(L, 'nav.close_menu'))}">✕</button>
-    <div class="company-card">
+    <div class="company-card${s.cosmetics?.banner ? ' has-banner' : ''}">
+      ${s.cosmetics?.banner ? `<div class="co-banner" title="${esc(pt(L, 'cos.banner_tip'))}"><span>⚑ ${esc(pt(L, 'cos.banner'))}</span></div>` : ''}
       <div class="row">
         <div class="crest">${esc(s.initials)}</div>
         <div>

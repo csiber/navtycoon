@@ -91,10 +91,19 @@ export function achievementDesc(locale: PlayLocale, id: string): string {
 export function achievementEmoji(id: string): string {
   return ACHIEVEMENTS.find((a) => a.id === id)?.emoji ?? '★';
 }
-/** id → {title, desc, emoji} a kliensnek (műszak-lap, toastok). */
-export function achievementMap(locale: PlayLocale): Record<string, { title: string; desc: string; emoji: string }> {
+/**
+ * id → {title, desc, emoji} a kliensnek (műszak-lap, toastok).
+ * A rejtett, még meg nem szerzett achievement KIMARAD (2026-11-13): a nevét és a leírását csak akkor kapja meg a
+ * kliens, amikor a szerver a feloldást visszajelzi (GET /api/game/achievements `title_local`/`desc_local`), így a
+ * forrásból sem olvasható ki előre. `unlocked` = a tag már megszerzett achievementjei.
+ */
+export function achievementMap(locale: PlayLocale, unlocked: Iterable<string> = []): Record<string, { title: string; desc: string; emoji: string }> {
+  const have = new Set(unlocked);
   const out: Record<string, { title: string; desc: string; emoji: string }> = {};
-  for (const a of ACHIEVEMENTS) out[a.id] = { title: achievementTitle(locale, a.id), desc: achievementDesc(locale, a.id), emoji: a.emoji };
+  for (const a of ACHIEVEMENTS) {
+    if (a.hidden && !have.has(a.id)) continue;
+    out[a.id] = { title: achievementTitle(locale, a.id), desc: achievementDesc(locale, a.id), emoji: a.emoji };
+  }
   return out;
 }
 export const ACHIEVEMENT_TRANSLATIONS = TR;

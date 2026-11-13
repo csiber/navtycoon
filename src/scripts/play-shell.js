@@ -1,4 +1,6 @@
 // Hyperscales — közös /play keret kliens-oldala (2026-11-11, UX-javítás 1. fázis).
+// 2026-11-13: src/scripts alatt él, az oldalak `?url` importtal, tartalom-hash-es /_astro/ URL-en töltik be (public/_headers: immutable),
+// így egy deploy azonnal érvényes (korábban /js/play-shell.js a CF alapértelmezett 4 órás cache-ével ment ki).
 //  - mobilmenü (☰ / ✕ / háttér / Esc)
 //  - „Következő nap: … múlva" visszaszámláló a felső sávban
 //  - korszak-doboz nyitott/zárt állapota (localStorage)

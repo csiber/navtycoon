@@ -256,7 +256,7 @@ export async function retryPendingHubSync(db: DbLike, hub: HubCtx): Promise<Sync
 
 // ── Jogosultságok (entitlementek) ──────────────────────────────────
 
-/** A játékon belüli kozmetikai jogosultságok (hyperscales.md). A hatásuk még nincs bekötve (TODO, README). */
+/** A játékon belüli kozmetikai jogosultságok (hyperscales.md). A hatásuk: src/lib/play/cosmetics.ts (2026-11-13). */
 export const ENTITLEMENTS = ['rack_skin_colo', 'rack_led_theme', 'company_banner'] as const;
 export type Entitlement = (typeof ENTITLEMENTS)[number];
 

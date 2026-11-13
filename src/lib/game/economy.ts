@@ -72,6 +72,8 @@ export interface EconomyRules {
   clamp_costs_at_zero: boolean;
   /** Ennyi ticket fér egy műszakba. */
   shift_ticket_limit: number;
+  /** 2026-11-13: korszakonkénti ticket-szorzó a sima (nem dedikált) ügyfelekre; hiányzó korszak = 1. */
+  era_ticket_factor?: Record<number, number>;
   /** true = a lemorzsolódott ügyfél nyitott ticketjei lezárulnak (nem foglalnak helyet a következő műszakban). */
   close_tickets_on_churn: boolean;
   /** Véletlen esemény esélye tickenként. */
@@ -413,6 +415,13 @@ export const ECONOMY: EconomyRules = {
   // 3. korszak elérése sem gyorsul). Régi értékkel a 3. korszakban napi ~4–5 új ügyfél jött: a 4. korszak MRR-feltételéig
   // 120+ nap telt el, az aktív játékos 300 nap alatt sem ért célba (szimulátor, 365 napos futások).
   era_factor: { 1: 1, 2: 1.5, 3: 4, 4: 5 },
+  // 2026-11-13 (lezárás): a 3–4. korszak sima ügyfelei sokkal kevesebb ticketet nyitnak (VPS/felhő: önkiszolgáló
+  // vezérlőpult, dokumentáció; 4.: edge + menedzselt szolgáltatások) — 3.: ×0,12, 4.: ×0,04. Enélkül az alkalmi játékos
+  // (napi egy műszak, egy ügyfélszolgálatos, fejlesztés nélkül) a 3. korszakban ~100–150 ügyfélnél a ticketeken elakadt
+  // (soha nem ért célba). Így 6 seedből 4 célba ér a 252–316. napon (medián ~316); az aktív játékos tempója marad
+  // (medián ~158 nap, ő a beszerzésen és a flottán áll, nem a ticketeken). A dedikált / nagyvállalati ügyfélre nem
+  // vonatkozik. Szimulátor: __tests__/economy-sim-endgame.test.ts.
+  era_ticket_factor: { 3: 0.12, 4: 0.04 },
 };
 
 // ─── v3: szerver-havidíj, kapacitás, tartozás ───
@@ -464,6 +473,11 @@ export function overloadRatio(customers: number, capacity: number): number {
   if (customers <= capacity) return 0;
   if (capacity <= 0) return 1;
   return Math.min(1, (customers - capacity) / capacity);
+}
+
+/** A korszak ticket-szorzója a sima ügyfelekre (era_ticket_factor; 1 = nincs). */
+export function eraTicketFactor(rules: EconomyRules, era: number): number {
+  return rules.era_ticket_factor?.[era] ?? 1;
 }
 
 /** A ticket-esély szorzója a túlterhelésből (1 = nincs). */

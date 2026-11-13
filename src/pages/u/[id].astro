@@ -142,7 +142,6 @@ const pageUrl = `https://hyperscales.app/u/${id}`;
     font-family: var(--mono); font-size: 10px; color: var(--muted);
     text-transform: uppercase; letter-spacing: 0.06em; margin-right: 6px;
   }
-  .pill.pro { background: rgba(245,158,11,.12); color: var(--amber); border-color: rgba(245,158,11,.3); }
   .rank-box {
     margin-top: 24px; padding: 16px 20px;
     background: linear-gradient(135deg, rgba(99,102,241,.18), rgba(34,211,238,.10));
@@ -200,7 +199,6 @@ const pageUrl = `https://hyperscales.app/u/${id}`;
         <div style="margin-top: 6px;">
           <span class="pill">EST {founded}</span>
           <span class="pill">Era {player.current_era} · {eraLabel}</span>
-          {player.is_pro === 1 && <span class="pill pro">PRO</span>}
           {completion && <span class="pill">🏆 {finText}</span>}
         </div>
       </div>

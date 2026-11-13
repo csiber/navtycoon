@@ -17,6 +17,7 @@ import type { EraId } from '../game/types';
 import { rackUnitStates, unit2d } from './rack-model';
 import { localizePlaceholderTicket } from '../game/customer-spawn';
 import { ECONOMY, FLEET_WARN_PCT, fleetUtilPct } from '../game/economy';
+import { rackCosmeticClass } from './cosmetics';
 
 export interface DashCustomer {
   id: number; name: string; satisfaction: number; churn_risk: number; plan_tier: string;
@@ -233,7 +234,7 @@ export function renderDashboardContent(d: DashboardData): string {
             <div class="ph-right"><a class="more" href="/play/servers">${esc(pt(L, 'dash.fleet.open'))}</a><button class="rack3d-toggle" type="button" data-rack3d-toggle hidden aria-pressed="false">3D</button></div>
           </div>
           <div class="rack3d-host" data-rack3d hidden style="--rack3d-h:300px"><span class="rack3d-hint">${esc(pt(L, 'r3.hint'))}</span></div>
-          <div class="rack-body">${rows.join('')}</div>
+          <div class="rack-body${rackCosmeticClass(s.cosmetics)}">${rows.join('')}</div>
           <div class="rack-foot">
             <div class="mini-stat"><div class="k">${esc(pt(L, 'dash.fleet.slots'))}</div><div class="v">${totalCap}</div></div>
             <div class="mini-stat"><div class="k">${esc(pt(L, 'dash.fleet.customers'))}</div><div class="v">${active.length}</div></div>
